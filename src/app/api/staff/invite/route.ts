@@ -27,16 +27,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const resetLink = await adminAuth.generatePasswordResetLink(emailAddress);
+    const resetLink = await adminAuth.generatePasswordResetLink(emailAddress, {
+      url: "https://frdaph.org/admin/reset-password",
+      handleCodeInApp: false,
+    });
 
     const logoPath = path.join(process.cwd(), "public", "frda-logo.png");
     const logoBuffer = await readFile(logoPath);
 
     const article = role && /^[aeiou]/i.test(role.trim()) ? "an" : "a";
 
-const roleLine = role
-  ? `You’ve been added as ${article} ${role} to FRDA Portal. Click the button below to set your password, activate your account, and access your dashboard.`
-  : `You’ve been invited to access the FRDA Portal. Click the button below to set your password, activate your account, and access your dashboard.`;
+    const roleLine = role
+      ? `You’ve been added as ${article} ${role} to FRDA Portal. Click the button below to set your password, activate your account, and access your dashboard.`
+      : `You’ve been invited to access the FRDA Portal. Click the button below to set your password, activate your account, and access your dashboard.`;
 
     const { data, error } = await resend.emails.send({
       from: "FRDA Team <admin@frdaph.org>",
@@ -77,7 +80,7 @@ const roleLine = role
                   href="${resetLink}"
                   style="display:inline-block;background:#10b981;color:#06281f;text-decoration:none;font-weight:700;font-size:16px;line-height:1;padding:16px 24px;border-radius:10px;"
                 >
-                  Set Up Account
+                  Set Your Password
                 </a>
               </div>
 

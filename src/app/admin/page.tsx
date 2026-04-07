@@ -231,25 +231,27 @@ export default function AdminPage() {
   }, [applications, selectedApplication?.id]);
 
   const filteredApplications = useMemo(() => {
-    const q = search.trim().toLowerCase();
+  const q = search.trim().toLowerCase();
 
-    return applications.filter((app) => {
-      const matchesTab = app.status === activeTab;
-      if (!matchesTab) return false;
+  return applications.filter((app) => {
+    const fullName = `${app.firstName} ${app.lastName}`.toLowerCase();
 
-      if (!q) return true;
+    const matchesSearch =
+      !q ||
+      fullName.includes(q) ||
+      app.email?.toLowerCase().includes(q) ||
+      app.viber?.toLowerCase().includes(q) ||
+      app.discordId?.toLowerCase().includes(q) ||
+      app.roblox?.toLowerCase().includes(q) ||
+      app.status?.toLowerCase().includes(q);
 
-      const fullName = `${app.firstName} ${app.lastName}`.toLowerCase();
-      return (
-        fullName.includes(q) ||
-        app.email?.toLowerCase().includes(q) ||
-        app.viber?.toLowerCase().includes(q) ||
-        app.discordId?.toLowerCase().includes(q) ||
-        app.roblox?.toLowerCase().includes(q) ||
-        app.status?.toLowerCase().includes(q)
-      );
-    });
-  }, [applications, search, activeTab]);
+    if (!matchesSearch) return false;
+
+    if (q) return true;
+
+    return app.status === activeTab;
+  });
+}, [applications, search, activeTab]);
 
   function openReviewModal(app: Application) {
     setSelectedApplication(app);
@@ -415,7 +417,7 @@ export default function AdminPage() {
           email={user.email}
         />
 
-        <section className="bg-zinc-900/75 p-4 md:p-8">
+        <section className="bg-zinc-900/75 px-5 py-5 md:px-10 md:py-8 xl:px-14">
           <div className="mb-5 flex items-center gap-3 lg:hidden">
             <button
               type="button"
@@ -481,7 +483,7 @@ export default function AdminPage() {
               <table className="min-w-full text-left">
                 <thead className="border-b border-zinc-800 bg-zinc-950/35">
                   <tr className="text-[11px] uppercase tracking-wide text-zinc-400">
-                    <th className="px-4 py-4">#</th>
+                    <th className="px-4 py-4"> </th>
                     <th className="px-4 py-4">Complete Name</th>
                     <th className="px-4 py-4">Contact Number</th>
                     <th className="px-4 py-4">Registered On</th>

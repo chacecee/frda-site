@@ -15,7 +15,8 @@ import {
   Timestamp,
   updateDoc,
 } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { onValue, ref } from "firebase/database";
+import { auth, db, rtdb } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 
@@ -34,6 +35,12 @@ type StaffMember = {
   dateJoined?: Timestamp | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+};
+
+type PresenceEntry = {
+  state?: "online" | "offline";
+  lastChanged?: number;
+  email?: string;
 };
 
 const ROLE_OPTIONS: StaffRole[] = ["Admin", "Moderator", "Reviewer", "Staff"];
@@ -58,6 +65,10 @@ function formatDateTime(value?: Timestamp | null): string {
   return `${datePart} (${timePart})`;
 }
 
+function normalizePresenceKey(value?: string | null): string {
+  return value?.trim().toLowerCase().replaceAll(".", ",") || "";
+}
+
 function getStatusBadgeClass(status: StaffStatus) {
   switch (status) {
     case "Invited":
@@ -71,23 +82,19 @@ function getStatusBadgeClass(status: StaffStatus) {
   }
 }
 
-function normalizeRobloxLink(input: string): string | null {
-  const raw = input.trim();
-  if (!raw) return null;
-
-  if (/^https?:\/\//i.test(raw)) {
-    return raw;
-  }
-
-  if (/^\d+$/.test(raw)) {
-    return `https://www.roblox.com/users/${raw}/profile`;
-  }
-
-  return `https://www.roblox.com/search/users?keyword=${encodeURIComponent(raw)}`;
-}
-
 function normalizeEmail(value?: string | null): string {
   return value?.trim().toLowerCase() || "";
+}
+
+function PresenceDot({ online }: { online: boolean }) {
+  return (
+    <span
+      className={`inline-block h-2.5 w-2.5 rounded-full ${
+        online ? "bg-emerald-400" : "bg-zinc-500"
+      }`}
+      title={online ? "Online" : "Offline"}
+    />
+  );
 }
 
 type StaffFormState = {
@@ -115,6 +122,9 @@ export default function StaffPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [presenceMap, setPresenceMap] = useState<Record<string, PresenceEntry>>(
+    {}
+  );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
@@ -164,6 +174,16 @@ export default function StaffPage() {
     return () => unsubscribe();
   }, [user]);
 
+  useEffect(() => {
+    const statusRef = ref(rtdb, "status");
+
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      setPresenceMap((snapshot.val() as Record<string, PresenceEntry>) || {});
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const currentSignedInStaff = useMemo(() => {
     const signedInEmail = normalizeEmail(user?.email);
     if (!signedInEmail) return null;
@@ -184,7 +204,6 @@ export default function StaffPage() {
     return staffList.filter((staff) => {
       return (
         staff.displayName.toLowerCase().includes(queryText) ||
-        staff.discordProfile.toLowerCase().includes(queryText) ||
         staff.robloxInput.toLowerCase().includes(queryText) ||
         staff.emailAddress.toLowerCase().includes(queryText) ||
         staff.role.toLowerCase().includes(queryText) ||
@@ -271,7 +290,7 @@ export default function StaffPage() {
       !form.discordProfile.trim() ||
       !form.emailAddress.trim()
     ) {
-      alert("Please fill out Display Name, Discord Profile, and Email Address.");
+      alert("Please fill out Display Name, Position, and Email Address.");
       return;
     }
 
@@ -280,14 +299,14 @@ export default function StaffPage() {
     try {
       const trimmedDisplayName = form.displayName.trim();
       const trimmedDiscord = form.discordProfile.trim();
-      const trimmedRoblox = form.robloxInput.trim();
+      const trimmedPosition = form.robloxInput.trim();
       const trimmedEmail = form.emailAddress.trim();
 
       if (editingStaffId) {
         await updateDoc(doc(db, "staff", editingStaffId), {
           displayName: trimmedDisplayName,
           discordProfile: trimmedDiscord,
-          robloxInput: trimmedRoblox,
+          robloxInput: trimmedPosition,
           emailAddress: trimmedEmail,
           role: form.role,
           updatedAt: serverTimestamp(),
@@ -300,7 +319,7 @@ export default function StaffPage() {
       await addDoc(collection(db, "staff"), {
         displayName: trimmedDisplayName,
         discordProfile: trimmedDiscord,
-        robloxInput: trimmedRoblox,
+        robloxInput: trimmedPosition,
         emailAddress: trimmedEmail,
         role: form.role,
         status: "Invited",
@@ -389,7 +408,7 @@ export default function StaffPage() {
           email={user.email}
         />
 
-        <section className="bg-zinc-900/75 p-4 md:p-8">
+        <section className="relative bg-zinc-900/75 px-5 py-5 md:px-10 md:py-8 xl:px-14">
           <div className="mb-5 flex items-center gap-3 lg:hidden">
             <button
               type="button"
@@ -425,7 +444,7 @@ export default function StaffPage() {
           <div className="mb-5">
             <input
               type="text"
-              placeholder="Search by display name, email, Discord, Roblox, role, or status"
+              placeholder="Search by display name, email, position, role, or status"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full border border-zinc-600 bg-zinc-800 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-400 focus:border-emerald-500"
@@ -467,7 +486,9 @@ export default function StaffPage() {
                     </tr>
                   ) : (
                     filteredStaff.map((staff) => {
-                      const robloxLink = normalizeRobloxLink(staff.robloxInput);
+                      const isOnline =
+                        presenceMap[normalizePresenceKey(staff.emailAddress)]
+                          ?.state === "online";
 
                       return (
                         <tr
@@ -475,35 +496,14 @@ export default function StaffPage() {
                           className="border-b border-zinc-800/80 text-sm text-white last:border-b-0"
                         >
                           <td className="px-4 py-4 align-top">
-                            <div className="font-medium text-white">
-                              {staff.displayName}
-                            </div>
-
-                            <div className="mt-1 text-xs text-zinc-500">
-                              <span className="text-zinc-400">Discord:</span>{" "}
-                              {staff.discordProfile}
-                            </div>
-
-                            <div className="mt-1 text-xs text-zinc-500">
-                              <span className="text-zinc-400">Email:</span>{" "}
-                              {staff.emailAddress}
+                            <div className="flex items-center gap-2 font-medium text-white">
+                              <PresenceDot online={isOnline} />
+                              <span>{staff.displayName}</span>
                             </div>
 
                             {staff.robloxInput.trim() && (
-                              <div className="mt-1 text-xs text-zinc-500">
-                                <span className="text-zinc-400">Roblox:</span>{" "}
-                                {robloxLink ? (
-                                  <a
-                                    href={robloxLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-emerald-300 underline underline-offset-4 hover:text-emerald-200"
-                                  >
-                                    {staff.robloxInput}
-                                  </a>
-                                ) : (
-                                  staff.robloxInput
-                                )}
+                              <div className="mt-1 pl-[18px] text-xs text-zinc-400">
+                                {staff.robloxInput}
                               </div>
                             )}
                           </td>
@@ -566,7 +566,9 @@ export default function StaffPage() {
               </div>
             ) : (
               filteredStaff.map((staff) => {
-                const robloxLink = normalizeRobloxLink(staff.robloxInput);
+                const isOnline =
+                  presenceMap[normalizePresenceKey(staff.emailAddress)]
+                    ?.state === "online";
 
                 return (
                   <div
@@ -576,10 +578,17 @@ export default function StaffPage() {
                   >
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-base font-semibold text-white">
-                          {staff.displayName}
-                        </p>
-                        <p className="mt-1 text-sm text-zinc-400">{staff.role}</p>
+                        <div className="flex items-center gap-2">
+                          <PresenceDot online={isOnline} />
+                          <p className="text-base font-semibold text-white">
+                            {staff.displayName}
+                          </p>
+                        </div>
+                        {staff.robloxInput.trim() ? (
+                          <p className="mt-1 pl-[18px] text-sm text-zinc-400">
+                            {staff.robloxInput}
+                          </p>
+                        ) : null}
                       </div>
 
                       <span
@@ -593,6 +602,9 @@ export default function StaffPage() {
 
                     <div className="space-y-2 text-sm text-zinc-300">
                       <p>
+                        <span className="text-zinc-500">Role:</span> {staff.role}
+                      </p>
+                      <p>
                         <span className="text-zinc-500">Invited:</span>{" "}
                         {formatDateTime(staff.dateInvited)}
                       </p>
@@ -600,31 +612,6 @@ export default function StaffPage() {
                         <span className="text-zinc-500">Joined:</span>{" "}
                         {formatDateTime(staff.dateJoined)}
                       </p>
-                      <p>
-                        <span className="text-zinc-500">Email:</span>{" "}
-                        {staff.emailAddress}
-                      </p>
-                      <p>
-                        <span className="text-zinc-500">Discord:</span>{" "}
-                        {staff.discordProfile}
-                      </p>
-                      {staff.robloxInput.trim() && (
-                        <p>
-                          <span className="text-zinc-500">Roblox:</span>{" "}
-                          {robloxLink ? (
-                            <a
-                              href={robloxLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-emerald-300 underline underline-offset-4 hover:text-emerald-200"
-                            >
-                              {staff.robloxInput}
-                            </a>
-                          ) : (
-                            staff.robloxInput
-                          )}
-                        </p>
-                      )}
                     </div>
 
                     {isAdmin && (
@@ -695,6 +682,22 @@ export default function StaffPage() {
 
                 <div>
                   <label className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+                    Position
+                  </label>
+                  <input
+                    type="text"
+                    value={form.robloxInput}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, robloxInput: e.target.value }))
+                    }
+                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-500"
+                    style={{ borderRadius: 8 }}
+                    placeholder="Enter staff position or title"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-zinc-400">
                     Discord Profile
                   </label>
                   <input
@@ -710,25 +713,6 @@ export default function StaffPage() {
                     style={{ borderRadius: 8 }}
                     placeholder="Username or Discord profile"
                   />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-zinc-400">
-                    Roblox Username / User ID / Link
-                  </label>
-                  <input
-                    type="text"
-                    value={form.robloxInput}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, robloxInput: e.target.value }))
-                    }
-                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-500"
-                    style={{ borderRadius: 8 }}
-                    placeholder="Optional"
-                  />
-                  <p className="mt-2 text-xs text-zinc-500">
-                    Paste a Roblox profile link, username, or numeric user ID.
-                  </p>
                 </div>
 
                 <div>
