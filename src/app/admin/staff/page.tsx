@@ -486,9 +486,11 @@ export default function StaffPage() {
                     </tr>
                   ) : (
                     filteredStaff.map((staff) => {
+                      const presence = presenceMap[normalizePresenceKey(staff.emailAddress)];
                       const isOnline =
-                        presenceMap[normalizePresenceKey(staff.emailAddress)]
-                          ?.state === "online";
+                        presence?.state === "online" &&
+                        typeof presence?.lastChanged === "number" &&
+                        Date.now() - presence.lastChanged < 90_000;
 
                       return (
                         <tr
@@ -566,9 +568,11 @@ export default function StaffPage() {
               </div>
             ) : (
               filteredStaff.map((staff) => {
+                const presence = presenceMap[normalizePresenceKey(staff.emailAddress)];
                 const isOnline =
-                  presenceMap[normalizePresenceKey(staff.emailAddress)]
-                    ?.state === "online";
+                  presence?.state === "online" &&
+                  typeof presence?.lastChanged === "number" &&
+                  Date.now() - presence.lastChanged < 90_000;
 
                 return (
                   <div
