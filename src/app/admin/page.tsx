@@ -16,6 +16,7 @@ import {
 import { auth, db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
+import { setPresenceOffline } from "@/lib/usePresence";
 
 type ApplicationStatus = "in_queue" | "accepted" | "rejected" | "removed";
 type FilterTab = "in_queue" | "accepted" | "rejected" | "removed";
@@ -117,9 +118,8 @@ function FilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`cursor-pointer px-1 py-2 text-sm font-medium transition ${
-        active ? "text-white" : "text-zinc-500 hover:text-zinc-300"
-      }`}
+      className={`cursor-pointer px-1 py-2 text-sm font-medium transition ${active ? "text-white" : "text-zinc-500 hover:text-zinc-300"
+        }`}
     >
       {label}
     </button>
@@ -231,27 +231,27 @@ export default function AdminPage() {
   }, [applications, selectedApplication?.id]);
 
   const filteredApplications = useMemo(() => {
-  const q = search.trim().toLowerCase();
+    const q = search.trim().toLowerCase();
 
-  return applications.filter((app) => {
-    const fullName = `${app.firstName} ${app.lastName}`.toLowerCase();
+    return applications.filter((app) => {
+      const fullName = `${app.firstName} ${app.lastName}`.toLowerCase();
 
-    const matchesSearch =
-      !q ||
-      fullName.includes(q) ||
-      app.email?.toLowerCase().includes(q) ||
-      app.viber?.toLowerCase().includes(q) ||
-      app.discordId?.toLowerCase().includes(q) ||
-      app.roblox?.toLowerCase().includes(q) ||
-      app.status?.toLowerCase().includes(q);
+      const matchesSearch =
+        !q ||
+        fullName.includes(q) ||
+        app.email?.toLowerCase().includes(q) ||
+        app.viber?.toLowerCase().includes(q) ||
+        app.discordId?.toLowerCase().includes(q) ||
+        app.roblox?.toLowerCase().includes(q) ||
+        app.status?.toLowerCase().includes(q);
 
-    if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-    if (q) return true;
+      if (q) return true;
 
-    return app.status === activeTab;
-  });
-}, [applications, search, activeTab]);
+      return app.status === activeTab;
+    });
+  }, [applications, search, activeTab]);
 
   function openReviewModal(app: Application) {
     setSelectedApplication(app);
@@ -277,6 +277,7 @@ export default function AdminPage() {
 
   async function handleSignOut() {
     try {
+      await setPresenceOffline(user?.email);
       await signOut(auth);
       router.replace("/admin/login");
     } catch (error) {

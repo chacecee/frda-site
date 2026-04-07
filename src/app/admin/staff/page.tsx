@@ -19,6 +19,7 @@ import { onValue, ref } from "firebase/database";
 import { auth, db, rtdb } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
+import { setPresenceOffline } from "@/lib/usePresence";
 
 type StaffRole = "Admin" | "Moderator" | "Reviewer" | "Staff";
 type StaffStatus = "Invited" | "Active" | "Removed";
@@ -89,9 +90,8 @@ function normalizeEmail(value?: string | null): string {
 function PresenceDot({ online }: { online: boolean }) {
   return (
     <span
-      className={`inline-block h-2.5 w-2.5 rounded-full ${
-        online ? "bg-emerald-400" : "bg-zinc-500"
-      }`}
+      className={`inline-block h-2.5 w-2.5 rounded-full ${online ? "bg-emerald-400" : "bg-zinc-500"
+        }`}
       title={online ? "Online" : "Offline"}
     />
   );
@@ -122,6 +122,7 @@ export default function StaffPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [nowTs, setNowTs] = useState(Date.now());
   const [presenceMap, setPresenceMap] = useState<Record<string, PresenceEntry>>(
     {}
   );
@@ -184,6 +185,14 @@ export default function StaffPage() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowTs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
   const currentSignedInStaff = useMemo(() => {
     const signedInEmail = normalizeEmail(user?.email);
     if (!signedInEmail) return null;
@@ -241,6 +250,7 @@ export default function StaffPage() {
 
   async function handleSignOut() {
     try {
+      await setPresenceOffline(user?.email);
       await signOut(auth);
       router.replace("/admin/login");
     } catch (error) {
@@ -490,7 +500,7 @@ export default function StaffPage() {
                       const isOnline =
                         presence?.state === "online" &&
                         typeof presence?.lastChanged === "number" &&
-                        Date.now() - presence.lastChanged < 90_000;
+                        nowTs - presence.lastChanged < 5_000;
 
                       return (
                         <tr
@@ -572,7 +582,7 @@ export default function StaffPage() {
                 const isOnline =
                   presence?.state === "online" &&
                   typeof presence?.lastChanged === "number" &&
-                  Date.now() - presence.lastChanged < 90_000;
+                  nowTs - presence.lastChanged < 5_000;
 
                 return (
                   <div

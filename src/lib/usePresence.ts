@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import {
   onDisconnect,
   onValue,
@@ -15,41 +15,28 @@ function normalizePresenceKey(email?: string | null) {
   return (email || "").trim().toLowerCase().replaceAll(".", ",");
 }
 
+export async function setPresenceOffline(email?: string | null) {
+  const normalizedEmail = (email || "").trim().toLowerCase();
+  const key = normalizePresenceKey(normalizedEmail);
+  if (!key || !normalizedEmail) return;
+
+  const statusRef = ref(rtdb, `status/${key}`);
+
+  await set(statusRef, {
+    state: "offline",
+    lastChanged: serverTimestamp(),
+    email: normalizedEmail,
+  });
+}
+
 export function usePresence(user: User | null) {
-  const previousEmailRef = useRef<string | null>(null);
-
   useEffect(() => {
-    const previousEmail = previousEmailRef.current;
-    const currentEmail = user?.email?.trim().toLowerCase() || null;
+    if (!user?.email) return;
 
-    async function markOffline(email: string) {
-      const key = normalizePresenceKey(email);
-      if (!key) return;
+    const normalizedEmail = user.email.trim().toLowerCase();
+    const key = normalizePresenceKey(normalizedEmail);
+    if (!key) return;
 
-      const statusRef = ref(rtdb, `status/${key}`);
-
-      try {
-        await set(statusRef, {
-          state: "offline",
-          lastChanged: serverTimestamp(),
-          email,
-        });
-      } catch (error) {
-        console.error("Failed to mark offline:", error);
-      }
-    }
-
-    if (!currentEmail) {
-      if (previousEmail) {
-        void markOffline(previousEmail);
-        previousEmailRef.current = null;
-      }
-      return;
-    }
-
-    previousEmailRef.current = currentEmail;
-
-    const key = normalizePresenceKey(currentEmail);
     const connectedRef = ref(rtdb, ".info/connected");
     const statusRef = ref(rtdb, `status/${key}`);
 
@@ -60,13 +47,13 @@ export function usePresence(user: User | null) {
         await onDisconnect(statusRef).set({
           state: "offline",
           lastChanged: serverTimestamp(),
-          email: currentEmail,
+          email: normalizedEmail,
         });
 
         await set(statusRef, {
           state: "online",
           lastChanged: serverTimestamp(),
-          email: currentEmail,
+          email: normalizedEmail,
         });
       } catch (error) {
         console.error("Failed to update presence:", error);
@@ -75,7 +62,6 @@ export function usePresence(user: User | null) {
 
     return () => {
       unsubscribe();
-      void markOffline(currentEmail);
     };
   }, [user]);
 }
