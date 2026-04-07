@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -12,7 +12,7 @@ import { auth } from "@/lib/firebase";
 const inputClass =
   "w-full rounded-md border border-zinc-600/80 bg-zinc-800/95 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-400 focus:border-emerald-500";
 
-export default function AdminResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -118,7 +118,9 @@ export default function AdminResetPasswordPage() {
           </p>
         </div>
 
-        <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/75 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.22)]">
+        <div
+          className="rounded-xl border border-zinc-700/80 bg-zinc-900/75 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.22)]"
+        >
           {checkingLink ? (
             <p className="text-sm text-zinc-400">Checking your reset link...</p>
           ) : errorMsg && !email ? (
@@ -193,7 +195,9 @@ export default function AdminResetPasswordPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    onClick={() =>
+                      setShowConfirmPassword((prev) => !prev)
+                    }
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-zinc-400 transition hover:text-zinc-200"
                   >
                     {showConfirmPassword ? "Hide" : "Show"}
@@ -224,5 +228,21 @@ export default function AdminResetPasswordPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function AdminResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-zinc-950 text-white">
+          <div className="mx-auto max-w-md px-6 py-20">
+            <p className="text-sm text-zinc-400">Loading reset page...</p>
+          </div>
+        </main>
+      }
+    >
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
