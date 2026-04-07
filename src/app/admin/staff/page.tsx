@@ -124,7 +124,6 @@ export default function StaffPage() {
 
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [activatingSelf, setActivatingSelf] = useState(false);
 
   const displayName =
     user?.displayName?.trim() ||
@@ -177,37 +176,6 @@ export default function StaffPage() {
   }, [staffList, user?.email]);
 
   const isAdmin = currentSignedInStaff?.role === "Admin";
-
-  useEffect(() => {
-    if (!user?.email || staffList.length === 0 || activatingSelf) return;
-
-    const signedInEmail = normalizeEmail(user.email);
-
-    const matchingStaff = staffList.find(
-      (staff) => normalizeEmail(staff.emailAddress) === signedInEmail
-    );
-
-    if (!matchingStaff) return;
-    if (matchingStaff.status !== "Invited") return;
-
-    const activateSelf = async () => {
-      try {
-        setActivatingSelf(true);
-
-        await updateDoc(doc(db, "staff", matchingStaff.id), {
-          status: "Active",
-          updatedAt: serverTimestamp(),
-          ...(matchingStaff.dateJoined ? {} : { dateJoined: serverTimestamp() }),
-        });
-      } catch (error) {
-        console.error("Error auto-activating staff member:", error);
-      } finally {
-        setActivatingSelf(false);
-      }
-    };
-
-    activateSelf();
-  }, [user?.email, staffList, activatingSelf]);
 
   const filteredStaff = useMemo(() => {
     const queryText = searchTerm.trim().toLowerCase();
