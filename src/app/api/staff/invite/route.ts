@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     const resetLink = await adminAuth.generatePasswordResetLink(emailAddress, {
-      url: "https://frdaph.org/admin/reset-password",
+      url: "https://portal.frdaph.org",
       handleCodeInApp: false,
     });
 

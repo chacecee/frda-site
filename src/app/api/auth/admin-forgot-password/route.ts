@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
             displayName = userRecord.displayName?.trim() || "there";
 
             resetLink = await adminAuth.generatePasswordResetLink(email, {
-                url: "https://frdaph.org/admin/reset-password",
+                url: "https://portal.frdph.org",
                 handleCodeInApp: false,
             });
         } catch (error) {
