@@ -8,7 +8,7 @@ import { auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 
 const inputClass =
-  "w-full rounded-md border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm text-white outline-none placeholder:text-zinc-500 transition focus:border-emerald-400/70 focus:bg-white/[0.06] focus:shadow-[0_0_0_4px_rgba(16,185,129,0.08)]";
+  "w-full rounded-md px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-zinc-500";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -43,24 +43,49 @@ export default function AdminLoginPage() {
 
   if (authLoading) {
     return (
-      <main className="min-h-screen bg-[#05070b] text-white">
+      <main className="min-h-screen bg-[#02040a] text-white">
         <div className="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-6">
-          <p className="text-sm text-zinc-400">Checking session...</p>
+          <p className="text-sm text-zinc-500">Checking session...</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#05070b] text-white">
-      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,#04060a,#05070b_46%,#04060a)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_-8%,rgba(16,185,129,0.22),transparent_26%),radial-gradient(circle_at_50%_12%,rgba(16,185,129,0.10),transparent_34%)]" />
-      <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:36px_36px]" />
-      <div className="absolute left-1/2 top-0 h-[18rem] w-[38rem] -translate-x-1/2 bg-emerald-500/10 blur-3xl" />
+    <main
+      className="relative min-h-screen overflow-hidden text-white"
+      style={{
+        background: `
+      radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.24) 0%, rgba(59, 130, 246, 0.14) 12%, rgba(59, 130, 246, 0.055) 22%, rgba(59, 130, 246, 0) 34%),
+      radial-gradient(circle at 82% 10%, rgba(37, 99, 235, 0.09) 0%, rgba(37, 99, 235, 0.035) 12%, rgba(37, 99, 235, 0) 24%),
+      radial-gradient(circle at 18% 10%, rgba(96, 165, 250, 0.07) 0%, rgba(96, 165, 250, 0.03) 10%, rgba(96, 165, 250, 0) 22%),
+      linear-gradient(to bottom, #02040a 0%, #010309 32%, #000000 100%)
+    `,
+      }}
+    >
+      <div
+        className="absolute inset-0 opacity-[0.05]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
+          backgroundSize: "36px 36px",
+        }}
+      />
+      <div
+        className="absolute left-1/2 top-0 h-[18rem] w-[38rem] -translate-x-1/2 blur-3xl"
+        style={{ background: "rgba(59, 130, 246, 0.16)" }}
+      />
 
       <div className="relative mx-auto flex min-h-screen max-w-7xl items-center justify-center px-6 py-16">
         <section className="w-full max-w-md">
-          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-7 shadow-[0_24px_80px_rgba(0,0,0,0.48)] backdrop-blur-xl sm:p-8">
+          <div
+            className="rounded-xl p-7 backdrop-blur-xl sm:p-8"
+            style={{
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(10, 12, 18, 0.84)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.48), 0 0 0 1px rgba(59,130,246,0.05) inset",
+            }}
+          >
             <div className="mb-8 text-center">
               <div className="mb-5 flex justify-center">
                 <img
@@ -91,6 +116,12 @@ export default function AdminLoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "#ffffff",
+                    boxShadow: "0 0 0 1px rgba(255,255,255,0.02)",
+                  }}
                 />
               </div>
 
@@ -102,7 +133,8 @@ export default function AdminLoginPage() {
 
                   <Link
                     href="/admin/forgot-password"
-                    className="text-xs font-medium text-emerald-400 transition hover:text-emerald-300"
+                    className="text-xs font-medium transition"
+                    style={{ color: "#60a5fa" }}
                   >
                     Forgot password?
                   </Link>
@@ -116,6 +148,12 @@ export default function AdminLoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      background: "rgba(255,255,255,0.04)",
+                      color: "#ffffff",
+                      boxShadow: "0 0 0 1px rgba(255,255,255,0.02)",
+                    }}
                   />
 
                   <button
@@ -138,7 +176,17 @@ export default function AdminLoginPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full rounded-md bg-emerald-500 px-5 py-3.5 text-sm font-semibold text-[#05261b] transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
+                className="w-full cursor-pointer rounded-md px-5 py-3.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
+                style={{
+                  background: "#3b82f6",
+                  boxShadow: "0 10px 30px rgba(59, 130, 246, 0.18)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#60a5fa";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#3b82f6";
+                }}
               >
                 {isSubmitting ? "Signing in..." : "Sign In"}
               </button>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 
 const inputClass =
-  "w-full rounded-md border border-zinc-600/80 bg-zinc-800/95 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-400 focus:border-emerald-500";
+  "w-full rounded-md px-4 py-3 text-sm text-white outline-none transition placeholder:text-zinc-500";
 
 export default function AdminForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -46,8 +46,30 @@ export default function AdminForgotPasswordPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      <div className="mx-auto max-w-md px-6 py-20">
+    <main
+      className="relative min-h-screen overflow-hidden text-white"
+      style={{
+        background: `
+      radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.24) 0%, rgba(59, 130, 246, 0.14) 12%, rgba(59, 130, 246, 0.055) 22%, rgba(59, 130, 246, 0) 34%),
+      radial-gradient(circle at 82% 10%, rgba(37, 99, 235, 0.09) 0%, rgba(37, 99, 235, 0.035) 12%, rgba(37, 99, 235, 0) 24%),
+      radial-gradient(circle at 18% 10%, rgba(96, 165, 250, 0.07) 0%, rgba(96, 165, 250, 0.03) 10%, rgba(96, 165, 250, 0) 22%),
+      linear-gradient(to bottom, #02040a 0%, #010309 32%, #000000 100%)
+    `,
+      }}
+    >
+      <div
+        className="absolute inset-0 opacity-[0.05]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
+          backgroundSize: "36px 36px",
+        }}
+      />
+      <div
+        className="absolute left-1/2 top-0 h-[18rem] w-[38rem] -translate-x-1/2 blur-3xl"
+        style={{ background: "rgba(59, 130, 246, 0.16)" }}
+      />
+      <div className="relative z-10 mx-auto max-w-md px-6 py-20">
         <div className="mb-8 text-center">
           <div className="mb-4 flex justify-center">
             <img
@@ -64,7 +86,12 @@ export default function AdminForgotPasswordPage() {
 
         <form
           onSubmit={handleReset}
-          className="space-y-5 rounded-xl border border-zinc-700/80 bg-zinc-900/75 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.22)]"
+          className="space-y-5 rounded-xl p-6 backdrop-blur-xl"
+          style={{
+            border: "1px solid rgba(255,255,255,0.10)",
+            background: "rgba(10, 12, 18, 0.84)",
+            boxShadow: "0 24px 80px rgba(0,0,0,0.48), 0 0 0 1px rgba(59,130,246,0.05) inset",
+          }}
         >
           <div>
             <label className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-zinc-400">
@@ -77,19 +104,35 @@ export default function AdminForgotPasswordPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              style={{
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.04)",
+                color: "#ffffff",
+                boxShadow: "0 0 0 1px rgba(255,255,255,0.02)",
+              }}
             />
           </div>
 
           {errorMsg ? <p className="text-sm text-red-400">{errorMsg}</p> : null}
 
           {successMsg ? (
-            <p className="text-sm text-emerald-400">{successMsg}</p>
+            <p className="text-sm text-blue-400">{successMsg}</p>
           ) : null}
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full rounded-md bg-emerald-500 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
+            className="w-full cursor-pointer rounded-md px-5 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
+            style={{
+              background: "#3b82f6",
+              boxShadow: "0 10px 30px rgba(59,130,246,0.18)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#60a5fa";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#3b82f6";
+            }}
           >
             {isSubmitting ? "Sending..." : "Send Reset Link"}
           </button>
@@ -97,7 +140,8 @@ export default function AdminForgotPasswordPage() {
           <div className="text-center">
             <Link
               href="/admin/login"
-              className="text-sm text-zinc-400 transition hover:text-white"
+              className="text-sm transition hover:text-blue-300"
+              style={{ color: "#60a5fa" }}
             >
               Back to login
             </Link>

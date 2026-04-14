@@ -20,6 +20,7 @@ import { auth, db, rtdb } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { setPresenceOffline } from "@/lib/usePresence";
+import { notify } from "@/components/ToastConfig";
 
 type StaffRole = "Admin" | "Moderator" | "Reviewer" | "Staff";
 type StaffStatus = "Invited" | "Active" | "Removed";
@@ -300,7 +301,7 @@ export default function StaffPage() {
       !form.discordProfile.trim() ||
       !form.emailAddress.trim()
     ) {
-      alert("Please fill out Display Name, Position, and Email Address.");
+      notify.error("Please fill out Display Name, Position, and Email Address.");
       return;
     }
 
@@ -343,10 +344,10 @@ export default function StaffPage() {
 
       try {
         await sendStaffInvite(trimmedEmail, trimmedDisplayName, form.role);
-        alert(`Staff record saved and invite email sent to ${trimmedEmail}.`);
+        notify.success(`Staff record saved and invite email sent to ${trimmedEmail}.`);
       } catch (inviteError) {
         console.error("Invite email error:", inviteError);
-        alert(
+        notify.error(
           `Staff record was saved, but the invite email could not be sent to ${trimmedEmail}. You can try again later.`
         );
       } finally {
@@ -356,7 +357,7 @@ export default function StaffPage() {
       closeModal();
     } catch (error) {
       console.error("Error saving staff member:", error);
-      alert("Could not save this staff member. Please try again.");
+      notify.error("Could not save this staff member. Please try again.");
     } finally {
       setSavingStaff(false);
     }
@@ -374,7 +375,7 @@ export default function StaffPage() {
       closeModal();
     } catch (error) {
       console.error("Error removing staff:", error);
-      alert("Could not remove this staff member.");
+      notify.error("Could not remove this staff member.");
     }
   }
 
@@ -387,7 +388,7 @@ export default function StaffPage() {
       closeModal();
     } catch (error) {
       console.error("Error deleting staff:", error);
-      alert("Could not delete this staff member.");
+      notify.error("Could not delete this staff member.");
     }
   }
 
@@ -423,16 +424,16 @@ export default function StaffPage() {
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white"
-              style={{ borderRadius: 8 }}
+              className="bg-zinc-900 px-3 py-2 text-sm text-white"
+              style={{ borderRadius: 5 }}
             >
               ☰
             </button>
-            <p className="text-sm font-medium text-zinc-300">Menu</p>
+            <p className="text-2xl font-semibold leading-none text-white">Staff</p>
           </div>
 
           <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
+            <div className="hidden md:block">
               <h1 className="text-2xl font-semibold text-white">Staff</h1>
               <p className="mt-1 text-sm text-zinc-400">
                 Manage staff access, roles, and invitation status.
@@ -443,10 +444,14 @@ export default function StaffPage() {
               <button
                 type="button"
                 onClick={openAddModal}
-                className="bg-emerald-500 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400"
-                style={{ borderRadius: 8 }}
+                className="px-5 py-3 text-sm font-semibold text-white transition"
+                style={{
+                  borderRadius: 5,
+                  background: "rgb(59, 130, 246)",
+                  border: "1px solid rgba(96, 165, 250, 0.45)",
+                }}
               >
-                Add Staff
+                ADD STAFF
               </button>
             )}
           </div>
@@ -457,7 +462,7 @@ export default function StaffPage() {
               placeholder="Search by display name, email, position, role, or status"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full border border-zinc-600 bg-zinc-800 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-400 focus:border-emerald-500"
+              className="w-full border border-zinc-600 bg-zinc-800 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-400 focus:border-blue-500"
               style={{ borderRadius: 10 }}
             />
           </div>
@@ -544,7 +549,7 @@ export default function StaffPage() {
                                 type="button"
                                 onClick={() => openEditModal(staff)}
                                 className="border border-zinc-500 bg-zinc-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-600"
-                                style={{ borderRadius: 8 }}
+                                style={{ borderRadius: 5 }}
                               >
                                 Edit
                               </button>
@@ -633,7 +638,7 @@ export default function StaffPage() {
                         type="button"
                         onClick={() => openEditModal(staff)}
                         className="mt-4 w-full border border-zinc-500 bg-zinc-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-600"
-                        style={{ borderRadius: 8 }}
+                        style={{ borderRadius: 5 }}
                       >
                         Edit
                       </button>
@@ -650,7 +655,7 @@ export default function StaffPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div
             className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border border-zinc-800 bg-zinc-900 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
-            style={{ borderRadius: 10 }}
+            style={{ borderRadius: 5 }}
           >
             <div className="border-b border-zinc-800 px-6 py-5">
               <div className="flex items-start justify-between gap-4">
@@ -668,10 +673,22 @@ export default function StaffPage() {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white hover:bg-zinc-800"
-                  style={{ borderRadius: 8 }}
+                  aria-label="Close"
+                  className="cursor-pointer text-white hover:text-zinc-300"
+                  style={{
+                    width: 42,
+                    height: 42,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 5,
+                    border: "1px solid rgba(63, 63, 70, 1)",
+                    background: "rgba(9, 9, 11, 0.9)",
+                    fontSize: 22,
+                    lineHeight: 1,
+                  }}
                 >
-                  Close
+                  ×
                 </button>
               </div>
             </div>
@@ -688,8 +705,8 @@ export default function StaffPage() {
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, displayName: e.target.value }))
                     }
-                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-500"
-                    style={{ borderRadius: 8 }}
+                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
+                    style={{ borderRadius: 5 }}
                     placeholder="Enter display name"
                   />
                 </div>
@@ -704,8 +721,8 @@ export default function StaffPage() {
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, robloxInput: e.target.value }))
                     }
-                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-500"
-                    style={{ borderRadius: 8 }}
+                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
+                    style={{ borderRadius: 5 }}
                     placeholder="Enter staff position or title"
                   />
                 </div>
@@ -723,8 +740,8 @@ export default function StaffPage() {
                         discordProfile: e.target.value,
                       }))
                     }
-                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-500"
-                    style={{ borderRadius: 8 }}
+                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
+                    style={{ borderRadius: 5 }}
                     placeholder="Username or Discord profile"
                   />
                 </div>
@@ -739,8 +756,8 @@ export default function StaffPage() {
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, emailAddress: e.target.value }))
                     }
-                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-500"
-                    style={{ borderRadius: 8 }}
+                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
+                    style={{ borderRadius: 5 }}
                     placeholder="Enter email address"
                   />
                 </div>
@@ -757,8 +774,8 @@ export default function StaffPage() {
                         role: e.target.value as StaffRole,
                       }))
                     }
-                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none focus:border-emerald-500"
-                    style={{ borderRadius: 8 }}
+                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
+                    style={{ borderRadius: 5 }}
                   >
                     {ROLE_OPTIONS.map((role) => (
                       <option key={role} value={role}>
@@ -798,7 +815,7 @@ export default function StaffPage() {
                         type="button"
                         onClick={() => setPendingRemoveId(editingStaffId)}
                         className="border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-300 transition hover:bg-amber-500/15"
-                        style={{ borderRadius: 8 }}
+                        style={{ borderRadius: 5 }}
                       >
                         Remove
                       </button>
@@ -807,7 +824,7 @@ export default function StaffPage() {
                         type="button"
                         onClick={() => setPendingDeleteId(editingStaffId)}
                         className="border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/15"
-                        style={{ borderRadius: 8 }}
+                        style={{ borderRadius: 5 }}
                       >
                         Delete Permanently
                       </button>
@@ -820,7 +837,7 @@ export default function StaffPage() {
                     type="button"
                     onClick={closeModal}
                     className="border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-800"
-                    style={{ borderRadius: 8 }}
+                    style={{ borderRadius: 5 }}
                   >
                     Cancel
                   </button>
@@ -828,8 +845,12 @@ export default function StaffPage() {
                   <button
                     type="submit"
                     disabled={savingStaff}
-                    className="bg-emerald-500 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
-                    style={{ borderRadius: 8 }}
+                    className="px-5 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
+                    style={{
+                      borderRadius: 5,
+                      background: "rgb(59, 130, 246)",
+                      border: "1px solid rgba(96, 165, 250, 0.45)",
+                    }}
                   >
                     {savingStaff
                       ? sendingInvite
@@ -862,7 +883,7 @@ export default function StaffPage() {
                 type="button"
                 onClick={() => setPendingRemoveId(null)}
                 className="border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-800"
-                style={{ borderRadius: 8 }}
+                style={{ borderRadius: 5 }}
               >
                 Cancel
               </button>
@@ -871,7 +892,7 @@ export default function StaffPage() {
                 type="button"
                 onClick={confirmRemoveStaff}
                 className="border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-300 hover:bg-amber-500/15"
-                style={{ borderRadius: 8 }}
+                style={{ borderRadius: 5 }}
               >
                 Confirm Remove
               </button>
@@ -896,7 +917,7 @@ export default function StaffPage() {
                 type="button"
                 onClick={() => setPendingDeleteId(null)}
                 className="border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-800"
-                style={{ borderRadius: 8 }}
+                style={{ borderRadius: 5 }}
               >
                 Cancel
               </button>
@@ -905,7 +926,7 @@ export default function StaffPage() {
                 type="button"
                 onClick={confirmDeleteStaff}
                 className="border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300 hover:bg-red-500/15"
-                style={{ borderRadius: 8 }}
+                style={{ borderRadius: 5 }}
               >
                 Confirm Delete
               </button>

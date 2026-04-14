@@ -3,8 +3,8 @@ import { Resend } from "resend";
 import { readFile } from "fs/promises";
 import path from "path";
 
-const DISCORD_CHANNEL_ID = "1490609309070000180";
-const APPLICANT_ROLE_ID = "1490609550141685852";
+const DISCORD_CHANNEL_ID = "1493114820319252520";
+const APPLICANT_ROLE_ID = "1493113453467140209";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -94,56 +94,57 @@ export async function POST(req: NextRequest) {
     const { error: emailError } = await resend.emails.send({
       from: "FRDA Team <admin@frdaph.org>",
       to: [email],
-      subject: "Welcome to the FRDA Discord Server",
+      subject: "Your FRDA application has been approved",
       replyTo: "admin@frdaph.org",
       html: `
-        <div style="margin:0;padding:56px 24px 64px 24px;background:transparent;font-family:Arial,sans-serif;color:#1f2937;">
-          <div style="max-width:600px;margin:0 auto;">
-            <div style="text-align:center;margin-bottom:40px;">
-              <div style="display:inline-flex;align-items:center;gap:12px;">
-                <img
-                  src="cid:frda-logo"
-                  alt="FRDA logo"
-                  style="width:48px;height:48px;object-fit:contain;vertical-align:middle;"
-                />
-                <span style="font-size:28px;font-weight:800;letter-spacing:0.2px;color:#111827;vertical-align:middle;">
-                  FRDA
-                </span>
-              </div>
+        <div style="margin:0;padding:56px 24px 64px 24px;background:#f8fafc;font-family:Arial,sans-serif;color:#1f2937;">
+          <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:18px;padding:40px 32px;box-shadow:0 16px 50px rgba(15,23,42,0.08);">
+            <div style="text-align:center;margin-bottom:28px;">
+              <img
+                src="cid:frda-logo"
+                alt="FRDA logo"
+                style="width:72px;height:72px;object-fit:contain;display:block;margin:0 auto;"
+              />
             </div>
 
-            <div style="max-width:520px;margin:0 auto;">
-              <p style="margin:0 0 18px 0;font-size:18px;line-height:1.75;color:#374151;">
-                Your developer registration has been accepted.
-              </p>
+            <h1 style="margin:0 0 18px 0;font-size:28px;line-height:1.2;color:#111827;">
+              Your FRDA application has been approved
+            </h1>
 
-              <p style="margin:0 0 18px 0;font-size:18px;line-height:1.75;color:#374151;">
-                Use the button below to join the FRDA Discord server. This invite is intended only for the Discord account tied to your submitted Discord user ID.
-              </p>
+            <p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
+              Hi ${safeFirstName},
+            </p>
 
-              <p style="margin:0 0 28px 0;font-size:18px;line-height:1.75;color:#374151;">
-                Welcome to FRDA, ${safeFirstName}!
-              </p>
+            <p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
+              Your developer registration has been accepted.
+            </p>
 
-              <div style="margin:0 0 32px 0;">
-                <a
-                  href="${safeInviteUrl}"
-                  style="display:inline-block;background:#10b981;color:#06281f;text-decoration:none;font-weight:700;font-size:16px;line-height:1;padding:16px 24px;border-radius:10px;"
-                >
-                  Join FRDA Discord
-                </a>
-              </div>
+            <p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
+              Use the button below to join the FRDA Discord server. This invite is intended only for the Discord account tied to your submitted Discord user ID.
+            </p>
 
-              <p style="margin:0 0 10px 0;font-size:14px;line-height:1.75;color:#6b7280;">
-                If the button doesn’t work, copy and paste this link into your browser:
-              </p>
+            <p style="margin:0 0 28px 0;font-size:16px;line-height:1.75;color:#374151;">
+              Once you join, you will receive the <strong>Registered Developer</strong> role automatically through this invite.
+            </p>
 
-              <p style="margin:0;font-size:14px;line-height:1.8;color:#2563eb;word-break:break-word;">
-                <a href="${safeInviteUrl}" style="color:#2563eb;text-decoration:underline;">
-                  ${safeInviteUrl}
-                </a>
-              </p>
+            <div style="margin:0 0 32px 0;">
+              <a
+                href="${safeInviteUrl}"
+                style="display:inline-block;background:#10b981;color:#06281f;text-decoration:none;font-weight:700;font-size:16px;line-height:1;padding:16px 24px;border-radius:10px;"
+              >
+                Join FRDA Discord
+              </a>
             </div>
+
+            <p style="margin:0 0 10px 0;font-size:14px;line-height:1.75;color:#6b7280;">
+              If the button doesn’t work, copy and paste this link into your browser:
+            </p>
+
+            <p style="margin:0;font-size:14px;line-height:1.8;color:#2563eb;word-break:break-word;">
+              <a href="${safeInviteUrl}" style="color:#2563eb;text-decoration:underline;">
+                ${safeInviteUrl}
+              </a>
+            </p>
           </div>
         </div>
       `,

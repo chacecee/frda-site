@@ -16,7 +16,7 @@ import { ClipboardList, Users } from "lucide-react";
 import { usePresence } from "@/lib/usePresence";
 
 type AdminSidebarProps = {
-  active: "applications" | "staff";
+  active: "applications" | "staff" | "admin_tools";
   sidebarOpen: boolean;
   onCloseSidebar: () => void;
   onNavigate: (path: string) => void;
@@ -61,12 +61,25 @@ function SidebarLink({
       type="button"
       onClick={onClick}
       className={`flex w-full cursor-pointer items-center gap-3 px-5 py-4 text-left text-base font-medium transition ${active
-          ? "bg-[linear-gradient(90deg,rgba(22,163,74,0.30),rgba(16,185,129,0.16)_45%,rgba(24,24,27,0.94)_100%)] text-white"
-          : "text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
+        ? "text-white"
+        : "text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
         }`}
-      style={{ borderRadius: 0 }}
+      style={{
+        borderRadius: 0,
+        borderLeft: active ? "2px solid #60a5fa" : "2px solid transparent",
+        background: active
+          ? "linear-gradient(90deg, rgba(59,130,246,0.34) 0%, rgba(96,165,250,0.16) 42%, rgba(24,24,27,0.96) 100%)"
+          : "transparent",
+        boxShadow: active
+          ? "inset 0 0 0 1px rgba(59,130,246,0.08)"
+          : "none",
+      }}
     >
-      <span className={`shrink-0 ${active ? "opacity-100" : "opacity-70"}`}>{icon}</span>
+      <span
+        className={`shrink-0 ${active ? "opacity-100 text-blue-300" : "opacity-70"}`}
+      >
+        {icon}
+      </span>
       <span>{label}</span>
     </button>
   );
@@ -151,6 +164,9 @@ export default function AdminSidebar({
     return staffProfile?.emailAddress?.trim() || email || "—";
   }, [staffProfile?.emailAddress, email]);
 
+  const isAdminRole =
+    staffProfile?.role?.trim().toLowerCase() === "admin";
+
   function openProfileModal() {
     setProfileError("");
 
@@ -211,8 +227,12 @@ export default function AdminSidebar({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[250px] flex-col bg-zinc-950 transition-transform duration-200 lg:static lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[250px] flex-col bg-[#02040a] transition-transform duration-200 lg:static lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 50% 0%, rgba(59,130,246,0.14) 0%, rgba(59,130,246,0.07) 16%, rgba(59,130,246,0.02) 28%, rgba(59,130,246,0) 40%), linear-gradient(to bottom, #02040a 0%, #010309 32%, #000000 100%)",
+        }}
       >
         <div className="p-5">
           <div className="mb-8 flex items-center gap-3">
@@ -250,6 +270,18 @@ export default function AdminSidebar({
               onNavigate("/admin/staff");
             }}
           />
+
+          {isAdminRole ? (
+            <SidebarLink
+              label="Admin"
+              icon={<Users size={18} strokeWidth={1.3} />}
+              active={active === "admin_tools"}
+              onClick={() => {
+                onCloseSidebar();
+                onNavigate("/admin/reassign");
+              }}
+            />
+          ) : null}
         </nav>
 
         <div className="mt-auto p-5">
@@ -262,7 +294,7 @@ export default function AdminSidebar({
               <button
                 type="button"
                 onClick={openProfileModal}
-                className="shrink-0 bg-transparent p-0 text-2xl leading-none text-zinc-400 transition hover:text-white"
+                className="shrink-0 cursor-pointer bg-transparent p-0 text-2xl leading-none text-zinc-400 transition hover:text-blue-300"
                 aria-label="Edit profile"
                 title="Edit profile"
               >
@@ -280,7 +312,7 @@ export default function AdminSidebar({
 
           <button
             onClick={onSignOut}
-            className="mt-4 cursor-pointer text-sm font-medium text-zinc-400 transition hover:text-white"
+            className="mt-4 cursor-pointer text-sm font-medium text-zinc-400 transition hover:text-blue-300"
           >
             Log out
           </button>
@@ -291,7 +323,7 @@ export default function AdminSidebar({
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
           <div
             className="w-full max-w-lg border border-zinc-800 bg-zinc-900 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
-            style={{ borderRadius: 8 }}
+            style={{ borderRadius: 5 }}
           >
             <div className="border-b border-zinc-800 px-6 py-5">
               <div className="flex items-start justify-between gap-4">
@@ -307,10 +339,22 @@ export default function AdminSidebar({
                 <button
                   type="button"
                   onClick={closeProfileModal}
-                  className="border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white transition hover:bg-zinc-800"
-                  style={{ borderRadius: 6 }}
+                  aria-label="Close"
+                  className="cursor-pointer text-white hover:text-zinc-300"
+                  style={{
+                    width: 42,
+                    height: 42,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 5,
+                    border: "1px solid rgba(63, 63, 70, 1)",
+                    background: "rgba(9, 9, 11, 0.9)",
+                    fontSize: 22,
+                    lineHeight: 1,
+                  }}
                 >
-                  Close
+                  ×
                 </button>
               </div>
             </div>
@@ -330,8 +374,8 @@ export default function AdminSidebar({
                         displayName: e.target.value,
                       }))
                     }
-                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-500"
-                    style={{ borderRadius: 6 }}
+                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
+                    style={{ borderRadius: 5 }}
                     placeholder="Enter your display name"
                     disabled={profileLoading || savingProfile}
                   />
@@ -350,8 +394,8 @@ export default function AdminSidebar({
                         discordProfile: e.target.value,
                       }))
                     }
-                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-500"
-                    style={{ borderRadius: 6 }}
+                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
+                    style={{ borderRadius: 5 }}
                     placeholder="Enter your Discord profile"
                     disabled={profileLoading || savingProfile}
                   />
@@ -370,8 +414,8 @@ export default function AdminSidebar({
                         robloxInput: e.target.value,
                       }))
                     }
-                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-emerald-500"
-                    style={{ borderRadius: 6 }}
+                    className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
+                    style={{ borderRadius: 5 }}
                     placeholder="Optional"
                     disabled={profileLoading || savingProfile}
                   />
@@ -386,7 +430,7 @@ export default function AdminSidebar({
                     value={displayedEmail}
                     readOnly
                     className="w-full border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm text-zinc-400 outline-none"
-                    style={{ borderRadius: 6 }}
+                    style={{ borderRadius: 5 }}
                   />
                   <p className="mt-2 text-xs text-zinc-500">
                     Your login email can’t be changed from this window.
@@ -404,12 +448,16 @@ export default function AdminSidebar({
                 ) : null}
               </div>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={closeProfileModal}
-                  className="border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
-                  style={{ borderRadius: 6 }}
+                  className="cursor-pointer px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800/30 disabled:cursor-not-allowed disabled:opacity-70"
+                  style={{
+                    borderRadius: 5,
+                    background: "transparent",
+                    border: "1px solid rgba(113, 113, 122, 0.45)",
+                  }}
                   disabled={savingProfile}
                 >
                   Cancel
@@ -418,8 +466,14 @@ export default function AdminSidebar({
                 <button
                   type="submit"
                   disabled={savingProfile || profileLoading || !staffProfile}
-                  className="bg-emerald-500 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
-                  style={{ borderRadius: 6 }}
+                  className="px-5 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
+                  style={{
+                    borderRadius: 5,
+                    background: "linear-gradient(180deg, rgb(59, 130, 246) 0%, rgb(37, 99, 235) 100%)",
+                    border: "1px solid rgba(96, 165, 250, 0.55)",
+                    boxShadow: "0 8px 22px rgba(37, 99, 235, 0.28)",
+                    minWidth: 130,
+                  }}
                 >
                   {savingProfile ? "Saving..." : "Save Changes"}
                 </button>
