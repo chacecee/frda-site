@@ -1,8 +1,21 @@
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.24),_transparent_22%),radial-gradient(circle_at_top_right,_rgba(34,197,94,0.12),_transparent_20%),radial-gradient(circle_at_top_left,_rgba(6,182,212,0.08),_transparent_18%),linear-gradient(to_bottom,_#0b100d,_#09090b_34%,_#09090b)] text-white">
-      <div className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-6 py-16">
-        <div className="w-full rounded-2xl border border-zinc-700/80 bg-zinc-900/75 p-8 text-center shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-sm sm:p-10">
+    <main className="relative min-h-screen overflow-hidden bg-[#050816] text-white">
+      <div className="pointer-events-none absolute inset-0">
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `
+              radial-gradient(circle at 50% 0%, rgba(59,130,246,0.38) 0%, rgba(59,130,246,0.20) 18%, rgba(59,130,246,0.08) 34%, rgba(59,130,246,0) 58%),
+              radial-gradient(circle at 85% 8%, rgba(37,99,235,0.22) 0%, rgba(37,99,235,0.10) 18%, rgba(37,99,235,0) 42%),
+              radial-gradient(circle at 15% 10%, rgba(96,165,250,0.20) 0%, rgba(96,165,250,0.08) 16%, rgba(96,165,250,0) 40%)
+            `,
+          }}
+        />
+      </div>
+
+      <div className="relative mx-auto flex min-h-screen max-w-3xl items-center justify-center px-6 py-16">
+        <div className="w-full rounded-[5px] border border-zinc-700/80 bg-zinc-900/75 p-8 text-center shadow-[0_8px_30px_rgba(0,0,0,0.22)] backdrop-blur-sm sm:p-10">
           <div className="mb-6 flex justify-center">
             <div className="rounded-full bg-white/5 p-3 ring-1 ring-white/10 backdrop-blur-sm">
               <img

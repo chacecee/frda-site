@@ -267,7 +267,7 @@ export default function ApplyPage() {
 
     return (
         <>
-        <style jsx global>{`
+            <style jsx global>{`
   :root {
     --page-bg: #dbeafe;
     --page-text: #18181b;
@@ -375,6 +375,22 @@ export default function ApplyPage() {
   .apply-theme summary {
     cursor: pointer;
   }
+
+  .apply-theme .file-input-blue::file-selector-button {
+  margin-right: 1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  border: 1px solid rgba(96, 165, 250, 0.6);
+  background: transparent;
+  color: rgb(147, 197, 253);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.apply-theme .file-input-blue::file-selector-button:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
 `}</style>
 
             <main
@@ -657,7 +673,7 @@ export default function ApplyPage() {
                                         accept="image/jpeg,image/png,image/webp"
                                         required
                                         onChange={handleIdFileChange}
-                                        className="block w-full cursor-pointer rounded-md border border-zinc-600 bg-zinc-900/40 px-4 py-3 text-sm text-white file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-emerald-500 file:px-4 file:py-2 file:text-sm file:font-medium file:text-zinc-950"
+                                        className="file-input-blue block w-full cursor-pointer rounded-md border border-zinc-600 bg-zinc-900/40 px-4 py-3 text-sm text-white"
                                     />
 
                                     <p
