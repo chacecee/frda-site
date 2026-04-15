@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
             <div style="margin:0 0 32px 0;">
               <a
                 href="${safeInviteUrl}"
-                style="display:inline-block;background:#10b981;color:#06281f;text-decoration:none;font-weight:700;font-size:16px;line-height:1;padding:16px 24px;border-radius:10px;"
+                style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;line-height:1;padding:16px 24px;border-radius:10px;"
               >
                 Join FRDA Discord
               </a>

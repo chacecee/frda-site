@@ -422,16 +422,14 @@ export default function ApplyPage() {
                             className="text-3xl font-bold tracking-tight sm:text-5xl"
                             style={{ color: "var(--hero-title)" }}
                         >
-                            FRDA Member Application Form
+                            Become an FRDA-Registered Developer
                         </h1>
 
                         <p
                             className="mx-auto mt-5 max-w-2xl text-sm leading-6 sm:text-base"
                             style={{ color: "var(--hero-copy)" }}
                         >
-                            This form is for individuals applying to become a verified member of
-                            the Filipino Roblox Developers Association. Please make sure all
-                            submitted information is accurate and complete for proper review.
+                            Registered developers get first access to industry updates and selected opportunities within the community before they are shared more widely. We request identification to help FRDA review applications responsibly and connect those opportunities to registered developers with greater confidence and accountability.
                         </p>
                     </div>
 

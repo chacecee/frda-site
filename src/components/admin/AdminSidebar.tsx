@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
-import { ClipboardList, Users } from "lucide-react";
+import { ClipboardList, Users, ShieldUser } from "lucide-react";
 import { usePresence } from "@/lib/usePresence";
 
 type AdminSidebarProps = {
@@ -274,7 +274,7 @@ export default function AdminSidebar({
           {isAdminRole ? (
             <SidebarLink
               label="Admin"
-              icon={<Users size={18} strokeWidth={1.3} />}
+              icon={<ShieldUser size={18} strokeWidth={1.3} />}
               active={active === "admin_tools"}
               onClick={() => {
                 onCloseSidebar();
