@@ -37,14 +37,14 @@ const officerMembers = [
   {
     nickname: "Oreo",
     realName: "Ron Harixx Gevera",
-    role: "HRD SA",
+    role: "Human Resource Department | Staff Affairs",
     discord: "ro.0397_03790",
     roblox: "RONX23ron",
   },
   {
     nickname: "L11_hakari",
     realName: "Darius Sebastian Quitangon",
-    role: "HRD RS",
+    role: "Human Resource Department | Registration Systems",
     discord: "hakarimeow",
     roblox: "Hakari_sarashina24",
   },
