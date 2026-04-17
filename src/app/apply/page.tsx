@@ -107,6 +107,7 @@ export default function ApplyPage() {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadStageText, setUploadStageText] = useState("");
     const router = useRouter();
+    const registrationOpen = false;
 
     useEffect(() => {
         return () => {
@@ -400,9 +401,9 @@ export default function ApplyPage() {
                     color: "var(--page-text)",
                 }}
             >
-                <div className="mx-auto max-w-3xl px-6 py-16 sm:py-20">
+                <div className="mx-auto max-w-3xl px-6 pt-[200px] pb-16 sm:pb-20">
                     <div className="mb-12 text-center">
-                       
+
 
                         <h1
                             className="text-3xl font-bold tracking-tight sm:text-5xl"
@@ -419,7 +420,15 @@ export default function ApplyPage() {
                         </p>
                     </div>
 
-                    <form className="space-y-6" onSubmit={handleSubmit}>
+                    <form
+                        className="relative space-y-6"
+                        onSubmit={registrationOpen ? handleSubmit : (e) => e.preventDefault()}
+                    >
+
+                        <div
+                            className={!registrationOpen ? "pointer-events-none select-none blur-[2px]" : ""}
+                            aria-hidden={!registrationOpen}
+                        >
                         <section style={sectionCardStyle}>
                             <SectionHeading title="Personal Details" />
 
@@ -918,9 +927,43 @@ export default function ApplyPage() {
                         >
                             {isSubmitting ? "Submitting..." : "Submit Application"}
                         </button>
-                    </form>
+
                 </div>
-            </main>
+
+                {!registrationOpen ? (
+                    <div className="absolute inset-0 z-20 flex items-start justify-center rounded-xl pt-10">
+                        <div
+                            className="mx-4 w-full max-w-xl rounded-2xl border px-6 py-8 text-center shadow-2xl backdrop-blur-md"
+                            style={{
+                                borderColor: "rgba(96, 165, 250, 0.35)",
+                                background: "rgba(3, 7, 18, 0.68)",
+                                boxShadow: "0 20px 60px rgba(0, 0, 0, 0.45)",
+                            }}
+                        >
+                            <p
+                                className="text-[11px] font-semibold uppercase tracking-[0.28em]"
+                                style={{ color: "rgba(147, 197, 253, 0.88)" }}
+                            >
+                                FRDA
+                            </p>
+
+                            <h2 className="mt-3 text-2xl font-semibold sm:text-3xl">
+                                Registration Opens Soon!
+                            </h2>
+
+                            <p
+                                className="mx-auto mt-3 max-w-lg text-sm leading-6 sm:text-base"
+                                style={{ color: "rgba(228, 228, 231, 0.82)" }}
+                            >
+                                Our registration page is temporarily unavailable while we finalize
+                                a few requirements. Thank you.
+                            </p>
+                        </div>
+                    </div>
+                ) : null}
+            </form>
+        </div >
+            </main >
         </>
     );
 }

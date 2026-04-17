@@ -109,7 +109,7 @@ export default function SiteHeader() {
             </nav>
 
             <Link
-              href="/register"
+              href="/apply"
               className="rounded-[5px] border border-blue-400/30 bg-blue-500 px-4 py-2 text-[13px] font-medium uppercase tracking-[0.08em] text-white shadow-[0_0_20px_rgba(37,99,235,0.18)] transition hover:bg-blue-400"
             >
               Register as a Developer
@@ -181,7 +181,7 @@ export default function SiteHeader() {
                 })}
 
                 <Link
-                  href="/register"
+                  href="/apply"
                   onClick={() => setMobileOpen(false)}
                   className="mt-2 rounded-[5px] border border-blue-400/30 bg-blue-500 px-3 py-3 text-[13px] font-medium uppercase tracking-[0.08em] text-white"
                 >
