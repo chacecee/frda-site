@@ -402,21 +402,7 @@ export default function ApplyPage() {
             >
                 <div className="mx-auto max-w-3xl px-6 py-16 sm:py-20">
                     <div className="mb-12 text-center">
-                        <div className="mb-6 flex justify-center">
-                            <div
-                                className="rounded-full p-3 ring-1 backdrop-blur-sm"
-                                style={{
-                                    background: "var(--logo-wrap-bg)",
-                                    boxShadow: `0 0 0 1px var(--logo-wrap-ring) inset`,
-                                }}
-                            >
-                                <img
-                                    src="/frda-logo.png"
-                                    alt="FRDA logo"
-                                    className="h-24 w-24 object-contain sm:h-32 sm:w-32"
-                                />
-                            </div>
-                        </div>
+                       
 
                         <h1
                             className="text-3xl font-bold tracking-tight sm:text-5xl"
