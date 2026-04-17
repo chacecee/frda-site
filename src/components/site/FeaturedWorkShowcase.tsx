@@ -15,6 +15,15 @@ type FeaturedGame = {
 const featuredGames: FeaturedGame[] = [
     {
         id: "game-1",
+        title: "🚍Diesel n' Steel",
+        creator: "Diesel n' Steel Official Group",
+        description:
+            "Get ready to hit the streets in Diesel n' Steel, the ORIGINAL Jeepney simulator on Roblox! Compete for passengers, calculate fares and earn cash, drive iconic Jeepneys, and buy and customize your very own Jeepneys, and more!",
+        image: "/game8.png",
+        href: "https://www.roblox.com/games/131667667758514/Diesel-n-Steel",
+    },
+    {
+        id: "game-2",
         title: "The Binding: Chapter 1",
         creator: "Black Pirate Studios",
         description:
@@ -23,7 +32,7 @@ const featuredGames: FeaturedGame[] = [
         href: "https://www.roblox.com/games/16822767308/The-Binding-Chapter-1-First-Descent",
     },
     {
-        id: "game-2",
+        id: "game-3",
         title: "SM City Tanza (Shopping Mall)",
         creator: "SM Supermall on Roblox (Official)",
         description:
@@ -32,7 +41,7 @@ const featuredGames: FeaturedGame[] = [
         href: "https://www.roblox.com/games/14197996531/SM-City-Tanza",
     },
     {
-        id: "game-3",
+        id: "game-4",
         title: "Pinoy Holy Week Procession 2026",
         creator: "Batak Studios",
         description:
@@ -43,7 +52,7 @@ const featuredGames: FeaturedGame[] = [
 
     // EASY TO EXTEND LATER
     // {
-    //   id: "game-4",
+    //   id: "game-5",
     //   title: "Project Showcase Four",
     //   creator: "Another Studio",
     //   description: "Optional fourth item.",
@@ -51,7 +60,7 @@ const featuredGames: FeaturedGame[] = [
     //   href: "https://www.roblox.com/games/",
     // },
     // {
-    //   id: "game-5",
+    //   id: "game-6",
     //   title: "Project Showcase Five",
     //   creator: "Another Creator",
     //   description: "Optional fifth item.",
