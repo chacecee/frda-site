@@ -12,7 +12,7 @@ export default function ContactPage() {
           <div className="absolute right-[-120px] top-24 h-[360px] w-[360px] rounded-full bg-cyan-400/8 blur-3xl" />
         </div>
 
-        <div className="relative mx-auto max-w-7xl px-6 py-20 md:px-8 md:py-28">
+        <div className="relative mx-auto max-w-7xl px-6 pb-20 pt-[120px] md:px-8 md:pb-28 md:pt-[200px]">
           <div className="max-w-3xl">
             <p className="inline-flex rounded-[5px] bg-blue-500/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">
               Contact

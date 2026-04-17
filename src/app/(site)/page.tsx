@@ -46,15 +46,27 @@ const faqItems = [
     },
     {
         question: "Can organizations or partners reach out to FRDA?",
-        answer:
-            "Yes. Organizations interested in supporting the local creator community or exploring collaboration are welcome to connect through FRDA’s contact channels.",
+        answer: (
+            <>
+                Yes. Organizations interested in supporting the local creator
+                community or exploring collaboration are welcome to connect
+                through FRDA’s{" "}
+                <Link
+                    href="/contact"
+                    className="text-blue-200 underline decoration-blue-400/50 underline-offset-4 transition hover:text-white hover:decoration-blue-300"
+                >
+                    contact channels
+                </Link>
+                .
+            </>
+        ),
     },
 ];
 
 export default function HomePage() {
     return (
         <div className="overflow-x-hidden">
-            <section className="relative -mt-[88px] overflow-hidden pt-[88px]">
+            <section className="relative overflow-hidden pt-[104px] md:pt-[120px]">
                 <div className="pointer-events-none absolute inset-0">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(113,92,255,0.12),transparent_30%)]" />
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_left,rgba(54,189,248,0.08),transparent_20%)]" />
@@ -74,7 +86,7 @@ export default function HomePage() {
                     <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(4,12,30,0.45)_0%,rgba(4,12,30,0.30)_18%,rgba(4,12,30,0.60)_100%)]" />
                 </div>
 
-                <div className="relative mx-auto max-w-5xl px-6 pb-28 pt-28 text-center md:px-8 md:pb-40 md:pt-40">
+                <div className="relative mx-auto max-w-5xl px-6 pb-28 pt-[112px] text-center md:px-8 md:pb-40 md:pt-[136px]">
                     <h1 className="mx-auto max-w-4xl text-3xl font-semibold leading-[1.12] text-white md:text-[46px]">
                         Championing higher standards for Filipino Roblox developers
                     </h1>
@@ -140,7 +152,14 @@ export default function HomePage() {
 
                         <p className="mt-5 text-base leading-8 text-zinc-300">
                             If you’d like to connect with us for an interview, appearance, or
-                            related discussion, we welcome the opportunity.
+                            related discussion,{" "}
+                            <Link
+                                href="/contact"
+                                className="text-blue-200 underline decoration-blue-400/50 underline-offset-4 transition hover:text-white hover:decoration-blue-300"
+                            >
+                                we welcome the opportunity
+                            </Link>
+                            .
                         </p>
                     </div>
 
