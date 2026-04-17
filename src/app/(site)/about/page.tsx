@@ -51,7 +51,7 @@ const officerMembers = [
   {
     nickname: "Astriel",
     realName: "John Noriel Peralta",
-    role: "PIED EA",
+    role: "Public Information and Editorial | External Affairs",
     discord: "xvastriel",
     roblox: "VenomNLR",
   },
