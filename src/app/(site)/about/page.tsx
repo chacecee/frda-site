@@ -56,10 +56,10 @@ const officerMembers = [
     roblox: "VenomNLR",
   },
   {
-    nickname: "Croissant/Mitappinventorgod",
+    nickname: "Croissant",
     realName: "Juno Daniel B. Ronquillo ",
     role: "Chief of Editorial Department",
-    discord: "xvastriel",
+    discord: "mitappinventorgod",
     roblox: "",
   },
 ];
