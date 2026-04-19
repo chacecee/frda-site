@@ -10,7 +10,7 @@ const leadershipMembers = [
   },
   {
     nickname: "Chace",
-    realName: "Grace Pan",
+    realName: "Cherry Aluzan",
     role: "Vice Executive Director and Head of ICT",
     discord: "chace_space",
     email: "admin@frdaph.org",
@@ -54,6 +54,13 @@ const officerMembers = [
     role: "Public Information and Editorial | External Affairs",
     discord: "xvastriel",
     roblox: "VenomNLR",
+  },
+  {
+    nickname: "Croissant/Mitappinventorgod",
+    realName: "Juno Daniel B. Ronquillo ",
+    role: "Chief of Editorial Department",
+    discord: "xvastriel",
+    roblox: "",
   },
 ];
 
