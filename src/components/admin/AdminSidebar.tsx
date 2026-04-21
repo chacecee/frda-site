@@ -4,19 +4,44 @@ import { useEffect, useMemo, useState } from "react";
 import {
   collection,
   doc,
+  getDocs,
   limit,
   onSnapshot,
   query,
+  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
-import { ClipboardList, Users, ShieldUser } from "lucide-react";
+import {
+  ClipboardList,
+  Users,
+  ShieldUser,
+  FolderKanban,
+  ChevronDown,
+  ChevronRight,
+  Trophy,
+  Megaphone,
+  Newspaper,
+  Settings2,
+  FileCheck,
+} from "lucide-react";
 import { usePresence } from "@/lib/usePresence";
+import {
+  AdminSidebarActive,
+  ApplicationsTabKey,
+  ContentTabKey,
+  SidebarPermissionKey,
+  SidebarPermissionMap,
+  canViewApplicationsSection,
+  canViewContentSection,
+  canViewSidebarTab,
+  isAdminRole,
+} from "@/lib/adminPermissions";
 
 type AdminSidebarProps = {
-  active: "applications" | "staff" | "admin_tools";
+  active: AdminSidebarActive;
   sidebarOpen: boolean;
   onCloseSidebar: () => void;
   onNavigate: (path: string) => void;
@@ -35,10 +60,24 @@ type StaffProfile = {
   status?: string;
 };
 
+type SelectableStaff = {
+  id: string;
+  displayName: string;
+  emailAddress: string;
+  role?: string;
+  status?: string;
+};
+
 type ProfileFormState = {
   displayName: string;
   discordProfile: string;
   robloxInput: string;
+};
+
+type PermissionModalState = {
+  open: boolean;
+  tabKey: SidebarPermissionKey | null;
+  title: string;
 };
 
 function normalizeEmail(value?: string | null): string {
@@ -50,20 +89,19 @@ function SidebarLink({
   active = false,
   onClick,
   icon,
+  className = "",
+  rightSlot,
 }: {
   label: string;
   active?: boolean;
   onClick?: () => void;
   icon?: React.ReactNode;
+  className?: string;
+  rightSlot?: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full cursor-pointer items-center gap-3 px-5 py-4 text-left text-base font-medium transition ${active
-        ? "text-white"
-        : "text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
-        }`}
+    <div
+      className={`flex w-full items-center ${className}`}
       style={{
         borderRadius: 0,
         borderLeft: active ? "2px solid #60a5fa" : "2px solid transparent",
@@ -75,12 +113,72 @@ function SidebarLink({
           : "none",
       }}
     >
+      <button
+        type="button"
+        onClick={onClick}
+        className={`flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-5 py-4 text-left text-base font-medium transition ${
+          active
+            ? "text-white"
+            : "text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
+        }`}
+      >
+        <span
+          className={`shrink-0 ${active ? "opacity-100 text-blue-300" : "opacity-70"}`}
+        >
+          {icon}
+        </span>
+        <span className="truncate">{label}</span>
+      </button>
+
+      {rightSlot ? <div className="pr-3">{rightSlot}</div> : null}
+    </div>
+  );
+}
+
+function SidebarSectionToggle({
+  label,
+  active = false,
+  open = false,
+  onClick,
+  icon,
+}: {
+  label: string;
+  active?: boolean;
+  open?: boolean;
+  onClick?: () => void;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full cursor-pointer items-center gap-3 px-5 py-4 text-left text-base font-medium transition ${
+        active
+          ? "text-white"
+          : "text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
+      }`}
+      style={{
+        borderRadius: 0,
+        borderLeft: active ? "2px solid #60a5fa" : "2px solid transparent",
+        background: active
+          ? "linear-gradient(90deg, rgba(59,130,246,0.22) 0%, rgba(96,165,250,0.10) 42%, rgba(24,24,27,0.96) 100%)"
+          : "transparent",
+        boxShadow: active
+          ? "inset 0 0 0 1px rgba(59,130,246,0.06)"
+          : "none",
+      }}
+    >
       <span
         className={`shrink-0 ${active ? "opacity-100 text-blue-300" : "opacity-70"}`}
       >
         {icon}
       </span>
-      <span>{label}</span>
+
+      <span className="flex-1">{label}</span>
+
+      <span className={`shrink-0 ${active ? "text-blue-300" : "text-zinc-500"}`}>
+        {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+      </span>
     </button>
   );
 }
@@ -103,11 +201,30 @@ export default function AdminSidebar({
   const [profileError, setProfileError] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
+  const [applicationsOpen, setApplicationsOpen] = useState(active === "applications");
+  const [contentOpen, setContentOpen] = useState(
+    active === "content_featured_games" ||
+      active === "content_announcements" ||
+      active === "content_blog"
+  );
+
   const [form, setForm] = useState<ProfileFormState>({
     displayName: "",
     discordProfile: "",
     robloxInput: "",
   });
+
+  const [permissionMap, setPermissionMap] = useState<SidebarPermissionMap>({});
+  const [permissionModal, setPermissionModal] = useState<PermissionModalState>({
+    open: false,
+    tabKey: null,
+    title: "",
+  });
+  const [selectableStaff, setSelectableStaff] = useState<SelectableStaff[]>([]);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsSaving, setPermissionsSaving] = useState(false);
+  const [permissionsError, setPermissionsError] = useState("");
 
   const signedInEmail = normalizeEmail(user?.email || email);
 
@@ -129,22 +246,42 @@ export default function AdminSidebar({
 
     const unsubscribe = onSnapshot(
       q,
-      (snapshot) => {
-        if (snapshot.empty) {
-          setStaffProfile(null);
+      async (snapshot) => {
+        if (!snapshot.empty) {
+          const docSnap = snapshot.docs[0];
+          const data = docSnap.data() as Omit<StaffProfile, "id">;
+
+          setStaffProfile({
+            id: docSnap.id,
+            ...data,
+          });
           setProfileLoading(false);
           return;
         }
 
-        const docSnap = snapshot.docs[0];
-        const data = docSnap.data() as Omit<StaffProfile, "id">;
+        try {
+          const allStaffSnapshot = await getDocs(collection(db, "staff"));
+          const match = allStaffSnapshot.docs.find((docSnap) => {
+            const data = docSnap.data() as { emailAddress?: string };
+            return normalizeEmail(data.emailAddress) === signedInEmail;
+          });
 
-        setStaffProfile({
-          id: docSnap.id,
-          ...data,
-        });
+          if (!match) {
+            setStaffProfile(null);
+            setProfileLoading(false);
+            return;
+          }
 
-        setProfileLoading(false);
+          setStaffProfile({
+            id: match.id,
+            ...(match.data() as Omit<StaffProfile, "id">),
+          });
+        } catch (error) {
+          console.error("Error loading sidebar profile:", error);
+          setProfileError("Could not load your profile details.");
+        } finally {
+          setProfileLoading(false);
+        }
       },
       (error) => {
         console.error("Error loading sidebar profile:", error);
@@ -156,6 +293,40 @@ export default function AdminSidebar({
     return () => unsubscribe();
   }, [signedInEmail]);
 
+  useEffect(() => {
+    const permissionsRef = doc(db, "adminUiPermissions", "sidebar");
+
+    const unsubscribe = onSnapshot(
+      permissionsRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setPermissionMap({});
+          return;
+        }
+
+        setPermissionMap(snapshot.data() as SidebarPermissionMap);
+      },
+      (error) => {
+        console.error("Error loading sidebar permissions:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (active === "applications") {
+      setApplicationsOpen(true);
+    }
+    if (
+      active === "content_featured_games" ||
+      active === "content_announcements" ||
+      active === "content_blog"
+    ) {
+      setContentOpen(true);
+    }
+  }, [active]);
+
   const displayedName = useMemo(() => {
     return staffProfile?.displayName?.trim() || displayName;
   }, [staffProfile?.displayName, displayName]);
@@ -164,8 +335,127 @@ export default function AdminSidebar({
     return staffProfile?.emailAddress?.trim() || email || "—";
   }, [staffProfile?.emailAddress, email]);
 
-  const isAdminRole =
-    staffProfile?.role?.trim().toLowerCase() === "admin";
+  const isAdmin = isAdminRole(staffProfile?.role);
+
+  const canSeeApplicationsDevelopers = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "applications_developers"
+  );
+
+  const canSeeFeaturedGames = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "content_featured_games"
+  );
+
+  const canSeeAnnouncements = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "content_announcements"
+  );
+
+  const canSeeBlog = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "content_blog"
+  );
+
+  const hasApplicationsAccess = canViewApplicationsSection(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap
+  );
+
+  const hasContentAccess = canViewContentSection(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap
+  );
+
+  async function openPermissionsModal(
+    tabKey: SidebarPermissionKey,
+    title: string
+  ) {
+    setPermissionsLoading(true);
+    setPermissionsError("");
+    setPermissionModal({
+      open: true,
+      tabKey,
+      title,
+    });
+
+    try {
+      const snapshot = await getDocs(collection(db, "staff"));
+      const rows = snapshot.docs
+        .map((docSnap) => ({
+          id: docSnap.id,
+          ...(docSnap.data() as Omit<SelectableStaff, "id">),
+        }))
+        .filter((item) => !isAdminRole(item.role))
+        .sort((a, b) =>
+          (a.displayName || a.emailAddress || "").localeCompare(
+            b.displayName || b.emailAddress || ""
+          )
+        );
+
+      setSelectableStaff(rows);
+      setSelectedStaffIds(permissionMap[tabKey] || []);
+    } catch (error) {
+      console.error("Error loading selectable staff:", error);
+      setPermissionsError("Could not load staff members.");
+    } finally {
+      setPermissionsLoading(false);
+    }
+  }
+
+  function closePermissionsModal() {
+    if (permissionsSaving) return;
+    setPermissionModal({
+      open: false,
+      tabKey: null,
+      title: "",
+    });
+    setPermissionsError("");
+    setSelectableStaff([]);
+    setSelectedStaffIds([]);
+  }
+
+  function toggleSelectedStaff(staffId: string) {
+    setSelectedStaffIds((prev) =>
+      prev.includes(staffId)
+        ? prev.filter((id) => id !== staffId)
+        : [...prev, staffId]
+    );
+  }
+
+  async function handleSavePermissions() {
+    if (!permissionModal.tabKey) return;
+
+    setPermissionsSaving(true);
+    setPermissionsError("");
+
+    try {
+      await setDoc(
+        doc(db, "adminUiPermissions", "sidebar"),
+        {
+          [permissionModal.tabKey]: selectedStaffIds,
+        },
+        { merge: true }
+      );
+
+      closePermissionsModal();
+    } catch (error) {
+      console.error("Error saving tab permissions:", error);
+      setPermissionsError("Could not save permissions.");
+    } finally {
+      setPermissionsSaving(false);
+    }
+  }
 
   function openProfileModal() {
     setProfileError("");
@@ -227,8 +517,9 @@ export default function AdminSidebar({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[250px] flex-col bg-[#02040a] transition-transform duration-200 lg:static lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[250px] flex-col bg-[#02040a] transition-transform duration-200 lg:static lg:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
         style={{
           backgroundImage:
             "radial-gradient(circle at 50% 0%, rgba(59,130,246,0.14) 0%, rgba(59,130,246,0.07) 16%, rgba(59,130,246,0.02) 28%, rgba(59,130,246,0) 40%), linear-gradient(to bottom, #02040a 0%, #010309 32%, #000000 100%)",
@@ -251,15 +542,53 @@ export default function AdminSidebar({
         </div>
 
         <nav className="space-y-0">
-          <SidebarLink
-            label="Developer Applications"
-            icon={<ClipboardList size={18} strokeWidth={1.3} />}
-            active={active === "applications"}
-            onClick={() => {
-              onCloseSidebar();
-              onNavigate("/admin");
-            }}
-          />
+          {hasApplicationsAccess ? (
+            <>
+              <SidebarSectionToggle
+                label="Applications"
+                icon={<ClipboardList size={18} strokeWidth={1.3} />}
+                active={active === "applications"}
+                open={applicationsOpen}
+                onClick={() => setApplicationsOpen((prev) => !prev)}
+              />
+
+              {applicationsOpen ? (
+                <div className="bg-zinc-950/25">
+                  {canSeeApplicationsDevelopers ? (
+                    <SidebarLink
+                      label="Developers"
+                      icon={<FileCheck size={16} strokeWidth={1.3} />}
+                      active={active === "applications"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal(
+                                "applications_developers",
+                                "Applications — Developers"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          ) : null}
 
           <SidebarLink
             label="Staff"
@@ -271,7 +600,120 @@ export default function AdminSidebar({
             }}
           />
 
-          {isAdminRole ? (
+          {hasContentAccess ? (
+            <>
+              <SidebarSectionToggle
+                label="Content"
+                icon={<FolderKanban size={18} strokeWidth={1.3} />}
+                active={
+                  active === "content_featured_games" ||
+                  active === "content_announcements" ||
+                  active === "content_blog"
+                }
+                open={contentOpen}
+                onClick={() => setContentOpen((prev) => !prev)}
+              />
+
+              {contentOpen ? (
+                <div className="bg-zinc-950/25">
+                  {canSeeFeaturedGames ? (
+                    <SidebarLink
+                      label="Featured Games"
+                      icon={<Trophy size={16} strokeWidth={1.3} />}
+                      active={active === "content_featured_games"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/content/featured-games");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal(
+                                "content_featured_games",
+                                "Featured Games"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+
+                  {canSeeAnnouncements ? (
+                    <SidebarLink
+                      label="Announcements"
+                      icon={<Megaphone size={16} strokeWidth={1.3} />}
+                      active={active === "content_announcements"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/content/announcements");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal(
+                                "content_announcements",
+                                "Announcements"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+
+                  {canSeeBlog ? (
+                    <SidebarLink
+                      label="Blog"
+                      icon={<Newspaper size={16} strokeWidth={1.3} />}
+                      active={active === "content_blog"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/content/blog");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal("content_blog", "Blog");
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
+          {isAdmin ? (
             <SidebarLink
               label="Admin"
               icon={<ShieldUser size={18} strokeWidth={1.3} />}
@@ -318,6 +760,134 @@ export default function AdminSidebar({
           </button>
         </div>
       </aside>
+
+      {permissionModal.open ? (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/70 p-4">
+          <div
+            className="w-full max-w-lg border border-zinc-800 bg-zinc-900 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
+            style={{ borderRadius: 5 }}
+          >
+            <div className="border-b border-zinc-800 px-6 py-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-semibold text-white">
+                    Permissions
+                  </h2>
+                  <p className="mt-2 text-sm text-zinc-400">
+                    Who can view this tab
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    {permissionModal.title}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closePermissionsModal}
+                  aria-label="Close"
+                  className="cursor-pointer text-white hover:text-zinc-300"
+                  style={{
+                    width: 42,
+                    height: 42,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 5,
+                    border: "1px solid rgba(63, 63, 70, 1)",
+                    background: "rgba(9, 9, 11, 0.9)",
+                    fontSize: 22,
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {permissionsLoading ? (
+                <p className="text-sm text-zinc-400">Loading staff members...</p>
+              ) : (
+                <div>
+                  <div className="max-h-[320px] overflow-y-auto rounded-[5px] border border-zinc-800 bg-zinc-950/40">
+                    {selectableStaff.length === 0 ? (
+                      <p className="p-4 text-sm text-zinc-500">
+                        No non-admin staff members found.
+                      </p>
+                    ) : (
+                      <div className="divide-y divide-zinc-800">
+                        {selectableStaff.map((item) => {
+                          const checked = selectedStaffIds.includes(item.id);
+
+                          return (
+                            <label
+                              key={item.id}
+                              className="flex cursor-pointer items-start gap-3 p-4 hover:bg-zinc-900/60"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleSelectedStaff(item.id)}
+                                className="mt-1"
+                              />
+
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-white">
+                                  {item.displayName || item.emailAddress}
+                                </p>
+                                <p className="mt-1 break-words text-xs text-zinc-500">
+                                  {item.emailAddress}
+                                </p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {permissionsError ? (
+                    <p className="mt-4 text-sm text-red-400">{permissionsError}</p>
+                  ) : null}
+
+                  <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      onClick={closePermissionsModal}
+                      className="cursor-pointer px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800/30 disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{
+                        borderRadius: 5,
+                        background: "transparent",
+                        border: "1px solid rgba(113, 113, 122, 0.45)",
+                      }}
+                      disabled={permissionsSaving}
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSavePermissions}
+                      disabled={permissionsSaving || permissionsLoading}
+                      className="px-5 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
+                      style={{
+                        borderRadius: 5,
+                        background:
+                          "linear-gradient(180deg, rgb(59, 130, 246) 0%, rgb(37, 99, 235) 100%)",
+                        border: "1px solid rgba(96, 165, 250, 0.55)",
+                        boxShadow: "0 8px 22px rgba(37, 99, 235, 0.28)",
+                        minWidth: 130,
+                      }}
+                    >
+                      {permissionsSaving ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {profileModalOpen ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
@@ -469,7 +1039,8 @@ export default function AdminSidebar({
                   className="px-5 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
                   style={{
                     borderRadius: 5,
-                    background: "linear-gradient(180deg, rgb(59, 130, 246) 0%, rgb(37, 99, 235) 100%)",
+                    background:
+                      "linear-gradient(180deg, rgb(59, 130, 246) 0%, rgb(37, 99, 235) 100%)",
                     border: "1px solid rgba(96, 165, 250, 0.55)",
                     boxShadow: "0 8px 22px rgba(37, 99, 235, 0.28)",
                     minWidth: 130,

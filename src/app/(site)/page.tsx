@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Users, ShieldCheck, Briefcase } from "lucide-react";
 import FeaturedWorkShowcase from "@/components/site/FeaturedWorkShowcase";
+import HomepageAnnouncement from "@/components/site/HomepageAnnouncement";
 
 const featuredCreations = [
     {
@@ -113,6 +114,8 @@ export default function HomePage() {
 
                 </div>
             </section>
+
+            <HomepageAnnouncement />
 
             <section className="relative bg-[linear-gradient(180deg,#040914_0%,#02060f_100%)]">
                 <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-0">

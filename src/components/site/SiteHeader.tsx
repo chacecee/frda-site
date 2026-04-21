@@ -3,20 +3,30 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 
-const navItems = [
-  { href: "/", label: "Home" },
-  { href: "/about", label: "About" },
-  { href: "/contact", label: "Contact" },
-];
+const SHOW_BLOG_IN_HEADER = true;
 
 export default function SiteHeader() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const navItems = useMemo(() => {
+    const items = [
+      { href: "/", label: "Home" },
+      { href: "/about", label: "About" },
+      { href: "/contact", label: "Contact" },
+    ];
+
+    if (SHOW_BLOG_IN_HEADER) {
+      items.splice(2, 0, { href: "/blog", label: "News" });
+    }
+
+    return items;
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
