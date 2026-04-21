@@ -49,7 +49,7 @@ export async function generateMetadata({
 
   if (!post) {
     return {
-      title: "Article not found | FRDA",
+      title: "Article not found",
       description: "This article may have been removed or is not yet published.",
     };
   }
@@ -66,11 +66,11 @@ export async function generateMetadata({
       canonical: canonicalUrl,
     },
     openGraph: {
+      type: "article",
+      url: canonicalUrl,
       title,
       description,
-      url: canonicalUrl,
       siteName: "FRDA",
-      type: "article",
       images: [
         {
           url: imageUrl,
@@ -83,6 +83,10 @@ export async function generateMetadata({
       title,
       description,
       images: [imageUrl],
+    },
+    other: {
+      "article:published_time": post.publishDate,
+      "article:author": post.author,
     },
   };
 }

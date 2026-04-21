@@ -1,6 +1,40 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
+
+const SITE_URL = "https://frdaph.org";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "FRDA",
+    template: "%s | FRDA",
+  },
+  description:
+    "FRDA supports Filipino Roblox developers through representation, standards, and community initiatives.",
+  openGraph: {
+    type: "website",
+    siteName: "FRDA",
+    url: SITE_URL,
+    title: "FRDA",
+    description:
+      "FRDA supports Filipino Roblox developers through representation, standards, and community initiatives.",
+    images: [
+      {
+        url: "/frda-logo.png",
+        alt: "FRDA",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FRDA",
+    description:
+      "FRDA supports Filipino Roblox developers through representation, standards, and community initiatives.",
+    images: ["/frda-logo.png"],
+  },
+};
 
 export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
