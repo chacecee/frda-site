@@ -19,6 +19,7 @@ type BlogPost = {
   category?: string;
   author: string;
   publishDate: string;
+  publishTime?: string;
   excerpt: string;
   featuredImageUrl?: string;
   body: string;
@@ -28,11 +29,50 @@ type BlogPost = {
   updatedAt?: Timestamp;
 };
 
+function getSortTimestamp(post: BlogPost) {
+  if (post.publishDate && post.publishTime) {
+    return new Date(`${post.publishDate}T${post.publishTime}`).getTime();
+  }
+
+  if (post.publishDate) {
+    return new Date(`${post.publishDate}T00:00`).getTime();
+  }
+
+  return post.updatedAt?.toDate?.().getTime?.() ?? 0;
+}
+
 function sortPosts(posts: BlogPost[]) {
   return [...posts].sort((a, b) => {
-    const aDate = new Date(a.publishDate || 0).getTime();
-    const bDate = new Date(b.publishDate || 0).getTime();
-    return bDate - aDate;
+    const diff = getSortTimestamp(b) - getSortTimestamp(a);
+    if (diff !== 0) return diff;
+
+    const aUpdated = a.updatedAt?.toDate?.().getTime?.() ?? 0;
+    const bUpdated = b.updatedAt?.toDate?.().getTime?.() ?? 0;
+    return bUpdated - aUpdated;
+  });
+}
+
+function formatDisplayDate(value?: string) {
+  if (!value) return "—";
+
+  const date = new Date(`${value}T00:00`);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatDisplayTime(value?: string) {
+  if (!value) return "";
+
+  const [hours = "00", minutes = "00"] = value.split(":");
+  const date = new Date();
+  date.setHours(Number(hours), Number(minutes), 0, 0);
+
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
@@ -152,7 +192,10 @@ export default function BlogIndexPage() {
                       </Link>
 
                       <p className="mt-3 text-sm text-zinc-400">
-                        By {featuredPost.author} · {featuredPost.publishDate}
+                        By {featuredPost.author} · {formatDisplayDate(featuredPost.publishDate)}
+                        {featuredPost.publishTime
+                          ? ` · ${formatDisplayTime(featuredPost.publishTime)}`
+                          : ""}
                       </p>
 
                       <p className="mt-5 text-sm leading-7 text-zinc-300 md:text-base md:leading-8">
@@ -207,7 +250,7 @@ export default function BlogIndexPage() {
                       </Link>
 
                       <p className="mt-2 text-sm text-zinc-400">
-                        By {post.author} · {post.publishDate}
+                        By {post.author} · {formatDisplayDate(post.publishDate)}
                       </p>
 
                       <p className="mt-4 line-clamp-4 text-sm leading-7 text-zinc-300">

@@ -24,6 +24,7 @@ type BlogPost = {
   category?: string;
   author: string;
   publishDate: string;
+  publishTime?: string;
   excerpt: string;
   featuredImageUrl?: string;
   featuredImagePath?: string;
@@ -45,6 +46,7 @@ type FormState = {
   category: string;
   author: string;
   publishDate: string;
+  publishTime: string;
   excerpt: string;
   featuredImageCaption: string;
   body: string;
@@ -69,6 +71,13 @@ function getTodayDateString() {
   return `${year}-${month}-${day}`;
 }
 
+function getCurrentTimeString() {
+  const now = new Date();
+  const hours = `${now.getHours()}`.padStart(2, "0");
+  const minutes = `${now.getMinutes()}`.padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
 export default function BlogPostEditorForm({
   mode,
   initialPost,
@@ -82,6 +91,7 @@ export default function BlogPostEditorForm({
     category: initialPost?.category || "",
     author: initialPost?.author || "",
     publishDate: initialPost?.publishDate || getTodayDateString(),
+    publishTime: initialPost?.publishTime || getCurrentTimeString(),
     excerpt: initialPost?.excerpt || "",
     featuredImageCaption: initialPost?.featuredImageCaption || "",
     body: initialPost?.body || "",
@@ -92,7 +102,7 @@ export default function BlogPostEditorForm({
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(!!initialPost?.slug);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>("");
-  const [imageInputKey, setImageInputKey] = useState(0);
+  const [imageInputKey] = useState(0);
 
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -165,6 +175,7 @@ export default function BlogPostEditorForm({
     const category = form.category.trim();
     const author = form.author.trim();
     const publishDate = form.publishDate.trim();
+    const publishTime = form.publishTime.trim();
     const excerpt = form.excerpt.trim();
     const featuredImageCaption = form.featuredImageCaption.trim();
     const body = form.body.trim();
@@ -186,6 +197,11 @@ export default function BlogPostEditorForm({
 
     if (!publishDate) {
       setFormError("Publish Date is required.");
+      return;
+    }
+
+    if (!publishTime) {
+      setFormError("Publish Time is required.");
       return;
     }
 
@@ -227,6 +243,7 @@ export default function BlogPostEditorForm({
         category,
         author,
         publishDate,
+        publishTime,
         excerpt,
         featuredImageUrl,
         featuredImagePath,
@@ -348,6 +365,22 @@ export default function BlogPostEditorForm({
                 value={form.publishDate}
                 onChange={(e) =>
                   setForm((prev) => ({ ...prev, publishDate: e.target.value }))
+                }
+                className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
+                style={{ borderRadius: 5 }}
+                disabled={saving}
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+                Publish Time
+              </label>
+              <input
+                type="time"
+                value={form.publishTime}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, publishTime: e.target.value }))
                 }
                 className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
                 style={{ borderRadius: 5 }}
