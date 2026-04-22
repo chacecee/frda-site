@@ -224,7 +224,7 @@ export default function StatusTrackerClient({
     progressStep === 1 ? "0%" : progressStep === 2 ? "33.333%" : "66.666%";
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#050816] text-white">
+    <main className="relative min-h-screen overflow-hidden bg-[#050816] text-white pt-32 md:pt-[100px]">
       <div className="pointer-events-none absolute inset-0">
         <div
           className="absolute inset-0"

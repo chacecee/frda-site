@@ -210,6 +210,7 @@ export async function POST(req: NextRequest) {
     const firstName = normalizeText(formData.get("firstName"));
     const lastName = normalizeText(formData.get("lastName"));
     const email = normalizeEmail(formData.get("email"));
+    const birthYearRaw = normalizeText(formData.get("birthYear"));
     const ageRaw = normalizeText(formData.get("age"));
     const region = normalizeText(formData.get("region"));
     const skills = normalizeText(formData.get("skills"));
@@ -220,16 +221,16 @@ export async function POST(req: NextRequest) {
     const placeLink = normalizeText(formData.get("placeLink"));
     const placeContribution = normalizeText(formData.get("placeContribution"));
     const supportingLinks = normalizeText(formData.get("supportingLinks"));
+    const privacyConsent = normalizeText(formData.get("privacyConsent"));
 
     if (
       !firstName ||
       !lastName ||
       !email ||
-      !ageRaw ||
+      (!birthYearRaw && !ageRaw) ||
       !skills ||
       !roblox ||
       !discordId ||
-      !facebookProfile ||
       !placeLink ||
       !placeContribution
     ) {
@@ -239,13 +240,49 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const age = Number(ageRaw);
-
-    if (Number.isNaN(age) || age < 18) {
+    if (!privacyConsent) {
       return NextResponse.json(
-        { error: "Applicants must be at least 18 years old." },
+        { error: "Please confirm that you have read the Privacy Notice and consent to the processing of your data." },
         { status: 400 }
       );
+    }
+
+    const currentYear = new Date().getFullYear();
+
+    let age: number;
+
+    if (birthYearRaw) {
+      const birthYear = Number(birthYearRaw);
+
+      if (
+        Number.isNaN(birthYear) ||
+        !Number.isInteger(birthYear) ||
+        birthYear < 1900 ||
+        birthYear > currentYear
+      ) {
+        return NextResponse.json(
+          { error: "Please enter a valid birth year." },
+          { status: 400 }
+        );
+      }
+
+      age = currentYear - birthYear;
+
+      if (age < 18) {
+        return NextResponse.json(
+          { error: "Applicants must be at least 18 years old." },
+          { status: 400 }
+        );
+      }
+    } else {
+      age = Number(ageRaw);
+
+      if (Number.isNaN(age) || age < 18) {
+        return NextResponse.json(
+          { error: "Applicants must be at least 18 years old." },
+          { status: 400 }
+        );
+      }
     }
 
     if (!/^\d{17,19}$/.test(discordId)) {
@@ -255,7 +292,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!isValidFacebookProfileUrl(facebookProfile)) {
+    if (facebookProfile && !isValidFacebookProfileUrl(facebookProfile)) {
       return NextResponse.json(
         { error: "Please enter a valid Facebook profile URL." },
         { status: 400 }

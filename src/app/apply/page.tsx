@@ -99,7 +99,7 @@ function isValidFacebookProfileUrl(value: string) {
 export default function ApplyPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState("");
-    const [ageError, setAgeError] = useState("");
+    const [birthYearError, setBirthYearError] = useState("");
     const [facebookError, setFacebookError] = useState("");
     const [idFileError, setIdFileError] = useState("");
     const [selectedIdFile, setSelectedIdFile] = useState<File | null>(null);
@@ -107,7 +107,7 @@ export default function ApplyPage() {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadStageText, setUploadStageText] = useState("");
     const router = useRouter();
-    const registrationOpen = false;
+    const registrationOpen = true;
 
     useEffect(() => {
         return () => {
@@ -165,11 +165,27 @@ export default function ApplyPage() {
         const formData = new FormData(form);
 
         try {
-            const rawAge = String(formData.get("age") || "").trim();
-            const parsedAge = rawAge ? Number(rawAge) : null;
+            const rawBirthYear = String(formData.get("birthYear") || "").trim();
+            const parsedBirthYear = rawBirthYear ? Number(rawBirthYear) : null;
+            const currentYear = new Date().getFullYear();
             const facebookProfile = String(formData.get("facebookProfile") || "").trim();
+            const privacyConsent = formData.get("privacyConsent");
 
-            if (parsedAge === null || Number.isNaN(parsedAge) || parsedAge < 18) {
+            if (
+                parsedBirthYear === null ||
+                Number.isNaN(parsedBirthYear) ||
+                !Number.isInteger(parsedBirthYear) ||
+                parsedBirthYear < 1900 ||
+                parsedBirthYear > currentYear
+            ) {
+                setSubmitError("Please enter a valid birth year.");
+                setIsSubmitting(false);
+                setUploadProgress(0);
+                setUploadStageText("");
+                return;
+            }
+
+            if (currentYear - parsedBirthYear < 18) {
                 setSubmitError("Applicants must be at least 18 years old.");
                 setIsSubmitting(false);
                 setUploadProgress(0);
@@ -185,7 +201,7 @@ export default function ApplyPage() {
                 return;
             }
 
-            if (!isValidFacebookProfileUrl(facebookProfile)) {
+            if (facebookProfile && !isValidFacebookProfileUrl(facebookProfile)) {
                 setFacebookError("Please enter a valid Facebook profile URL.");
                 setSubmitError("Please enter a valid Facebook profile URL.");
                 setIsSubmitting(false);
@@ -194,6 +210,14 @@ export default function ApplyPage() {
                 return;
             } else {
                 setFacebookError("");
+            }
+
+            if (!privacyConsent) {
+                setSubmitError("Please confirm that you have read the Privacy Notice and consent to the processing of your data.");
+                setIsSubmitting(false);
+                setUploadProgress(0);
+                setUploadStageText("");
+                return;
             }
 
             formData.set("idFile", selectedIdFile);
@@ -299,7 +323,7 @@ export default function ApplyPage() {
     --notice-border: #bfdbfe;
     --notice-text: #3f3f46;
 
-    --privacy-text: #71717a;
+    --privacy-text: #a1a1aa;
     --error-text: #dc2626;
 
     --button-bg: #2563eb;
@@ -357,7 +381,6 @@ export default function ApplyPage() {
     --focus-ring: #60a5fa;
   }
 }
-  }
 
   .apply-theme input::placeholder,
   .apply-theme textarea::placeholder {
@@ -429,540 +452,571 @@ export default function ApplyPage() {
                             className={!registrationOpen ? "pointer-events-none select-none blur-[2px]" : ""}
                             aria-hidden={!registrationOpen}
                         >
-                        <section style={sectionCardStyle}>
-                            <SectionHeading title="Personal Details" />
+                            <section style={sectionCardStyle}>
+                                <SectionHeading title="Personal Details" />
 
-                            <div className="grid gap-5 sm:grid-cols-2">
-                                <div>
-                                    <label htmlFor="firstName" style={labelStyle}>
-                                        First Name
-                                    </label>
-                                    <input
-                                        id="firstName"
-                                        name="firstName"
-                                        type="text"
-                                        required
-                                        style={inputStyle}
-                                        placeholder="Enter your first name"
-                                    />
-                                </div>
+                                <div className="grid gap-5 sm:grid-cols-2">
+                                    <div>
+                                        <label htmlFor="firstName" style={labelStyle}>
+                                            First Name
+                                        </label>
+                                        <input
+                                            id="firstName"
+                                            name="firstName"
+                                            type="text"
+                                            required
+                                            style={inputStyle}
+                                            placeholder="Enter your first name"
+                                        />
+                                    </div>
 
-                                <div>
-                                    <label htmlFor="lastName" style={labelStyle}>
-                                        Last Name
-                                    </label>
-                                    <input
-                                        id="lastName"
-                                        name="lastName"
-                                        type="text"
-                                        required
-                                        style={inputStyle}
-                                        placeholder="Enter your last name"
-                                    />
-                                </div>
+                                    <div>
+                                        <label htmlFor="lastName" style={labelStyle}>
+                                            Last Name
+                                        </label>
+                                        <input
+                                            id="lastName"
+                                            name="lastName"
+                                            type="text"
+                                            required
+                                            style={inputStyle}
+                                            placeholder="Enter your last name"
+                                        />
+                                    </div>
 
-                                <div>
-                                    <label htmlFor="email" style={labelStyle}>
-                                        Email Address
-                                    </label>
-                                    <input
-                                        id="email"
-                                        name="email"
-                                        type="email"
-                                        required
-                                        style={inputStyle}
-                                        placeholder="you@example.com"
-                                    />
-                                </div>
+                                    <div>
+                                        <label htmlFor="email" style={labelStyle}>
+                                            Email Address
+                                        </label>
+                                        <input
+                                            id="email"
+                                            name="email"
+                                            type="email"
+                                            required
+                                            style={inputStyle}
+                                            placeholder="you@example.com"
+                                        />
+                                    </div>
 
-                                <div>
-                                    <label htmlFor="age" style={labelStyle}>
-                                        Age
-                                    </label>
-                                    <input
-                                        id="age"
-                                        name="age"
-                                        type="number"
-                                        min="18"
-                                        required
-                                        style={inputStyle}
-                                        placeholder="18 and above only"
-                                        onChange={(e) => {
-                                            const value = e.target.value.trim();
+                                    <div>
+                                        <label htmlFor="birthYear" style={labelStyle}>
+                                            Birth Year
+                                        </label>
+                                        <input
+                                            id="birthYear"
+                                            name="birthYear"
+                                            type="number"
+                                            min="1900"
+                                            max={new Date().getFullYear()}
+                                            required
+                                            style={inputStyle}
+                                            placeholder="e.g. 2000"
+                                            onChange={(e) => {
+                                                const value = e.target.value.trim();
+                                                const currentYear = new Date().getFullYear();
 
-                                            if (!value) {
-                                                setAgeError("");
+                                                if (!value) {
+                                                    setBirthYearError("");
+                                                    e.target.setCustomValidity("");
+                                                    return;
+                                                }
+
+                                                const birthYear = Number(value);
+
+                                                if (
+                                                    Number.isNaN(birthYear) ||
+                                                    !Number.isInteger(birthYear) ||
+                                                    birthYear < 1900 ||
+                                                    birthYear > currentYear
+                                                ) {
+                                                    const message = "Please enter a valid birth year.";
+                                                    setBirthYearError(message);
+                                                    e.target.setCustomValidity(message);
+                                                    return;
+                                                }
+
+                                                if (currentYear - birthYear < 18) {
+                                                    const message = "Applicants must be at least 18 years old.";
+                                                    setBirthYearError(message);
+                                                    e.target.setCustomValidity(message);
+                                                    return;
+                                                }
+
+                                                setBirthYearError("");
                                                 e.target.setCustomValidity("");
-                                                return;
-                                            }
+                                            }}
+                                        />
 
-                                            const age = Number(value);
-
-                                            if (Number.isNaN(age) || age < 18) {
-                                                const message = "Applicants must be at least 18 years old.";
-                                                setAgeError(message);
-                                                e.target.setCustomValidity(message);
-                                            } else {
-                                                setAgeError("");
-                                                e.target.setCustomValidity("");
-                                            }
-                                        }}
-                                    />
-
-                                    {ageError ? (
-                                        <p
-                                            className="mt-2 text-[11px] leading-5"
-                                            style={{ color: "var(--error-text)" }}
-                                        >
-                                            {ageError}
-                                        </p>
-                                    ) : null}
-                                </div>
-
-                                <div className="sm:col-span-2">
-                                    <label htmlFor="region" style={labelStyle}>
-                                        Region
-                                    </label>
-                                    <select
-                                        id="region"
-                                        name="region"
-                                        defaultValue=""
-                                        style={inputStyle}
-                                    >
-                                        <option value="" disabled>
-                                            Select your region
-                                        </option>
-                                        {regions.map((region) => (
-                                            <option key={region} value={region}>
-                                                {region}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section style={sectionCardStyle}>
-                            <SectionHeading title="Developer Background" />
-
-                            <div className="grid gap-5 sm:grid-cols-2">
-                                <div>
-                                    <label htmlFor="skills" style={labelStyle}>
-                                        Skills / Expertise
-                                    </label>
-                                    <input
-                                        id="skills"
-                                        name="skills"
-                                        type="text"
-                                        required
-                                        style={inputStyle}
-                                        placeholder="e.g. Builder, Scripter, UI Designer"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label htmlFor="organization" style={labelStyle}>
-                                        Organization / Group
-                                    </label>
-                                    <input
-                                        id="organization"
-                                        name="organization"
-                                        type="text"
-                                        style={inputStyle}
-                                        placeholder="Enter your organization or group if applicable"
-                                    />
-                                </div>
-
-                                <div className="sm:col-span-2">
-                                    <label htmlFor="roblox" style={labelStyle}>
-                                        Roblox Username or Profile Link
-                                    </label>
-                                    <input
-                                        id="roblox"
-                                        name="roblox"
-                                        type="text"
-                                        required
-                                        style={inputStyle}
-                                        placeholder="Enter your Roblox username or profile link"
-                                    />
-                                </div>
-
-                                <div className="sm:col-span-2">
-                                    <label htmlFor="placeLink" style={labelStyle}>
-                                        Roblox Place Link
-                                    </label>
-                                    <input
-                                        id="placeLink"
-                                        name="placeLink"
-                                        type="url"
-                                        required
-                                        style={inputStyle}
-                                        placeholder="Paste the Roblox place link you want us to verify"
-                                    />
-                                    <p
-                                        className="mt-2 text-[11px] leading-5"
-                                        style={{ color: "var(--help-text)" }}
-                                    >
-                                        After you submit, we’ll give you a verification code. You’ll be
-                                        asked to place that code in your Roblox place description so we
-                                        can confirm you own or manage the place you submitted.
-                                    </p>
-                                </div>
-
-                                <div className="sm:col-span-2">
-                                    <label htmlFor="placeContribution" style={labelStyle}>
-                                        What did you contribute to this experience?
-                                    </label>
-                                    <textarea
-                                        id="placeContribution"
-                                        name="placeContribution"
-                                        required
-                                        rows={5}
-                                        style={inputStyle}
-                                        placeholder="Please describe your role and specific work in this experience. For example, mention whether you handled scripting, building, modeling, UI, animation, VFX, audio, management, or other responsibilities. You may also mention which parts of the experience you worked on."
-                                    />
-                                    <p
-                                        className="mt-2 text-[11px] leading-5"
-                                        style={{ color: "var(--help-text)" }}
-                                    >
-                                        This field is important. It helps our reviewers understand your role in the submitted Roblox experience and assess your application more accurately.
-                                    </p>
-                                </div>
-
-                                <div className="sm:col-span-2">
-                                    <label htmlFor="supportingLinks" style={labelStyle}>
-                                        Supporting Links — Optional
-                                    </label>
-                                    <textarea
-                                        id="supportingLinks"
-                                        name="supportingLinks"
-                                        rows={5}
-                                        style={inputStyle}
-                                        placeholder="Share any links that help verify your contribution. You can paste multiple links here, one per line. Examples include portfolio pages, GitHub, demo videos, screenshot folders, Google Drive links, or project documentation."
-                                    />
-                                    <p
-                                        className="mt-2 text-[11px] leading-5"
-                                        style={{ color: "var(--help-text)" }}
-                                    >
-                                        Strong supporting links can make your application easier and faster to review, especially if your contribution is not immediately obvious from the submitted experience alone.
-                                    </p>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section style={sectionCardStyle}>
-                            <SectionHeading title="Identity Verification" />
-
-                            <div className="grid gap-5">
-                                <div>
-                                    <label htmlFor="idFile" style={labelStyle}>
-                                        Upload a Valid ID
-                                    </label>
-
-                                    <input
-                                        id="idFile"
-                                        name="idFile"
-                                        type="file"
-                                        accept="image/jpeg,image/png,image/webp"
-                                        required
-                                        onChange={handleIdFileChange}
-                                        className="file-input-blue block w-full cursor-pointer rounded-md border border-zinc-600 bg-zinc-900/40 px-4 py-3 text-sm text-white"
-                                    />
-
-                                    <p
-                                        className="mt-2 text-[11px] leading-5"
-                                        style={{ color: "var(--help-text)" }}
-                                    >
-                                        We accept valid government-issued or school-issued IDs that
-                                        clearly show your full name, photo, age, and address when
-                                        applicable. Examples include PhilSys ID, driver’s license,
-                                        PhilHealth ID, passport, UMID, postal ID, voter’s ID, or school
-                                        ID.
-                                    </p>
-
-                                    <p
-                                        className="mt-2 text-[11px] leading-5"
-                                        style={{ color: "var(--help-text)" }}
-                                    >
-                                        Accepted image types are JPG, PNG, and WebP. Maximum file size is
-                                        5 MB.
-                                    </p>
-
-                                    {idFileError ? (
-                                        <p
-                                            className="mt-2 text-[11px] leading-5"
-                                            style={{ color: "var(--error-text)" }}
-                                        >
-                                            {idFileError}
-                                        </p>
-                                    ) : null}
-
-                                    {selectedIdFile && idPreviewUrl ? (
-                                        <div className="mt-4 rounded-xl border border-zinc-700/80 bg-zinc-900/50 p-4">
-                                            <p className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                                                ID Preview
+                                        {birthYearError ? (
+                                            <p
+                                                className="mt-2 text-[11px] leading-5"
+                                                style={{ color: "var(--error-text)" }}
+                                            >
+                                                {birthYearError}
                                             </p>
+                                        ) : null}
+                                    </div>
 
-                                            <div className="flex items-start gap-4">
-                                                <img
-                                                    src={idPreviewUrl}
-                                                    alt="Selected ID preview"
-                                                    className="h-24 w-36 rounded-md border border-zinc-700 object-cover"
-                                                />
+                                    <div className="sm:col-span-2">
+                                        <label htmlFor="region" style={labelStyle}>
+                                            Region
+                                        </label>
+                                        <select
+                                            id="region"
+                                            name="region"
+                                            defaultValue=""
+                                            style={inputStyle}
+                                        >
+                                            <option value="" disabled>
+                                                Select your region
+                                            </option>
+                                            {regions.map((region) => (
+                                                <option key={region} value={region}>
+                                                    {region}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </section>
 
-                                                <div className="min-w-0">
-                                                    <p className="truncate text-sm font-medium text-white">
-                                                        {selectedIdFile.name}
-                                                    </p>
-                                                    <p className="mt-1 text-xs text-zinc-400">
-                                                        {(selectedIdFile.size / 1024 / 1024).toFixed(2)} MB
-                                                    </p>
-                                                    <p className="mt-2 text-xs text-zinc-500">
-                                                        This image will only be sent when you officially submit
-                                                        your application.
+                            <section style={sectionCardStyle}>
+                                <SectionHeading title="Developer Background" />
+
+                                <div className="grid gap-5 sm:grid-cols-2">
+                                    <div>
+                                        <label htmlFor="skills" style={labelStyle}>
+                                            Skills / Expertise
+                                        </label>
+                                        <input
+                                            id="skills"
+                                            name="skills"
+                                            type="text"
+                                            required
+                                            style={inputStyle}
+                                            placeholder="e.g. Builder, Scripter, UI Designer"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label htmlFor="organization" style={labelStyle}>
+                                            Organization / Group
+                                        </label>
+                                        <input
+                                            id="organization"
+                                            name="organization"
+                                            type="text"
+                                            style={inputStyle}
+                                            placeholder="Enter your organization or group if applicable"
+                                        />
+                                    </div>
+
+                                    <div className="sm:col-span-2">
+                                        <label htmlFor="roblox" style={labelStyle}>
+                                            Roblox Username or Profile Link
+                                        </label>
+                                        <input
+                                            id="roblox"
+                                            name="roblox"
+                                            type="text"
+                                            required
+                                            style={inputStyle}
+                                            placeholder="Enter your Roblox username or profile link"
+                                        />
+                                    </div>
+
+                                    <div className="sm:col-span-2">
+                                        <label htmlFor="placeLink" style={labelStyle}>
+                                            Roblox Place Link
+                                        </label>
+                                        <input
+                                            id="placeLink"
+                                            name="placeLink"
+                                            type="url"
+                                            required
+                                            style={inputStyle}
+                                            placeholder="Paste the Roblox place link you want us to verify"
+                                        />
+                                        <p
+                                            className="mt-2 text-[11px] leading-5"
+                                            style={{ color: "var(--help-text)" }}
+                                        >
+                                            After you submit, we’ll give you a verification code. You’ll be
+                                            asked to place that code in your Roblox place description so we
+                                            can confirm you own or manage the place you submitted.
+                                        </p>
+                                    </div>
+
+                                    <div className="sm:col-span-2">
+                                        <label htmlFor="placeContribution" style={labelStyle}>
+                                            What did you contribute to this experience?
+                                        </label>
+                                        <textarea
+                                            id="placeContribution"
+                                            name="placeContribution"
+                                            required
+                                            rows={5}
+                                            style={inputStyle}
+                                            placeholder="Please describe your role and specific work in this experience. For example, mention whether you handled scripting, building, modeling, UI, animation, VFX, audio, management, or other responsibilities. You may also mention which parts of the experience you worked on."
+                                        />
+                                        <p
+                                            className="mt-2 text-[11px] leading-5"
+                                            style={{ color: "var(--help-text)" }}
+                                        >
+                                            This field is important. It helps our reviewers understand your role in the submitted Roblox experience and assess your application more accurately.
+                                        </p>
+                                    </div>
+
+                                    <div className="sm:col-span-2">
+                                        <label htmlFor="supportingLinks" style={labelStyle}>
+                                            Supporting Links — Optional
+                                        </label>
+                                        <textarea
+                                            id="supportingLinks"
+                                            name="supportingLinks"
+                                            rows={5}
+                                            style={inputStyle}
+                                            placeholder="Share any links that help verify your contribution. You can paste multiple links here, one per line. Examples include portfolio pages, GitHub, demo videos, screenshot folders, Google Drive links, or project documentation."
+                                        />
+                                        <p
+                                            className="mt-2 text-[11px] leading-5"
+                                            style={{ color: "var(--help-text)" }}
+                                        >
+                                            Strong supporting links can make your application easier and faster to review, especially if your contribution is not immediately obvious from the submitted experience alone.
+                                        </p>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section style={sectionCardStyle}>
+                                <SectionHeading title="Identity Verification" />
+
+                                <div className="grid gap-5">
+                                    <div>
+                                        <label htmlFor="idFile" style={labelStyle}>
+                                            Upload a Valid ID
+                                        </label>
+
+                                        <input
+                                            id="idFile"
+                                            name="idFile"
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            required
+                                            onChange={handleIdFileChange}
+                                            className="file-input-blue block w-full cursor-pointer rounded-md border border-zinc-600 bg-zinc-900/40 px-4 py-3 text-sm text-white"
+                                        />
+
+                                        <p
+                                            className="mt-2 text-[11px] leading-5"
+                                            style={{ color: "var(--help-text)" }}
+                                        >
+                                            Please upload one valid ID that clearly shows your name. FRDA will use this only to verify that the name in your application matches the name on your submitted ID. Your uploaded ID image will be deleted after verification.
+                                        </p>
+
+                                        <p
+                                            className="mt-2 text-[11px] leading-5"
+                                            style={{ color: "var(--help-text)" }}
+                                        >
+                                            Accepted image types are JPG, PNG, and WebP. Maximum file size is
+                                            5 MB.
+                                        </p>
+
+                                        {idFileError ? (
+                                            <p
+                                                className="mt-2 text-[11px] leading-5"
+                                                style={{ color: "var(--error-text)" }}
+                                            >
+                                                {idFileError}
+                                            </p>
+                                        ) : null}
+
+                                        {selectedIdFile && idPreviewUrl ? (
+                                            <div className="mt-4 rounded-xl border border-zinc-700/80 bg-zinc-900/50 p-4">
+                                                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                                                    ID Preview
+                                                </p>
+
+                                                <div className="flex items-start gap-4">
+                                                    <img
+                                                        src={idPreviewUrl}
+                                                        alt="Selected ID preview"
+                                                        className="h-24 w-36 rounded-md border border-zinc-700 object-cover"
+                                                    />
+
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-sm font-medium text-white">
+                                                            {selectedIdFile.name}
+                                                        </p>
+                                                        <p className="mt-1 text-xs text-zinc-400">
+                                                            {(selectedIdFile.size / 1024 / 1024).toFixed(2)} MB
+                                                        </p>
+                                                        <p className="mt-2 text-xs text-zinc-500">
+                                                            This image will only be sent when you officially submit
+                                                            your application.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section style={sectionCardStyle}>
+                                <SectionHeading title="Contact Information" />
+
+                                <div className="grid gap-5">
+                                    <div>
+                                        <label htmlFor="discordId" style={labelStyle}>
+                                            Discord User ID
+                                        </label>
+                                        <input
+                                            id="discordId"
+                                            name="discordId"
+                                            type="text"
+                                            required
+                                            inputMode="numeric"
+                                            pattern="[0-9]{17,19}"
+                                            minLength={17}
+                                            maxLength={19}
+                                            title="Please enter a valid Discord User ID."
+                                            style={inputStyle}
+                                            placeholder="Enter your Discord User ID"
+                                        />
+                                        <p
+                                            className="mt-2 text-[11px] leading-5"
+                                            style={{ color: "var(--help-text)" }}
+                                        >
+                                            Please enter the Discord User ID of the account you intend to use
+                                            when joining the FRDA server. Make sure it is correct before
+                                            submitting.
+                                        </p>
+
+                                        <details className="mt-3">
+                                            <summary
+                                                className="cursor-pointer text-xs font-medium"
+                                                style={{ color: "var(--details-summary)" }}
+                                            >
+                                                Need help finding your Discord User ID?
+                                            </summary>
+
+                                            <div
+                                                className="mt-4 space-y-5 pl-1 text-sm"
+                                                style={{ color: "var(--details-text)" }}
+                                            >
+                                                <div>
+                                                    <h3
+                                                        className="mb-2 font-semibold"
+                                                        style={{ color: "var(--details-strong)" }}
+                                                    >
+                                                        Desktop
+                                                    </h3>
+                                                    <ol className="list-decimal space-y-1 pl-5">
+                                                        <li>Open Discord</li>
+                                                        <li>Go to <strong>User Settings</strong></li>
+                                                        <li>Open <strong>Advanced</strong></li>
+                                                        <li>Turn on <strong>Developer Mode</strong></li>
+                                                        <li>Click your profile picture or name in the bottom-left corner</li>
+                                                        <li>In the panel that opens, click <strong>Copy User ID</strong></li>
+                                                    </ol>
+                                                </div>
+
+                                                <div>
+                                                    <h3
+                                                        className="mb-2 font-semibold"
+                                                        style={{ color: "var(--details-strong)" }}
+                                                    >
+                                                        Mobile
+                                                    </h3>
+                                                    <ol className="list-decimal space-y-1 pl-5">
+                                                        <li>Open Discord</li>
+                                                        <li>Go to <strong>You</strong> or <strong>Settings</strong></li>
+                                                        <li>Turn on <strong>Developer Mode</strong></li>
+                                                        <li>Tap your profile picture to open your profile</li>
+                                                        <li>Tap the <strong>three dots</strong> in the upper-right corner</li>
+                                                        <li>Tap <strong>Copy User ID</strong></li>
+                                                    </ol>
+                                                </div>
+
+                                                <div
+                                                    className="rounded-md border p-3"
+                                                    style={{
+                                                        borderColor: "var(--notice-border)",
+                                                        background: "var(--notice-bg)",
+                                                        color: "var(--notice-text)",
+                                                    }}
+                                                >
+                                                    <p>
+                                                        <strong>Important</strong> — Please submit the User ID of the same
+                                                        Discord account you intend to use for your FRDA application and
+                                                        server access.
                                                     </p>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </div>
-                        </section>
+                                        </details>
+                                    </div>
 
-                        <section style={sectionCardStyle}>
-                            <SectionHeading title="Contact Information" />
+                                    <div>
+                                        <label htmlFor="facebookProfile" style={labelStyle}>
+                                            Facebook Profile URL <span style={{ color: "var(--muted-text)" }}>(Optional)</span>
+                                        </label>
+                                        <input
+                                            id="facebookProfile"
+                                            name="facebookProfile"
+                                            type="url"
+                                            style={inputStyle}
+                                            placeholder="https://www.facebook.com/your.profile"
+                                            onChange={(e) => {
+                                                const value = e.target.value.trim();
 
-                            <div className="grid gap-5">
-                                <div>
-                                    <label htmlFor="discordId" style={labelStyle}>
-                                        Discord User ID
-                                    </label>
-                                    <input
-                                        id="discordId"
-                                        name="discordId"
-                                        type="text"
-                                        required
-                                        inputMode="numeric"
-                                        pattern="[0-9]{17,19}"
-                                        minLength={17}
-                                        maxLength={19}
-                                        title="Please enter a valid Discord User ID."
-                                        style={inputStyle}
-                                        placeholder="Enter your Discord User ID"
-                                    />
-                                    <p
-                                        className="mt-2 text-[11px] leading-5"
-                                        style={{ color: "var(--help-text)" }}
-                                    >
-                                        Please enter the Discord User ID of the account you intend to use
-                                        when joining the FRDA server. Make sure it is correct before
-                                        submitting.
-                                    </p>
+                                                if (!value) {
+                                                    setFacebookError("");
+                                                    e.target.setCustomValidity("");
+                                                    return;
+                                                }
 
-                                    <details className="mt-3">
-                                        <summary
-                                            className="cursor-pointer text-xs font-medium"
-                                            style={{ color: "var(--details-summary)" }}
-                                        >
-                                            Need help finding your Discord User ID?
-                                        </summary>
-
-                                        <div
-                                            className="mt-4 space-y-5 pl-1 text-sm"
-                                            style={{ color: "var(--details-text)" }}
-                                        >
-                                            <div>
-                                                <h3
-                                                    className="mb-2 font-semibold"
-                                                    style={{ color: "var(--details-strong)" }}
-                                                >
-                                                    Desktop
-                                                </h3>
-                                                <ol className="list-decimal space-y-1 pl-5">
-                                                    <li>Open Discord</li>
-                                                    <li>Go to <strong>User Settings</strong></li>
-                                                    <li>Open <strong>Advanced</strong></li>
-                                                    <li>Turn on <strong>Developer Mode</strong></li>
-                                                    <li>Click your profile picture or name in the bottom-left corner</li>
-                                                    <li>In the panel that opens, click <strong>Copy User ID</strong></li>
-                                                </ol>
-                                            </div>
-
-                                            <div>
-                                                <h3
-                                                    className="mb-2 font-semibold"
-                                                    style={{ color: "var(--details-strong)" }}
-                                                >
-                                                    Mobile
-                                                </h3>
-                                                <ol className="list-decimal space-y-1 pl-5">
-                                                    <li>Open Discord</li>
-                                                    <li>Go to <strong>You</strong> or <strong>Settings</strong></li>
-                                                    <li>Turn on <strong>Developer Mode</strong></li>
-                                                    <li>Tap your profile picture to open your profile</li>
-                                                    <li>Tap the <strong>three dots</strong> in the upper-right corner</li>
-                                                    <li>Tap <strong>Copy User ID</strong></li>
-                                                </ol>
-                                            </div>
-
-                                            <div
-                                                className="rounded-md border p-3"
-                                                style={{
-                                                    borderColor: "var(--notice-border)",
-                                                    background: "var(--notice-bg)",
-                                                    color: "var(--notice-text)",
-                                                }}
-                                            >
-                                                <p>
-                                                    <strong>Important</strong> — Please submit the User ID of the same
-                                                    Discord account you intend to use for your FRDA application and
-                                                    server access.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </details>
-                                </div>
-
-                                <div>
-                                    <label htmlFor="facebookProfile" style={labelStyle}>
-                                        Facebook Profile URL
-                                    </label>
-                                    <input
-                                        id="facebookProfile"
-                                        name="facebookProfile"
-                                        type="url"
-                                        required
-                                        style={inputStyle}
-                                        placeholder="https://www.facebook.com/your.profile"
-                                        onChange={(e) => {
-                                            const value = e.target.value.trim();
-
-                                            if (!value) {
-                                                setFacebookError("");
-                                                e.target.setCustomValidity("");
-                                                return;
-                                            }
-
-                                            if (!isValidFacebookProfileUrl(value)) {
-                                                const message = "Please enter a valid Facebook profile URL.";
-                                                setFacebookError(message);
-                                                e.target.setCustomValidity(message);
-                                            } else {
-                                                setFacebookError("");
-                                                e.target.setCustomValidity("");
-                                            }
-                                        }}
-                                    />
-                                    <p
-                                        className="mt-2 text-[11px] leading-5"
-                                        style={{ color: "var(--help-text)" }}
-                                    >
-                                        Please provide your Facebook profile link so we have another way to reach you if we need to clarify submitted details.
-                                    </p>
-
-                                    {facebookError ? (
+                                                if (!isValidFacebookProfileUrl(value)) {
+                                                    const message = "Please enter a valid Facebook profile URL.";
+                                                    setFacebookError(message);
+                                                    e.target.setCustomValidity(message);
+                                                } else {
+                                                    setFacebookError("");
+                                                    e.target.setCustomValidity("");
+                                                }
+                                            }}
+                                        />
                                         <p
                                             className="mt-2 text-[11px] leading-5"
-                                            style={{ color: "var(--error-text)" }}
+                                            style={{ color: "var(--help-text)" }}
                                         >
-                                            {facebookError}
+                                            Optional. You may provide your Facebook profile link as an additional contact method in case FRDA needs to clarify submitted details.
                                         </p>
-                                    ) : null}
+
+                                        {facebookError ? (
+                                            <p
+                                                className="mt-2 text-[11px] leading-5"
+                                                style={{ color: "var(--error-text)" }}
+                                            >
+                                                {facebookError}
+                                            </p>
+                                        ) : null}
+                                    </div>
                                 </div>
-                            </div>
-                        </section>
+                            </section>
 
-                        <p
-                            className="text-[13px] leading-5"
-                            style={{ color: "var(--privacy-text)" }}
-                        >
-                            By submitting this form, you acknowledge that your information will
-                            only be used for application review, verification, and registration
-                            records. It will remain confidential and will not be republished or
-                            used for unrelated purposes, except where disclosure is required for
-                            official legal compliance.
-                        </p>
-
-                        {submitError ? (
-                            <p className="text-sm" style={{ color: "var(--error-text)" }}>
-                                {submitError}
-                            </p>
-                        ) : null}
-
-                        {isSubmitting ? (
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between text-xs text-zinc-400">
-                                    <span>{uploadStageText || "Submitting..."}</span>
-                                    <span>{uploadProgress}%</span>
-                                </div>
-
-                                <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
-                                    <div
-                                        className="h-full rounded-full transition-all duration-300"
-                                        style={{
-                                            width: `${uploadProgress}%`,
-                                            background:
-                                                "linear-gradient(90deg, rgba(16,185,129,1) 0%, rgba(52,211,153,1) 100%)",
-                                        }}
+                            <div className="mt-6">
+                                <label
+                                    htmlFor="privacyConsent"
+                                    className="flex items-start gap-3 text-sm leading-6"
+                                    style={{ color: "var(--privacy-text)" }}
+                                >
+                                    <input
+                                        id="privacyConsent"
+                                        name="privacyConsent"
+                                        type="checkbox"
+                                        required
+                                        style={{ marginTop: "0.25rem" }}
                                     />
+                                    <span>
+                                        I have read FRDA’s{" "}
+                                        <a
+                                            href="/privacy"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            style={{ color: "var(--details-summary)", textDecoration: "underline" }}
+                                        >
+                                            Privacy Notice
+                                        </a>{" "}
+                                        and I consent to the collection and processing of my personal data,
+                                        including my uploaded ID image, for application review, identity
+                                        verification, membership administration, Discord server access
+                                        coordination for accepted applicants, and related communications,
+                                        subject to FRDA’s retention and security policies.
+                                    </span>
+                                </label>
+                            </div>
+
+                            {submitError ? (
+                                <p className="text-sm" style={{ color: "var(--error-text)" }}>
+                                    {submitError}
+                                </p>
+                            ) : null}
+
+                            {isSubmitting ? (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between text-xs text-zinc-400">
+                                        <span>{uploadStageText || "Submitting..."}</span>
+                                        <span>{uploadProgress}%</span>
+                                    </div>
+
+                                    <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+                                        <div
+                                            className="h-full rounded-full transition-all duration-300"
+                                            style={{
+                                                width: `${uploadProgress}%`,
+                                                background:
+                                                    "linear-gradient(90deg, rgba(16,185,129,1) 0%, rgba(52,211,153,1) 100%)",
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="mt-8 w-full rounded-md px-5 py-4 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 sm:text-lg"
+                                style={{
+                                    background: "var(--button-bg)",
+                                    color: "var(--button-text)",
+                                    boxShadow: "var(--button-shadow)",
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = "var(--button-bg-hover)";
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = "var(--button-bg)";
+                                }}
+                            >
+                                {isSubmitting ? "Submitting..." : "Submit Application"}
+                            </button>
+
+                        </div>
+
+                        {!registrationOpen ? (
+                            <div className="absolute inset-0 z-20 flex items-start justify-center rounded-xl pt-10">
+                                <div
+                                    className="mx-4 w-full max-w-xl rounded-2xl border px-6 py-8 text-center shadow-2xl backdrop-blur-md"
+                                    style={{
+                                        borderColor: "rgba(96, 165, 250, 0.35)",
+                                        background: "rgba(3, 7, 18, 0.68)",
+                                        boxShadow: "0 20px 60px rgba(0, 0, 0, 0.45)",
+                                    }}
+                                >
+                                    <p
+                                        className="text-[11px] font-semibold uppercase tracking-[0.28em]"
+                                        style={{ color: "rgba(147, 197, 253, 0.88)" }}
+                                    >
+                                        FRDA
+                                    </p>
+
+                                    <h2 className="mt-3 text-2xl font-semibold sm:text-3xl">
+                                        Registration Opens Soon!
+                                    </h2>
+
+                                    <p
+                                        className="mx-auto mt-3 max-w-lg text-sm leading-6 sm:text-base"
+                                        style={{ color: "rgba(228, 228, 231, 0.82)" }}
+                                    >
+                                        Our registration page is temporarily unavailable while we finalize
+                                        a few requirements. Thank you.
+                                    </p>
                                 </div>
                             </div>
                         ) : null}
-
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="w-full rounded-md px-5 py-4 text-base font-semibold transition disabled:cursor-not-allowed disabled:opacity-70 sm:text-lg"
-                            style={{
-                                background: "var(--button-bg)",
-                                color: "var(--button-text)",
-                                boxShadow: "var(--button-shadow)",
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "var(--button-bg-hover)";
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "var(--button-bg)";
-                            }}
-                        >
-                            {isSubmitting ? "Submitting..." : "Submit Application"}
-                        </button>
-
-                </div>
-
-                {!registrationOpen ? (
-                    <div className="absolute inset-0 z-20 flex items-start justify-center rounded-xl pt-10">
-                        <div
-                            className="mx-4 w-full max-w-xl rounded-2xl border px-6 py-8 text-center shadow-2xl backdrop-blur-md"
-                            style={{
-                                borderColor: "rgba(96, 165, 250, 0.35)",
-                                background: "rgba(3, 7, 18, 0.68)",
-                                boxShadow: "0 20px 60px rgba(0, 0, 0, 0.45)",
-                            }}
-                        >
-                            <p
-                                className="text-[11px] font-semibold uppercase tracking-[0.28em]"
-                                style={{ color: "rgba(147, 197, 253, 0.88)" }}
-                            >
-                                FRDA
-                            </p>
-
-                            <h2 className="mt-3 text-2xl font-semibold sm:text-3xl">
-                                Registration Opens Soon!
-                            </h2>
-
-                            <p
-                                className="mx-auto mt-3 max-w-lg text-sm leading-6 sm:text-base"
-                                style={{ color: "rgba(228, 228, 231, 0.82)" }}
-                            >
-                                Our registration page is temporarily unavailable while we finalize
-                                a few requirements. Thank you.
-                            </p>
-                        </div>
-                    </div>
-                ) : null}
-            </form>
-        </div >
+                    </form>
+                </div >
             </main >
         </>
     );

@@ -428,10 +428,10 @@ function DetailLine({
       : undefined;
 
   const labelClass = `detail-line-label text-[11px] font-medium uppercase tracking-wide ${isRequested
-      ? "text-red-200"
-      : isUpdated
-        ? "text-amber-200"
-        : "text-zinc-500"
+    ? "text-red-200"
+    : isUpdated
+      ? "text-amber-200"
+      : "text-zinc-500"
     }`;
 
   const valueStyle = {
@@ -951,6 +951,32 @@ export default function AdminPage() {
     );
   }
 
+
+  async function deleteUploadedId(applicationId: string) {
+    if (!user) {
+      throw new Error("No signed-in user found.");
+    }
+
+    const idToken = await user.getIdToken();
+
+    const response = await fetch("/api/applications/delete-id", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ applicationId }),
+    });
+
+    const result = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(result?.error || "Could not delete uploaded ID.");
+    }
+
+    return result;
+  }
+
   async function writeActivityLog(
     applicationId: string,
     type: string,
@@ -1173,6 +1199,27 @@ export default function AdminPage() {
         }
       );
 
+      if (pendingAction === "accepted" || pendingAction === "rejected") {
+        try {
+          await deleteUploadedId(selectedApplication.id);
+
+          await writeActivityLog(
+            selectedApplication.id,
+            "id_deleted",
+            "Uploaded ID image was deleted after review was completed.",
+            {
+              actorName: reviewerName,
+              finalStatus: pendingAction,
+            }
+          );
+        } catch (deleteError) {
+          console.error("ID deletion error:", deleteError);
+          notify.warning(
+            "Status was updated, but the uploaded ID could not be deleted automatically."
+          );
+        }
+      }
+
       if (pendingAction === "accepted") {
         if (!selectedApplication.discordId || !/^\d+$/.test(selectedApplication.discordId)) {
           notify.error(
@@ -1259,7 +1306,7 @@ export default function AdminPage() {
   }
 
   return (
-  <>
+    <>
       <style jsx global>{`
       .detail-line {
         display: grid;
@@ -2384,6 +2431,6 @@ export default function AdminPage() {
           </div>
         ) : null}
       </main>
-       </>
-      ); 
+    </>
+  );
 }
