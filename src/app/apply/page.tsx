@@ -107,7 +107,7 @@ export default function ApplyPage() {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadStageText, setUploadStageText] = useState("");
     const router = useRouter();
-    const registrationOpen = true;
+    const registrationOpen = false;
 
     useEffect(() => {
         return () => {
