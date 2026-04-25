@@ -90,7 +90,7 @@ function FileInput({
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={(event) => onChange(event.target.files?.[0] || null)}
-                className="block w-full text-sm text-zinc-300 file:mr-4 file:cursor-pointer file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-blue-500"
+                className="block w-full text-sm text-zinc-300 file:mr-4 file:cursor-pointer file:border file:border-zinc-700 file:bg-zinc-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-zinc-200 hover:file:bg-zinc-800"
             />
 
             {file ? (
@@ -264,23 +264,18 @@ export default function SubmitGameForm({
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
 
-            <div
-                className="border border-blue-400/25 bg-blue-500/10 p-5"
-                style={{ borderRadius: 8 }}
-            >
-                <p className="text-sm leading-7 text-zinc-300">
-                    Game submissions are currently open to accepted FRDA developers aged
-                    18 and above. Please use the FRDA Member ID and email address from your
-                    approval email. If you are not registered yet, please{" "}
-                    <a
-                        href="/apply"
-                        className="font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200"
-                    >
-                        apply as a developer first
-                    </a>
-                    .
-                </p>
-            </div>
+            <p className="text-sm leading-7 text-zinc-400">
+                Game submissions are currently open to accepted FRDA developers aged 18
+                and above. Please use the FRDA Member ID and email address from your
+                approval email. If you are not registered yet, please{" "}
+                <a
+                    href="/apply"
+                    className="font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200"
+                >
+                    apply as a developer first
+                </a>
+                .
+            </p>
             <input
                 type="text"
                 name="companyWebsite"
@@ -300,38 +295,6 @@ export default function SubmitGameForm({
                     {errorMsg}
                 </div>
             ) : null}
-
-            <div
-                className="border border-zinc-800 bg-zinc-950/35 p-5"
-                style={{ borderRadius: 8 }}
-            >
-                <h2 className="text-base font-semibold text-white">Member Details</h2>
-
-                <div className="mt-5 grid gap-5 md:grid-cols-2">
-                    <div>
-                        <FieldLabel>FRDA Member ID</FieldLabel>
-                        <TextInput
-                            name="memberId"
-                            value={memberId}
-                            onChange={setMemberId}
-                            placeholder="Example: FRDA-M-L37MJ2JN"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <FieldLabel>Contact Email</FieldLabel>
-                        <TextInput
-                            name="contactEmail"
-                            type="email"
-                            value={contactEmail}
-                            onChange={setContactEmail}
-                            placeholder="you@example.com"
-                            required
-                        />
-                    </div>
-                </div>
-            </div>
 
             <div
                 className="border border-zinc-800 bg-zinc-950/35 p-5"
@@ -468,25 +431,24 @@ export default function SubmitGameForm({
                 </div>
             </div>
 
-            <div
-                className="border border-zinc-800 bg-zinc-950/35 p-5"
-                style={{ borderRadius: 8 }}
-            >
-                <p className="text-sm leading-7 text-zinc-400">
+            <div className="border-t border-zinc-800 pt-5">
+                <p className="text-sm leading-7 text-zinc-500">
                     By submitting, you confirm that this Roblox experience is yours or that
                     you are authorized to submit it for review. FRDA may decline listings
                     that appear unsafe, misleading, incomplete, or not aligned with the
                     directory’s purpose.
                 </p>
 
-                <button
-                    type="submit"
-                    disabled={submitState === "submitting"}
-                    className="mt-5 inline-flex w-full cursor-pointer items-center justify-center border border-blue-400/30 bg-blue-500/15 px-5 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
-                    style={{ borderRadius: 5 }}
-                >
-                    {submitState === "submitting" ? "Submitting..." : "Submit Game for Review"}
-                </button>
+                <div className="mt-6 flex justify-center">
+                    <button
+                        type="submit"
+                        disabled={submitState === "submitting"}
+                        className="inline-flex w-full cursor-pointer items-center justify-center border border-blue-400/50 bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_26px_rgba(37,99,235,0.22)] transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+                        style={{ borderRadius: 5 }}
+                    >
+                        {submitState === "submitting" ? "Submitting..." : "Submit Game for Review"}
+                    </button>
+                </div>
             </div>
         </form>
     );

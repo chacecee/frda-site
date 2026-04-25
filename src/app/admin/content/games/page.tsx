@@ -211,11 +211,8 @@ export default function AdminGamesPage() {
     const [formError, setFormError] = useState("");
 
     const [selectedThumbnailFile, setSelectedThumbnailFile] = useState<File | null>(null);
-    const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
     const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState("");
-    const [coverPreviewUrl, setCoverPreviewUrl] = useState("");
     const [thumbnailInputKey, setThumbnailInputKey] = useState(0);
-    const [coverInputKey, setCoverInputKey] = useState(0);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadLabel, setUploadLabel] = useState("");
 
@@ -248,23 +245,6 @@ export default function AdminGamesPage() {
             }
         };
     }, [selectedThumbnailFile]);
-
-    useEffect(() => {
-        let objectUrl: string | null = null;
-
-        if (selectedCoverFile) {
-            objectUrl = URL.createObjectURL(selectedCoverFile);
-            setCoverPreviewUrl(objectUrl);
-        } else {
-            setCoverPreviewUrl("");
-        }
-
-        return () => {
-            if (objectUrl) {
-                URL.revokeObjectURL(objectUrl);
-            }
-        };
-    }, [selectedCoverFile]);
 
     useEffect(() => {
         if (!user) return;
@@ -351,11 +331,8 @@ export default function AdminGamesPage() {
         setForm(EMPTY_FORM);
         setFormError("");
         setSelectedThumbnailFile(null);
-        setSelectedCoverFile(null);
         setThumbnailPreviewUrl("");
-        setCoverPreviewUrl("");
         setThumbnailInputKey((prev) => prev + 1);
-        setCoverInputKey((prev) => prev + 1);
         setUploadProgress(0);
         setUploadLabel("");
         setAddModalOpen(true);
@@ -383,11 +360,8 @@ export default function AdminGamesPage() {
 
         setFormError("");
         setSelectedThumbnailFile(null);
-        setSelectedCoverFile(null);
         setThumbnailPreviewUrl("");
-        setCoverPreviewUrl("");
         setThumbnailInputKey((prev) => prev + 1);
-        setCoverInputKey((prev) => prev + 1);
         setUploadProgress(0);
         setUploadLabel("");
         setAddModalOpen(true);
@@ -401,11 +375,8 @@ export default function AdminGamesPage() {
         setForm(EMPTY_FORM);
         setFormError("");
         setSelectedThumbnailFile(null);
-        setSelectedCoverFile(null);
         setThumbnailPreviewUrl("");
-        setCoverPreviewUrl("");
         setThumbnailInputKey((prev) => prev + 1);
-        setCoverInputKey((prev) => prev + 1);
         setUploadProgress(0);
         setUploadLabel("");
     }
@@ -436,7 +407,7 @@ export default function AdminGamesPage() {
         return "";
     }
 
-    async function uploadGameDirectoryImage(file: File, folder: "thumbnails" | "covers") {
+    async function uploadGameDirectoryImage(file: File) {
         const validationError = isValidImageFile(file);
 
         if (validationError) {
@@ -445,7 +416,7 @@ export default function AdminGamesPage() {
 
         const extension = file.name.split(".").pop() || "jpg";
         const safeBase = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-        const imagePath = `game-directory/${folder}/${safeBase}.${extension}`;
+        const imagePath = `game-directory/thumbnails/${safeBase}.${extension}`;
         const storageRef = ref(storage, imagePath);
 
         return await new Promise<{ imagePath: string; imageUrl: string }>(
@@ -518,30 +489,13 @@ export default function AdminGamesPage() {
         try {
             let thumbnailUrl = form.thumbnailUrl.trim();
             let thumbnailPath = form.thumbnailPath.trim();
-            let coverImageUrl = form.coverImageUrl.trim();
-            let coverImagePath = form.coverImagePath.trim();
 
             if (selectedThumbnailFile) {
                 setUploadLabel("Uploading thumbnail...");
-                const uploadedThumbnail = await uploadGameDirectoryImage(
-                    selectedThumbnailFile,
-                    "thumbnails"
-                );
+                const uploadedThumbnail = await uploadGameDirectoryImage(selectedThumbnailFile);
 
                 thumbnailUrl = uploadedThumbnail.imageUrl;
                 thumbnailPath = uploadedThumbnail.imagePath;
-            }
-
-            if (selectedCoverFile) {
-                setUploadProgress(0);
-                setUploadLabel("Uploading cover image...");
-                const uploadedCover = await uploadGameDirectoryImage(
-                    selectedCoverFile,
-                    "covers"
-                );
-
-                coverImageUrl = uploadedCover.imageUrl;
-                coverImagePath = uploadedCover.imagePath;
             }
 
             setUploadLabel("Saving game...");
@@ -560,8 +514,8 @@ export default function AdminGamesPage() {
 
                 thumbnailUrl,
                 thumbnailPath,
-                coverImageUrl,
-                coverImagePath,
+                coverImageUrl: "",
+                coverImagePath: "",
 
                 isSponsored: form.isSponsored,
                 isHighlighted: form.isHighlighted,
@@ -609,30 +563,13 @@ export default function AdminGamesPage() {
         try {
             let thumbnailUrl = form.thumbnailUrl.trim();
             let thumbnailPath = form.thumbnailPath.trim();
-            let coverImageUrl = form.coverImageUrl.trim();
-            let coverImagePath = form.coverImagePath.trim();
 
             if (selectedThumbnailFile) {
                 setUploadLabel("Uploading new thumbnail...");
-                const uploadedThumbnail = await uploadGameDirectoryImage(
-                    selectedThumbnailFile,
-                    "thumbnails"
-                );
+                const uploadedThumbnail = await uploadGameDirectoryImage(selectedThumbnailFile);
 
                 thumbnailUrl = uploadedThumbnail.imageUrl;
                 thumbnailPath = uploadedThumbnail.imagePath;
-            }
-
-            if (selectedCoverFile) {
-                setUploadProgress(0);
-                setUploadLabel("Uploading new cover image...");
-                const uploadedCover = await uploadGameDirectoryImage(
-                    selectedCoverFile,
-                    "covers"
-                );
-
-                coverImageUrl = uploadedCover.imageUrl;
-                coverImagePath = uploadedCover.imagePath;
             }
 
             setUploadLabel("Saving changes...");
@@ -651,8 +588,6 @@ export default function AdminGamesPage() {
 
                 thumbnailUrl,
                 thumbnailPath,
-                coverImageUrl,
-                coverImagePath,
 
                 isSponsored: form.isSponsored,
                 isHighlighted: form.isHighlighted,
@@ -1221,7 +1156,7 @@ export default function AdminGamesPage() {
                                             onChange={(value) =>
                                                 setForm((prev) => ({ ...prev, memberId: value }))
                                             }
-                                            placeholder="Example: FRDA-0001"
+                                            placeholder="Example: FRDA-M-L37MJ2JN"
                                         />
                                     </div>
                                 </div>
@@ -1266,90 +1201,46 @@ export default function AdminGamesPage() {
                                     </div>
                                 </div>
 
-                                <div className="grid gap-5 md:grid-cols-2">
-                                    <div>
-                                        <FieldLabel>Thumbnail Image Optional</FieldLabel>
+                                <div>
+                                    <FieldLabel>Thumbnail Image Optional</FieldLabel>
 
-                                        <p className="mb-3 text-xs leading-5 text-zinc-500">
-                                            Recommended size: 1280 × 720 px. This image appears on normal game cards.
-                                        </p>
+                                    <p className="mb-3 text-xs leading-5 text-zinc-500">
+                                        Recommended size: 1280 × 720 px. This image appears on public game cards.
+                                    </p>
 
-                                        <div
-                                            className="mb-3 overflow-hidden border border-zinc-800 bg-zinc-950"
-                                            style={{ borderRadius: 5, aspectRatio: "16 / 9" }}
-                                        >
-                                            {thumbnailPreviewUrl || form.thumbnailUrl ? (
-                                                <img
-                                                    src={thumbnailPreviewUrl || form.thumbnailUrl}
-                                                    alt="Thumbnail preview"
-                                                    className="h-full w-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="flex h-full items-center justify-center text-xs text-zinc-600">
-                                                    No thumbnail selected — 16:9 recommended
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <input
-                                            key={thumbnailInputKey}
-                                            type="file"
-                                            accept="image/jpeg,image/png,image/webp,image/gif"
-                                            onChange={(event) =>
-                                                setSelectedThumbnailFile(event.target.files?.[0] || null)
-                                            }
-                                            className="block w-full text-sm text-zinc-300 file:mr-4 file:cursor-pointer file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-blue-500"
-                                            disabled={savingGame}
-                                        />
-
-                                        {selectedThumbnailFile ? (
-                                            <p className="mt-2 text-xs text-blue-300">
-                                                Selected — {selectedThumbnailFile.name}
-                                            </p>
-                                        ) : null}
+                                    <div
+                                        className="mb-3 max-w-xl overflow-hidden border border-zinc-800 bg-zinc-950"
+                                        style={{ borderRadius: 5, aspectRatio: "16 / 9" }}
+                                    >
+                                        {thumbnailPreviewUrl || form.thumbnailUrl ? (
+                                            <img
+                                                src={thumbnailPreviewUrl || form.thumbnailUrl}
+                                                alt="Thumbnail preview"
+                                                className="h-full w-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="flex h-full items-center justify-center text-xs text-zinc-600">
+                                                No thumbnail selected — 16:9 recommended
+                                            </div>
+                                        )}
                                     </div>
 
-                                    <div>
-                                        <FieldLabel>Cover Image Optional</FieldLabel>
+                                    <input
+                                        key={thumbnailInputKey}
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp,image/gif"
+                                        onChange={(event) =>
+                                            setSelectedThumbnailFile(event.target.files?.[0] || null)
+                                        }
+                                        className="block w-full max-w-xl text-sm text-zinc-300 file:mr-4 file:cursor-pointer file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-blue-500"
+                                        disabled={savingGame}
+                                    />
 
-                                        <p className="mb-3 text-xs leading-5 text-zinc-500">
-                                            Recommended size: 1920 × 1080 px. This is for future highlighted or sponsored displays.
+                                    {selectedThumbnailFile ? (
+                                        <p className="mt-2 text-xs text-blue-300">
+                                            Selected — {selectedThumbnailFile.name}
                                         </p>
-
-                                        <div
-                                            className="mb-3 overflow-hidden border border-zinc-800 bg-zinc-950"
-                                            style={{ borderRadius: 5, aspectRatio: "16 / 9" }}
-                                        >
-                                            {coverPreviewUrl || form.coverImageUrl ? (
-                                                <img
-                                                    src={coverPreviewUrl || form.coverImageUrl}
-                                                    alt="Cover preview"
-                                                    className="h-full w-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="flex h-full items-center justify-center text-xs text-zinc-600">
-                                                    No cover selected — 16:9 recommended
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <input
-                                            key={coverInputKey}
-                                            type="file"
-                                            accept="image/jpeg,image/png,image/webp,image/gif"
-                                            onChange={(event) =>
-                                                setSelectedCoverFile(event.target.files?.[0] || null)
-                                            }
-                                            className="block w-full text-sm text-zinc-300 file:mr-4 file:cursor-pointer file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-blue-500"
-                                            disabled={savingGame}
-                                        />
-
-                                        {selectedCoverFile ? (
-                                            <p className="mt-2 text-xs text-blue-300">
-                                                Selected — {selectedCoverFile.name}
-                                            </p>
-                                        ) : null}
-                                    </div>
+                                    ) : null}
                                 </div>
 
                                 <div className="grid gap-3 md:grid-cols-2">
@@ -1396,14 +1287,14 @@ export default function AdminGamesPage() {
                                             {uploadLabel || "Saving game..."}
                                         </p>
 
-                                        {selectedThumbnailFile || selectedCoverFile ? (
+                                        {selectedThumbnailFile ? (
                                             <span className="text-xs text-blue-200">
                                                 {Math.round(uploadProgress)}%
                                             </span>
                                         ) : null}
                                     </div>
 
-                                    {selectedThumbnailFile || selectedCoverFile ? (
+                                    {selectedThumbnailFile ? (
                                         <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
                                             <div
                                                 className="h-full rounded-full bg-blue-400 transition-all"
