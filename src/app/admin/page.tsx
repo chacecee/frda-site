@@ -1323,7 +1323,7 @@ export default function AdminPage() {
     `}</style>
 
       <main className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#060913] text-white">
-        <div className="grid min-h-screen w-full max-w-full overflow-x-hidden lg:grid-cols-[250px_minmax(0,1fr)]">
+        <div className="grid min-h-screen w-full max-w-full overflow-x-hidden lg:grid-cols-[290px_minmax(0,1fr)]">
           <AdminSidebar
             active="applications"
             sidebarOpen={sidebarOpen}

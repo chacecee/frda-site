@@ -26,6 +26,8 @@ import {
   Newspaper,
   Settings2,
   FileCheck,
+  BarChart3,
+  Gamepad2,
 } from "lucide-react";
 import { usePresence } from "@/lib/usePresence";
 import {
@@ -35,6 +37,7 @@ import {
   SidebarPermissionKey,
   SidebarPermissionMap,
   canViewApplicationsSection,
+  canViewAnalyticsSection,
   canViewContentSection,
   canViewSidebarTab,
   isAdminRole,
@@ -116,11 +119,10 @@ function SidebarLink({
       <button
         type="button"
         onClick={onClick}
-        className={`flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-5 py-4 text-left text-base font-medium transition ${
-          active
-            ? "text-white"
-            : "text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
-        }`}
+        className={`flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-5 py-4 text-left text-base font-medium transition ${active
+          ? "text-white"
+          : "text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
+          }`}
       >
         <span
           className={`shrink-0 ${active ? "opacity-100 text-blue-300" : "opacity-70"}`}
@@ -152,11 +154,10 @@ function SidebarSectionToggle({
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full cursor-pointer items-center gap-3 px-5 py-4 text-left text-base font-medium transition ${
-        active
-          ? "text-white"
-          : "text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
-      }`}
+      className={`flex w-full cursor-pointer items-center gap-3 px-5 py-4 text-left text-base font-medium transition ${active
+        ? "text-white"
+        : "text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
+        }`}
       style={{
         borderRadius: 0,
         borderLeft: active ? "2px solid #60a5fa" : "2px solid transparent",
@@ -204,8 +205,13 @@ export default function AdminSidebar({
   const [applicationsOpen, setApplicationsOpen] = useState(active === "applications");
   const [contentOpen, setContentOpen] = useState(
     active === "content_featured_games" ||
-      active === "content_announcements" ||
-      active === "content_blog"
+    active === "content_game_directory" ||
+    active === "content_announcements" ||
+    active === "content_blog"
+  );
+
+  const [analyticsOpen, setAnalyticsOpen] = useState(
+    active === "analytics_overview"
   );
 
   const [form, setForm] = useState<ProfileFormState>({
@@ -320,10 +326,15 @@ export default function AdminSidebar({
     }
     if (
       active === "content_featured_games" ||
+      active === "content_game_directory" ||
       active === "content_announcements" ||
       active === "content_blog"
     ) {
       setContentOpen(true);
+    }
+
+    if (active === "analytics_overview") {
+      setAnalyticsOpen(true);
     }
   }, [active]);
 
@@ -351,6 +362,13 @@ export default function AdminSidebar({
     "content_featured_games"
   );
 
+  const canSeeGameDirectory = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "content_game_directory"
+  );
+
   const canSeeAnnouncements = canViewSidebarTab(
     staffProfile?.role,
     staffProfile?.id,
@@ -375,6 +393,19 @@ export default function AdminSidebar({
     staffProfile?.role,
     staffProfile?.id,
     permissionMap
+  );
+
+  const hasAnalyticsAccess = canViewAnalyticsSection(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap
+  );
+
+  const canSeeAnalyticsOverview = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "analytics_overview"
   );
 
   async function openPermissionsModal(
@@ -517,9 +548,8 @@ export default function AdminSidebar({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[250px] flex-col bg-[#02040a] transition-transform duration-200 lg:static lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[290px] flex-col bg-[#02040a] transition-transform duration-200 lg:static lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
         style={{
           backgroundImage:
             "radial-gradient(circle at 50% 0%, rgba(59,130,246,0.14) 0%, rgba(59,130,246,0.07) 16%, rgba(59,130,246,0.02) 28%, rgba(59,130,246,0) 40%), linear-gradient(to bottom, #02040a 0%, #010309 32%, #000000 100%)",
@@ -648,6 +678,38 @@ export default function AdminSidebar({
                     />
                   ) : null}
 
+                  {canSeeGameDirectory ? (
+                    <SidebarLink
+                      label="Game Directory"
+                      icon={<Gamepad2 size={16} strokeWidth={1.3} />}
+                      active={active === "content_game_directory"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/content/games");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal(
+                                "content_game_directory",
+                                "Game Directory"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+
                   {canSeeAnnouncements ? (
                     <SidebarLink
                       label="Announcements"
@@ -697,6 +759,55 @@ export default function AdminSidebar({
                             onClick={(e) => {
                               e.stopPropagation();
                               openPermissionsModal("content_blog", "Blog");
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
+
+          {hasAnalyticsAccess ? (
+            <>
+              <SidebarSectionToggle
+                label="Analytics"
+                icon={<BarChart3 size={18} strokeWidth={1.3} />}
+                active={active === "analytics_overview"}
+                open={analyticsOpen}
+                onClick={() => setAnalyticsOpen((prev) => !prev)}
+              />
+
+              {analyticsOpen ? (
+                <div className="bg-zinc-950/25">
+                  {canSeeAnalyticsOverview ? (
+                    <SidebarLink
+                      label="Overview"
+                      icon={<BarChart3 size={16} strokeWidth={1.3} />}
+                      active={active === "analytics_overview"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/analytics");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal(
+                                "analytics_overview",
+                                "Analytics — Overview"
+                              );
                             }}
                             className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
                             title="Permissions"

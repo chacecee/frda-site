@@ -5,17 +5,25 @@ export type AdminSidebarActive =
   | "staff"
   | "admin_tools"
   | "content_featured_games"
+  | "content_game_directory"
   | "content_announcements"
-  | "content_blog";
+  | "content_blog"
+  | "analytics_overview";
 
 export type ApplicationsTabKey = "applications_developers";
 
 export type ContentTabKey =
   | "content_featured_games"
+  | "content_game_directory"
   | "content_announcements"
   | "content_blog";
 
-export type SidebarPermissionKey = ApplicationsTabKey | ContentTabKey;
+export type AnalyticsTabKey = "analytics_overview";
+
+export type SidebarPermissionKey =
+  | ApplicationsTabKey
+  | ContentTabKey
+  | AnalyticsTabKey;
 
 export type SidebarPermissionMap = Partial<Record<SidebarPermissionKey, string[]>>;
 
@@ -59,9 +67,20 @@ export function canViewContentSection(
 
   return (
     canViewSidebarTab(role, staffId, permissionMap, "content_featured_games") ||
+    canViewSidebarTab(role, staffId, permissionMap, "content_game_directory") ||
     canViewSidebarTab(role, staffId, permissionMap, "content_announcements") ||
     canViewSidebarTab(role, staffId, permissionMap, "content_blog")
   );
+}
+
+export function canViewAnalyticsSection(
+  role: string | null | undefined,
+  staffId: string | null | undefined,
+  permissionMap: SidebarPermissionMap | null | undefined
+): boolean {
+  if (isAdminRole(role)) return true;
+
+  return canViewSidebarTab(role, staffId, permissionMap, "analytics_overview");
 }
 
 export function canManageApplications(
@@ -80,6 +99,14 @@ export function canManageFeaturedGames(
   return canViewSidebarTab(role, staffId, permissionMap, "content_featured_games");
 }
 
+export function canManageGameDirectory(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(role, staffId, permissionMap, "content_game_directory");
+}
+
 export function canManageAnnouncements(
   role: string | null | undefined,
   staffId?: string | null,
@@ -94,4 +121,12 @@ export function canManageBlog(
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
   return canViewSidebarTab(role, staffId, permissionMap, "content_blog");
+}
+
+export function canViewAnalyticsOverview(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(role, staffId, permissionMap, "analytics_overview");
 }

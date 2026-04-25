@@ -10,6 +10,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { logAnalyticsEvent } from "@/lib/analytics";
 
 type FeaturedGameDoc = {
   id: string;
@@ -208,9 +209,8 @@ export default function FeaturedWorkShowcase() {
                   type="button"
                   aria-label={`Go to slide ${index + 1}`}
                   onClick={() => goToSlide(index)}
-                  className={`h-2.5 w-2.5 rounded-full transition ${
-                    index === activeIndex ? "bg-blue-400" : "bg-white/15 hover:bg-white/30"
-                  }`}
+                  className={`h-2.5 w-2.5 rounded-full transition ${index === activeIndex ? "bg-blue-400" : "bg-white/15 hover:bg-white/30"
+                    }`}
                 />
               ))}
             </div>
@@ -228,6 +228,17 @@ export default function FeaturedWorkShowcase() {
                 href={activeItem.href}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() =>
+                  logAnalyticsEvent({
+                    eventName: "featured_game_click",
+                    metadata: {
+                      gameId: activeItem.id,
+                      gameTitle: activeItem.title,
+                      creator: activeItem.creator,
+                      clickType: "title",
+                    },
+                  })
+                }
                 className="text-lg font-semibold text-white transition hover:text-blue-300"
               >
                 {activeItem.title}
@@ -241,6 +252,17 @@ export default function FeaturedWorkShowcase() {
               href={activeItem.href}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() =>
+                logAnalyticsEvent({
+                  eventName: "featured_game_click",
+                  metadata: {
+                    gameId: activeItem.id,
+                    gameTitle: activeItem.title,
+                    creator: activeItem.creator,
+                    clickType: "play_button",
+                  },
+                })
+              }
               className="inline-flex shrink-0 items-center justify-center rounded-[5px] border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-blue-200 transition hover:border-blue-300/30 hover:bg-blue-500/15 hover:text-white"
             >
               Play This Game
