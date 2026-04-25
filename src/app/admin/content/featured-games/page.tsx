@@ -543,7 +543,7 @@ export default function FeaturedGamesAdminPage() {
     if (authLoading || !user || roleLoading) {
         return (
             <main className="min-h-screen bg-zinc-950 text-white">
-                <div className="mx-auto max-w-7xl px-6 py-10">
+                <div className="grid min-h-screen lg:grid-cols-[290px_minmax(0,1fr)]">
                     <p className="text-sm text-zinc-400">Loading dashboard...</p>
                 </div>
             </main>
@@ -564,8 +564,8 @@ export default function FeaturedGamesAdminPage() {
 
     return (
         <>
-            <main className="min-h-screen bg-zinc-950 text-white">
-                <div className="grid min-h-screen lg:grid-cols-[250px_minmax(0,1fr)]">
+            <main className="min-h-screen bg-zinc-950 text-white lg:pl-[290px]">
+                <div className="min-h-screen">
                     <AdminSidebar
                         active="content_featured_games"
                         sidebarOpen={sidebarOpen}
@@ -661,8 +661,8 @@ export default function FeaturedGamesAdminPage() {
 
                                                             <span
                                                                 className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide ${game.isPublished
-                                                                        ? "border border-blue-500/30 bg-blue-500/15 text-blue-200"
-                                                                        : "border border-zinc-700 bg-zinc-800 text-zinc-300"
+                                                                    ? "border border-blue-500/30 bg-blue-500/15 text-blue-200"
+                                                                    : "border border-zinc-700 bg-zinc-800 text-zinc-300"
                                                                     }`}
                                                             >
                                                                 {game.isPublished ? "Published" : "Hidden"}

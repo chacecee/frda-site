@@ -547,8 +547,10 @@ export default function AdminSidebar({
         />
       ) : null}
 
+      <div className="hidden lg:block lg:w-[290px] lg:shrink-0" aria-hidden="true" />
+
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[290px] flex-col bg-[#02040a] transition-transform duration-200 lg:static lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-50 flex h-dvh w-[290px] flex-col overflow-y-auto bg-[#02040a] transition-transform duration-200 lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         style={{
           backgroundImage:
