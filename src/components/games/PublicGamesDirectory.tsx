@@ -103,19 +103,17 @@ function GameCard({
                 )}
 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-75" />
-
-                <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-                    <span
-                        className="border border-blue-300/25 bg-blue-500/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-100 shadow-[0_0_18px_rgba(59,130,246,0.16)] backdrop-blur"
-                        style={{ borderRadius: 999 }}
-                    >
-                        {getGameGenreLabel(game.genre)}
-                    </span>
-                </div>
             </div>
 
             <div className="relative p-4">
                 <div className="mb-3 flex flex-wrap gap-2">
+                    <span
+                        className="border border-blue-300/25 bg-blue-500/15 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-blue-100"
+                        style={{ borderRadius: 999 }}
+                    >
+                        {getGameGenreLabel(game.genre)}
+                    </span>
+
                     <span
                         className="border border-zinc-700/80 bg-zinc-900/80 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-400"
                         style={{ borderRadius: 999 }}
