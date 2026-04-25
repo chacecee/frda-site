@@ -13,6 +13,7 @@ import {
     normalizeGameContentMaturity,
     normalizeGameGenre,
 } from "@/lib/gameDirectory";
+import SubmitGameModal from "@/components/games/SubmitGameModal";
 
 type PublicGame = {
     id: string;
@@ -39,8 +40,8 @@ type ApiResponse = {
 
 const ALL_GENRES = "all";
 const ALL_MATURITY = "all";
-
 const SHOW_HIGHLIGHTED_GAMES = false;
+const ITEMS_PER_LOAD = 12;
 
 function normalizeText(value?: string | null) {
     return value?.trim().toLowerCase() || "";
@@ -48,8 +49,9 @@ function normalizeText(value?: string | null) {
 
 function EmptyImage({ label = "No image" }: { label?: string }) {
     return (
-        <div className="flex h-full w-full items-center justify-center bg-zinc-950 text-xs uppercase tracking-[0.16em] text-zinc-700">
-            {label}
+        <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-zinc-950 text-xs uppercase tracking-[0.16em] text-zinc-700">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.14),transparent_58%)]" />
+            <span className="relative">{label}</span>
         </div>
     );
 }
@@ -81,44 +83,56 @@ function GameCard({
         <button
             type="button"
             onClick={handleOpen}
-            className="group block overflow-hidden border border-zinc-800 bg-zinc-950/35 text-left transition hover:border-blue-400/35 hover:bg-zinc-950/55"
-            style={{ borderRadius: 8 }}
+            className="group relative block overflow-hidden border border-slate-700/55 bg-slate-950/55 text-left shadow-[0_18px_45px_rgba(0,0,0,0.28)] transition duration-300 hover:-translate-y-1 hover:border-blue-400/50 hover:bg-slate-950/80 hover:shadow-[0_22px_60px_rgba(37,99,235,0.18)]"
+            style={{ borderRadius: 10 }}
         >
-            <div className="aspect-video overflow-hidden border-b border-zinc-800 bg-zinc-950">
+            <div className="pointer-events-none absolute inset-0 opacity-0 transition duration-300 group-hover:opacity-100">
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-300/70 to-transparent" />
+                <div className="absolute -right-16 -top-20 h-40 w-40 rounded-full bg-blue-500/15 blur-3xl" />
+            </div>
+
+            <div className="relative aspect-video overflow-hidden border-b border-slate-800 bg-zinc-950">
                 {game.thumbnailUrl ? (
                     <img
                         src={game.thumbnailUrl}
                         alt={game.title}
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.055]"
                     />
                 ) : (
                     <EmptyImage />
                 )}
-            </div>
 
-            <div className="p-4">
-                <div className="mb-3 flex flex-wrap gap-2">
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-75" />
+
+                <div className="absolute left-3 top-3 flex flex-wrap gap-2">
                     <span
-                        className="border border-blue-400/20 bg-blue-500/10 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-blue-200"
+                        className="border border-blue-300/25 bg-blue-500/20 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-100 shadow-[0_0_18px_rgba(59,130,246,0.16)] backdrop-blur"
                         style={{ borderRadius: 999 }}
                     >
                         {getGameGenreLabel(game.genre)}
                     </span>
+                </div>
+            </div>
 
+            <div className="relative p-4">
+                <div className="mb-3 flex flex-wrap gap-2">
                     <span
-                        className="border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-400"
+                        className="border border-zinc-700/80 bg-zinc-900/80 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-400"
                         style={{ borderRadius: 999 }}
                     >
                         {getGameContentMaturityLabel(game.contentMaturity)}
                     </span>
                 </div>
 
-                <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-white group-hover:text-blue-300">
+                <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-white transition group-hover:text-blue-200">
                     {game.title}
                 </h2>
 
                 <p className="mt-2 truncate text-sm text-zinc-500">
-                    By <span className="text-zinc-300">{game.creatorName || "Unknown creator"}</span>
+                    By{" "}
+                    <span className="text-zinc-300">
+                        {game.creatorName || "Unknown creator"}
+                    </span>
                 </p>
             </div>
         </button>
@@ -147,11 +161,11 @@ function GameDetailsModal({
     }
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-4 backdrop-blur-sm">
             <div className="flex min-h-full items-start justify-center py-8">
                 <div
-                    className="w-full max-w-4xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-[0_20px_80px_rgba(0,0,0,0.55)]"
-                    style={{ borderRadius: 10 }}
+                    className="w-full max-w-4xl overflow-hidden border border-slate-700/70 bg-[#080d19] shadow-[0_24px_90px_rgba(0,0,0,0.65)]"
+                    style={{ borderRadius: 12 }}
                 >
                     <div className="relative aspect-video bg-black">
                         {game.coverImageUrl || game.thumbnailUrl ? (
@@ -163,6 +177,8 @@ function GameDetailsModal({
                         ) : (
                             <EmptyImage />
                         )}
+
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
 
                         <button
                             type="button"
@@ -179,7 +195,7 @@ function GameDetailsModal({
                         <div>
                             <div className="mb-4 flex flex-wrap gap-2">
                                 <span
-                                    className="border border-blue-400/20 bg-blue-500/10 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-blue-200"
+                                    className="border border-blue-400/25 bg-blue-500/15 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-blue-200"
                                     style={{ borderRadius: 999 }}
                                 >
                                     {getGameGenreLabel(game.genre)}
@@ -215,7 +231,7 @@ function GameDetailsModal({
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={handlePlayClick}
-                                className="inline-flex w-full items-center justify-center gap-2 border border-blue-400/30 bg-blue-500/15 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/20"
+                                className="inline-flex w-full items-center justify-center gap-2 border border-blue-400/35 bg-blue-500/20 px-4 py-3 text-sm font-semibold text-blue-50 shadow-[0_0_24px_rgba(59,130,246,0.12)] transition hover:bg-blue-500/30"
                                 style={{ borderRadius: 5 }}
                             >
                                 Play on Roblox
@@ -248,6 +264,8 @@ export default function PublicGamesDirectory() {
     const [activeMaturity, setActiveMaturity] = useState<string>(ALL_MATURITY);
     const [showHighlights, setShowHighlights] = useState(true);
     const [selectedGame, setSelectedGame] = useState<PublicGame | null>(null);
+    const [submitModalOpen, setSubmitModalOpen] = useState(false);
+    const [visibleCount, setVisibleCount] = useState(ITEMS_PER_LOAD);
 
     useEffect(() => {
         let cancelled = false;
@@ -261,7 +279,9 @@ export default function PublicGamesDirectory() {
                     cache: "no-store",
                 });
 
-                const result = (await response.json().catch(() => null)) as ApiResponse | null;
+                const result = (await response.json().catch(
+                    () => null
+                )) as ApiResponse | null;
 
                 if (!response.ok || !result?.ok) {
                     throw new Error(result?.error || "Could not load games.");
@@ -315,8 +335,14 @@ export default function PublicGamesDirectory() {
         return () => window.clearTimeout(timeout);
     }, [search]);
 
+    useEffect(() => {
+        setVisibleCount(ITEMS_PER_LOAD);
+    }, [search, activeGenre, activeMaturity]);
+
     const highlightedGames = useMemo(() => {
-        return games.filter((game) => game.isHighlighted || game.isSponsored).slice(0, 5);
+        return games
+            .filter((game) => game.isHighlighted || game.isSponsored)
+            .slice(0, 5);
     }, [games]);
 
     const genreCounts = useMemo(() => {
@@ -337,7 +363,8 @@ export default function PublicGamesDirectory() {
         return games.filter((game) => {
             const matchesGenre = activeGenre === ALL_GENRES || game.genre === activeGenre;
             const matchesMaturity =
-                activeMaturity === ALL_MATURITY || game.contentMaturity === activeMaturity;
+                activeMaturity === ALL_MATURITY ||
+                game.contentMaturity === activeMaturity;
 
             const searchableText = [
                 game.title,
@@ -354,6 +381,12 @@ export default function PublicGamesDirectory() {
             return matchesGenre && matchesMaturity && matchesSearch;
         });
     }, [games, search, activeGenre, activeMaturity]);
+
+    const visibleGames = useMemo(() => {
+        return filteredGames.slice(0, visibleCount);
+    }, [filteredGames, visibleCount]);
+
+    const hasMoreGames = visibleCount < filteredGames.length;
 
     function selectGenre(value: string) {
         setActiveGenre(value);
@@ -378,15 +411,25 @@ export default function PublicGamesDirectory() {
         });
     }
 
+    function loadMoreGames() {
+        setVisibleCount((current) =>
+            Math.min(current + ITEMS_PER_LOAD, filteredGames.length)
+        );
+    }
+
     return (
-        <section className="mx-auto max-w-[1500px] px-6 pb-24 pt-[110px] md:px-8 md:pt-[120px]">
+        <section className="relative mx-auto max-w-[1560px] px-6 pb-24 pt-[105px] md:px-8 md:pt-[118px]">
+            <div className="pointer-events-none absolute left-1/2 top-24 -z-10 h-[420px] w-[760px] -translate-x-1/2 rounded-full bg-blue-500/10 blur-[130px]" />
+
             <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
-                <aside className="order-2 lg:order-1">
+                <aside className="hidden lg:order-1 lg:block">
                     <div
-                        className="sticky top-24 border border-zinc-800 bg-zinc-950/35 p-4"
-                        style={{ borderRadius: 8 }}
+                        className="relative sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto border border-slate-700/55 bg-slate-950/55 p-4 pr-3 shadow-[0_18px_55px_rgba(0,0,0,0.28)] backdrop-blur [scrollbar-gutter:stable]"
+                        style={{ borderRadius: 10 }}
                     >
-                        <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-300/60 to-transparent" />
+
+                        <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-blue-200/75">
                             Categories
                         </p>
 
@@ -395,13 +438,15 @@ export default function PublicGamesDirectory() {
                                 type="button"
                                 onClick={() => selectGenre(ALL_GENRES)}
                                 className={`flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm transition ${activeGenre === ALL_GENRES
-                                    ? "bg-blue-500/15 text-blue-100"
-                                    : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+                                    ? "bg-blue-500/20 text-blue-50 shadow-[inset_0_0_0_1px_rgba(96,165,250,0.2)]"
+                                    : "text-zinc-400 hover:bg-slate-900/80 hover:text-white"
                                     }`}
                                 style={{ borderRadius: 5 }}
                             >
                                 <span>All Games</span>
-                                <span className="text-xs text-zinc-500">{genreCounts[ALL_GENRES] || 0}</span>
+                                <span className="text-xs text-zinc-500">
+                                    {genreCounts[ALL_GENRES] || 0}
+                                </span>
                             </button>
 
                             {GAME_GENRE_OPTIONS.map((genre) => (
@@ -410,49 +455,58 @@ export default function PublicGamesDirectory() {
                                     type="button"
                                     onClick={() => selectGenre(genre.value)}
                                     className={`flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-sm transition ${activeGenre === genre.value
-                                        ? "bg-blue-500/15 text-blue-100"
-                                        : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
+                                        ? "bg-blue-500/20 text-blue-50 shadow-[inset_0_0_0_1px_rgba(96,165,250,0.2)]"
+                                        : "text-zinc-400 hover:bg-slate-900/80 hover:text-white"
                                         }`}
                                     style={{ borderRadius: 5 }}
                                 >
                                     <span>{genre.label}</span>
-                                    <span className="text-xs text-zinc-500">{genreCounts[genre.value] || 0}</span>
+                                    <span className="text-xs text-zinc-500">
+                                        {genreCounts[genre.value] || 0}
+                                    </span>
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    <a
-                        href="/games/submit"
-                        onClick={handleSubmitCtaClick}
-                        className="mt-4 flex w-full items-center justify-center border border-blue-400/30 bg-blue-500/15 px-4 py-3 text-center text-sm font-semibold text-blue-100 transition hover:bg-blue-500/20"
-                        style={{ borderRadius: 5 }}
-                    >
-                        Want to submit your game?
-                    </a>
+                    <div className="mt-4">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                handleSubmitCtaClick();
+                                setSubmitModalOpen(true);
+                            }}
+                            className="flex w-full cursor-pointer items-center justify-center border border-blue-300/35 bg-blue-500/20 px-4 py-3 text-center text-sm font-semibold text-blue-50 shadow-[0_0_24px_rgba(37,99,235,0.12)] transition hover:bg-blue-500/30"
+                            style={{ borderRadius: 5 }}
+                        >
+                            Submit your game
+                        </button>
+
+                        <p className="mt-2 text-xs leading-5 text-zinc-500">
+                            Open to accepted FRDA developers aged 18+.
+                        </p>
+                    </div>
                 </aside>
 
-                <div className="order-1 min-w-0 lg:order-2">
-                    <div className="mb-6 max-w-5xl">
+                <div
+                    className="order-1 min-w-0 lg:order-2"
+                    style={{
+                        textShadow: "0 0 1px rgba(255,255,255,0.02)",
+                    }}
+                >
+                    <div className="mb-8 max-w-5xl">
                         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-300">
                             FRDA Game Directory
                         </p>
 
-                        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-[2.35rem] md:leading-tight">
-                            Roblox experiences made by Filipino developers
+                        <h1 className="mt-3 max-w-5xl text-3xl font-semibold tracking-tight text-white md:text-[2.45rem] md:leading-tight">
+                            Proudly Filipino-made Roblox experiences
                         </h1>
 
                         <p className="mt-4 max-w-4xl text-sm leading-7 text-zinc-400 md:text-base">
-                            Each listed experience is reviewed by FRDA before appearing here. If
-                            you believe a listed experience may violate Roblox safety standards
-                            or FRDA listing guidelines, please contact{" "}
-                            <a
-                                href="mailto:admin@frdaph.org"
-                                className="text-blue-300 underline underline-offset-4 hover:text-blue-200"
-                            >
-                                admin@frdaph.org
-                            </a>
-                            .
+                            Explore a growing showcase of games, worlds, and experiences built
+                            by Filipino Roblox developers — all FRDA-reviewed for safety and
+                            appropriateness.
                         </p>
                     </div>
 
@@ -468,7 +522,7 @@ export default function PublicGamesDirectory() {
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
                                 placeholder="Search by game, description, creator, or genre"
-                                className="w-full border border-zinc-700 bg-zinc-950 py-4 pl-12 pr-11 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-500"
+                                className="w-full border border-slate-700/70 bg-slate-950/75 py-4 pl-12 pr-11 text-sm text-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.65)] outline-none placeholder:text-zinc-600 transition focus:border-blue-400/70 focus:shadow-[0_0_28px_rgba(59,130,246,0.16)]"
                                 style={{ borderRadius: 8 }}
                             />
 
@@ -487,13 +541,27 @@ export default function PublicGamesDirectory() {
                         <select
                             value={activeMaturity}
                             onChange={(event) => setActiveMaturity(event.target.value)}
-                            className="w-full border border-zinc-700 bg-zinc-950 px-4 py-4 text-sm text-white outline-none focus:border-blue-500"
+                            className="w-full border border-slate-700/70 bg-slate-950/75 px-4 py-4 text-sm text-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.65)] outline-none transition focus:border-blue-400/70 focus:shadow-[0_0_28px_rgba(59,130,246,0.16)]"
                             style={{ borderRadius: 8 }}
                         >
                             <option value={ALL_MATURITY}>All maturity levels</option>
                             {GAME_CONTENT_MATURITY_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>
                                     {option.publicLabel}
+                                </option>
+                            ))}
+                        </select>
+
+                        <select
+                            value={activeGenre}
+                            onChange={(event) => selectGenre(event.target.value)}
+                            className="w-full border border-slate-700/70 bg-slate-950/75 px-4 py-4 text-sm text-white shadow-[inset_0_0_0_1px_rgba(15,23,42,0.65)] outline-none transition focus:border-blue-400/70 focus:shadow-[0_0_28px_rgba(59,130,246,0.16)] md:hidden"
+                            style={{ borderRadius: 8 }}
+                        >
+                            <option value={ALL_GENRES}>All categories</option>
+                            {GAME_GENRE_OPTIONS.map((genre) => (
+                                <option key={genre.value} value={genre.value}>
+                                    {genre.label}
                                 </option>
                             ))}
                         </select>
@@ -510,7 +578,8 @@ export default function PublicGamesDirectory() {
                                         Highlighted Games
                                     </h2>
                                     <p className="mt-1 text-xs text-zinc-500">
-                                        Placeholder for future sponsored or featured directory placements.
+                                        Placeholder for future sponsored or featured directory
+                                        placements.
                                     </p>
                                 </div>
 
@@ -579,8 +648,8 @@ export default function PublicGamesDirectory() {
                                                 Sponsored/highlighted area placeholder
                                             </p>
                                             <p className="mt-2 max-w-md text-xs leading-5 text-zinc-500">
-                                                Once games are marked as highlighted or sponsored, they can
-                                                appear here in a Steam-style showcase.
+                                                Once games are marked as highlighted or sponsored, they
+                                                can appear here in a Steam-style showcase.
                                             </p>
                                         </div>
                                     </div>
@@ -592,11 +661,17 @@ export default function PublicGamesDirectory() {
                     <div className="mb-4 flex items-center justify-between gap-4">
                         <p className="text-sm text-zinc-400">
                             Showing{" "}
-                            <span className="font-semibold text-white">{filteredGames.length}</span>{" "}
+                            <span className="font-semibold text-white">
+                                {filteredGames.length === 0 ? 0 : visibleGames.length}
+                            </span>{" "}
+                            of{" "}
+                            <span className="font-semibold text-white">
+                                {filteredGames.length}
+                            </span>{" "}
                             {filteredGames.length === 1 ? "game" : "games"}
                         </p>
 
-                        {(activeGenre !== ALL_GENRES || activeMaturity !== ALL_MATURITY || search) ? (
+                        {activeGenre !== ALL_GENRES || activeMaturity !== ALL_MATURITY || search ? (
                             <button
                                 type="button"
                                 onClick={() => {
@@ -613,18 +688,18 @@ export default function PublicGamesDirectory() {
 
                     {loading ? (
                         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                            {[1, 2, 3].map((item) => (
+                            {[1, 2, 3, 4].map((item) => (
                                 <div
                                     key={item}
-                                    className="animate-pulse overflow-hidden border border-zinc-800 bg-zinc-950/35"
-                                    style={{ borderRadius: 8 }}
+                                    className="animate-pulse overflow-hidden border border-slate-800 bg-slate-950/50"
+                                    style={{ borderRadius: 10 }}
                                 >
-                                    <div className="aspect-video bg-zinc-900" />
+                                    <div className="aspect-video bg-slate-900" />
                                     <div className="space-y-3 p-4">
-                                        <div className="h-4 w-2/3 bg-zinc-900" />
-                                        <div className="h-3 w-1/2 bg-zinc-900" />
-                                        <div className="h-3 w-full bg-zinc-900" />
-                                        <div className="h-3 w-5/6 bg-zinc-900" />
+                                        <div className="h-4 w-2/3 bg-slate-900" />
+                                        <div className="h-3 w-1/2 bg-slate-900" />
+                                        <div className="h-3 w-full bg-slate-900" />
+                                        <div className="h-3 w-5/6 bg-slate-900" />
                                     </div>
                                 </div>
                             ))}
@@ -637,33 +712,57 @@ export default function PublicGamesDirectory() {
                             {errorMsg}
                         </div>
                     ) : filteredGames.length === 0 ? (
-                        <div
-                            className="border border-zinc-800 bg-zinc-950/35 p-8 text-center"
-                            style={{ borderRadius: 8 }}
-                        >
-                            <p className="text-base font-medium text-white">No games found yet.</p>
+                        <div className="py-14 text-center">
+                            <p className="text-base font-medium text-white">
+                                No games found yet.
+                            </p>
                             <p className="mt-2 text-sm text-zinc-500">
-                                Try clearing your filters or check back once more games are published.
+                                Try clearing your filters or check back once more games are
+                                published.
                             </p>
                         </div>
                     ) : (
-                        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                            {filteredGames.map((game) => (
-                                <GameCard
-                                    key={game.id}
-                                    game={game}
-                                    onOpen={setSelectedGame}
-                                />
-                            ))}
-                        </div>
+                        <>
+                            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                {visibleGames.map((game) => (
+                                    <GameCard
+                                        key={game.id}
+                                        game={game}
+                                        onOpen={setSelectedGame}
+                                    />
+                                ))}
+                            </div>
+
+                            {hasMoreGames ? (
+                                <div className="mt-10 flex justify-center">
+                                    <button
+                                        type="button"
+                                        onClick={loadMoreGames}
+                                        className="cursor-pointer border border-blue-400/30 bg-blue-500/15 px-6 py-3 text-sm font-semibold text-blue-100 shadow-[0_0_30px_rgba(37,99,235,0.12)] transition hover:bg-blue-500/25"
+                                        style={{ borderRadius: 5 }}
+                                    >
+                                        Load more games
+                                    </button>
+                                </div>
+                            ) : filteredGames.length > ITEMS_PER_LOAD ? (
+                                <p className="mt-10 text-center text-sm text-zinc-500">
+                                    You’ve reached the end of the directory.
+                                </p>
+                            ) : null}
+                        </>
                     )}
                 </div>
             </div>
+
             {selectedGame ? (
                 <GameDetailsModal
                     game={selectedGame}
                     onClose={() => setSelectedGame(null)}
                 />
+            ) : null}
+
+            {submitModalOpen ? (
+                <SubmitGameModal onClose={() => setSubmitModalOpen(false)} />
             ) : null}
         </section>
     );

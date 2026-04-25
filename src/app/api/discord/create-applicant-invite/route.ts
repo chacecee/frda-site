@@ -3,14 +3,24 @@ import { Resend } from "resend";
 import { readFile } from "fs/promises";
 import path from "path";
 
-const DISCORD_CHANNEL_ID = "1493114820319252520";
+const DISCORD_CHANNEL_ID = "1497579914650587277";
 const APPLICANT_ROLE_ID = "1493113453467140209";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    route: "/api/discord/create-applicant-invite",
+    message: "Discord applicant invite route is active.",
+  });
+}
+
 export async function POST(req: NextRequest) {
+
+  console.log("DISCORD INVITE POST ROUTE HIT");
   try {
-    const { discordUserId, email, firstName } = await req.json();
+    const { discordUserId, email, firstName, memberId } = await req.json();
 
     if (!discordUserId || !/^\d+$/.test(discordUserId)) {
       return NextResponse.json(
@@ -67,22 +77,38 @@ export async function POST(req: NextRequest) {
       }
     );
 
-    const contentType = response.headers.get("content-type") || "";
+    const responseText = await response.text();
+
+    let discordBody: any = null;
+
+    try {
+      discordBody = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      discordBody = responseText;
+    }
 
     if (!response.ok) {
-      const errorBody = contentType.includes("application/json")
-        ? await response.json()
-        : await response.text();
-
-      console.error("Discord invite creation error:", errorBody);
+      console.error("Discord invite creation error:", {
+        status: response.status,
+        statusText: response.statusText,
+        body: discordBody,
+        channelId: DISCORD_CHANNEL_ID,
+        roleId: APPLICANT_ROLE_ID,
+      });
 
       return NextResponse.json(
-        { error: "Failed to create Discord invite.", details: errorBody },
+        {
+          ok: false,
+          error: `Failed to create Discord invite. Discord returned ${response.status} ${response.statusText}.`,
+          details: discordBody,
+          channelId: DISCORD_CHANNEL_ID,
+          roleId: APPLICANT_ROLE_ID,
+        },
         { status: response.status }
       );
     }
 
-    const invite = await response.json();
+    const invite = discordBody;
     const inviteUrl = `https://discord.gg/${invite.code}`;
 
     const logoPath = path.join(process.cwd(), "public", "frda-logo.png");
@@ -115,9 +141,16 @@ export async function POST(req: NextRequest) {
               Hi ${safeFirstName},
             </p>
 
-            <p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
+                        <p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
               Your developer registration has been accepted.
             </p>
+
+            ${memberId
+          ? `<p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
+                    Your FRDA Member ID is <strong>${escapeHtml(memberId)}</strong>. Please keep this ID for future member-only submissions, including Game Directory listings.
+                  </p>`
+          : ""
+        }
 
             <p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
               Use the button below to join the FRDA Discord server. This invite is intended only for the Discord account tied to your submitted Discord user ID.
@@ -172,6 +205,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
+      ok: true,
       success: true,
       code: invite.code,
       inviteUrl,

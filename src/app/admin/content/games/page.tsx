@@ -67,8 +67,8 @@ const EMPTY_FORM: GameFormState = {
     creatorName: "",
     creatorType: "individual",
     memberId: "",
-    genre: "adventure",
-    contentMaturity: "not_sure",
+    genre: "action",
+    contentMaturity: "minimal",
     thumbnailUrl: "",
     thumbnailPath: "",
     coverImageUrl: "",
@@ -206,6 +206,7 @@ export default function AdminGamesPage() {
         useState<GameDirectoryStatus>("for_approval");
 
     const [addModalOpen, setAddModalOpen] = useState(false);
+    const [editingGame, setEditingGame] = useState<GameDirectoryItem | null>(null);
     const [form, setForm] = useState<GameFormState>(EMPTY_FORM);
     const [formError, setFormError] = useState("");
 
@@ -346,7 +347,40 @@ export default function AdminGamesPage() {
     }, [games, activeStatus, search]);
 
     function openAddModal() {
+        setEditingGame(null);
         setForm(EMPTY_FORM);
+        setFormError("");
+        setSelectedThumbnailFile(null);
+        setSelectedCoverFile(null);
+        setThumbnailPreviewUrl("");
+        setCoverPreviewUrl("");
+        setThumbnailInputKey((prev) => prev + 1);
+        setCoverInputKey((prev) => prev + 1);
+        setUploadProgress(0);
+        setUploadLabel("");
+        setAddModalOpen(true);
+    }
+
+    function openEditModal(game: GameDirectoryItem) {
+        setEditingGame(game);
+
+        setForm({
+            title: game.title || "",
+            description: game.description || "",
+            robloxUrl: game.robloxUrl || "",
+            creatorName: game.creatorName || "",
+            creatorType: game.creatorType === "group" ? "group" : "individual",
+            memberId: game.memberId || "",
+            genre: normalizeGameGenre(game.genre),
+            contentMaturity: normalizeGameContentMaturity(game.contentMaturity),
+            thumbnailUrl: game.thumbnailUrl || "",
+            thumbnailPath: game.thumbnailPath || "",
+            coverImageUrl: game.coverImageUrl || "",
+            coverImagePath: game.coverImagePath || "",
+            isSponsored: !!game.isSponsored,
+            isHighlighted: !!game.isHighlighted,
+        });
+
         setFormError("");
         setSelectedThumbnailFile(null);
         setSelectedCoverFile(null);
@@ -363,6 +397,7 @@ export default function AdminGamesPage() {
         if (savingGame) return;
 
         setAddModalOpen(false);
+        setEditingGame(null);
         setForm(EMPTY_FORM);
         setFormError("");
         setSelectedThumbnailFile(null);
@@ -549,6 +584,91 @@ export default function AdminGamesPage() {
         } catch (error) {
             console.error("Error adding game:", error);
             setFormError("Could not add this game. Please try again.");
+        } finally {
+            setSavingGame(false);
+            setUploadProgress(0);
+            setUploadLabel("");
+        }
+    }
+
+    async function saveEditedGame() {
+        if (!user || !editingGame) return;
+
+        const validationError = validateForm();
+
+        if (validationError) {
+            setFormError(validationError);
+            return;
+        }
+
+        setSavingGame(true);
+        setFormError("");
+        setUploadProgress(0);
+        setUploadLabel("");
+
+        try {
+            let thumbnailUrl = form.thumbnailUrl.trim();
+            let thumbnailPath = form.thumbnailPath.trim();
+            let coverImageUrl = form.coverImageUrl.trim();
+            let coverImagePath = form.coverImagePath.trim();
+
+            if (selectedThumbnailFile) {
+                setUploadLabel("Uploading new thumbnail...");
+                const uploadedThumbnail = await uploadGameDirectoryImage(
+                    selectedThumbnailFile,
+                    "thumbnails"
+                );
+
+                thumbnailUrl = uploadedThumbnail.imageUrl;
+                thumbnailPath = uploadedThumbnail.imagePath;
+            }
+
+            if (selectedCoverFile) {
+                setUploadProgress(0);
+                setUploadLabel("Uploading new cover image...");
+                const uploadedCover = await uploadGameDirectoryImage(
+                    selectedCoverFile,
+                    "covers"
+                );
+
+                coverImageUrl = uploadedCover.imageUrl;
+                coverImagePath = uploadedCover.imagePath;
+            }
+
+            setUploadLabel("Saving changes...");
+
+            await updateDoc(doc(db, "gameDirectory", editingGame.id), {
+                title: form.title.trim(),
+                description: form.description.trim().slice(0, DESCRIPTION_LIMIT),
+                robloxUrl: cleanRobloxGameUrl(form.robloxUrl),
+
+                creatorName: form.creatorName.trim(),
+                creatorType: form.creatorType,
+                memberId: form.memberId.trim(),
+
+                genre: form.genre,
+                contentMaturity: form.contentMaturity,
+
+                thumbnailUrl,
+                thumbnailPath,
+                coverImageUrl,
+                coverImagePath,
+
+                isSponsored: form.isSponsored,
+                isHighlighted: form.isHighlighted,
+
+                editedByUid: user.uid,
+                editedByName: displayName,
+                editedByEmail: user.email || "",
+                editedAt: serverTimestamp(),
+
+                updatedAt: serverTimestamp(),
+            });
+
+            closeAddModal();
+        } catch (error) {
+            console.error("Error saving game changes:", error);
+            setFormError("Could not save changes. Please try again.");
         } finally {
             setSavingGame(false);
             setUploadProgress(0);
@@ -802,6 +922,15 @@ export default function AdminGamesPage() {
 
                                                 <td className="px-5 py-4 text-right">
                                                     <div className="flex flex-col items-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            disabled={updatingGameId === game.id}
+                                                            onClick={() => openEditModal(game)}
+                                                            className="cursor-pointer text-sm font-medium text-zinc-200 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                                        >
+                                                            Edit
+                                                        </button>
+
                                                         {game.status !== "published" ? (
                                                             <button
                                                                 type="button"
@@ -919,6 +1048,14 @@ export default function AdminGamesPage() {
                                     </p>
 
                                     <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                                        <button
+                                            type="button"
+                                            onClick={() => openEditModal(game)}
+                                            className="text-zinc-200"
+                                        >
+                                            Edit
+                                        </button>
+
                                         {game.status !== "published" ? (
                                             <button
                                                 type="button"
@@ -976,9 +1113,13 @@ export default function AdminGamesPage() {
                             <div className="border-b border-zinc-800 px-6 py-5">
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
-                                        <h2 className="text-xl font-semibold text-white">Add Game</h2>
+                                        <h2 className="text-xl font-semibold text-white">
+                                            {editingGame ? "Edit Game" : "Add Game"}
+                                        </h2>
                                         <p className="mt-1 text-sm text-zinc-500">
-                                            Staff-added games start in For Approval before going public.
+                                            {editingGame
+                                                ? "Update this game listing before publishing or keeping it in review."
+                                                : "Staff-added games start in For Approval before going public."}
                                         </p>
                                     </div>
 
@@ -1137,9 +1278,9 @@ export default function AdminGamesPage() {
                                             className="mb-3 overflow-hidden border border-zinc-800 bg-zinc-950"
                                             style={{ borderRadius: 5, aspectRatio: "16 / 9" }}
                                         >
-                                            {thumbnailPreviewUrl ? (
+                                            {thumbnailPreviewUrl || form.thumbnailUrl ? (
                                                 <img
-                                                    src={thumbnailPreviewUrl}
+                                                    src={thumbnailPreviewUrl || form.thumbnailUrl}
                                                     alt="Thumbnail preview"
                                                     className="h-full w-full object-cover"
                                                 />
@@ -1179,9 +1320,9 @@ export default function AdminGamesPage() {
                                             className="mb-3 overflow-hidden border border-zinc-800 bg-zinc-950"
                                             style={{ borderRadius: 5, aspectRatio: "16 / 9" }}
                                         >
-                                            {coverPreviewUrl ? (
+                                            {coverPreviewUrl || form.coverImageUrl ? (
                                                 <img
-                                                    src={coverPreviewUrl}
+                                                    src={coverPreviewUrl || form.coverImageUrl}
                                                     alt="Cover preview"
                                                     className="h-full w-full object-cover"
                                                 />
@@ -1291,12 +1432,16 @@ export default function AdminGamesPage() {
 
                                 <button
                                     type="button"
-                                    onClick={addStaffGame}
+                                    onClick={editingGame ? saveEditedGame : addStaffGame}
                                     disabled={savingGame}
                                     className="cursor-pointer border border-blue-400/40 bg-blue-500/15 px-5 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                                     style={{ borderRadius: 5 }}
                                 >
-                                    {savingGame ? "Saving..." : "Save Game"}
+                                    {savingGame
+                                        ? "Saving..."
+                                        : editingGame
+                                            ? "Save Changes"
+                                            : "Save Game"}
                                 </button>
                             </div>
                         </div>

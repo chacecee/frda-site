@@ -114,6 +114,14 @@ type Application = {
   idFilePath?: string;
   idFileName?: string;
   idFileUrl?: string | null;
+
+  memberId?: string;
+  memberIdNumber?: number;
+  memberListingLimit?: number;
+  paidListingCredits?: number;
+  sponsoredPlacementsPurchased?: number;
+  memberStatus?: "active" | "inactive" | "suspended";
+  memberAcceptedAt?: Timestamp;
 };
 
 type ModalTab = "application" | "request_more_info" | "activity";
@@ -917,7 +925,43 @@ export default function AdminPage() {
     }
   }
 
-  async function sendAcceptedApplicantInvite(app: Application) {
+  async function assignMemberId(applicationId: string) {
+    if (!user) {
+      throw new Error("No signed-in user found.");
+    }
+
+    const idToken = await user.getIdToken();
+
+    const response = await fetch("/api/members/assign-id", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ applicationId }),
+    });
+
+    const result = await response.json().catch(() => null);
+
+    if (!response.ok || !result?.ok) {
+      throw new Error(result?.error || "Could not assign member ID.");
+    }
+
+    return {
+      memberId: result.memberId as string,
+      memberListingLimit: Number(result.memberListingLimit || 3),
+      paidListingCredits: Number(result.paidListingCredits || 0),
+      sponsoredPlacementsPurchased: Number(
+        result.sponsoredPlacementsPurchased || 0
+      ),
+      memberStatus: (result.memberStatus || "active") as
+        | "active"
+        | "inactive"
+        | "suspended",
+    };
+  }
+
+  async function sendAcceptedApplicantInvite(app: Application, memberId?: string) {
     const response = await fetch("/api/discord/create-applicant-invite", {
       method: "POST",
       headers: {
@@ -927,6 +971,7 @@ export default function AdminPage() {
         discordUserId: app.discordId,
         email: app.email,
         firstName: app.firstName,
+        memberId: memberId || app.memberId || "",
       }),
     });
 
@@ -1162,6 +1207,35 @@ export default function AdminPage() {
         return;
       }
 
+      let acceptedMemberFields: Record<string, unknown> = {};
+
+      if (pendingAction === "accepted") {
+        if (selectedApplication.memberId?.trim()) {
+          acceptedMemberFields = {
+            memberId: selectedApplication.memberId.trim(),
+            memberListingLimit: selectedApplication.memberListingLimit || 3,
+            paidListingCredits: selectedApplication.paidListingCredits || 0,
+            sponsoredPlacementsPurchased:
+              selectedApplication.sponsoredPlacementsPurchased || 0,
+            memberStatus: selectedApplication.memberStatus || "active",
+            memberAcceptedAt:
+              selectedApplication.memberAcceptedAt || serverTimestamp(),
+          };
+        } else {
+          const assignedMember = await assignMemberId(selectedApplication.id);
+
+          acceptedMemberFields = {
+            memberId: assignedMember.memberId,
+            memberListingLimit: assignedMember.memberListingLimit,
+            paidListingCredits: assignedMember.paidListingCredits,
+            sponsoredPlacementsPurchased:
+              assignedMember.sponsoredPlacementsPurchased,
+            memberStatus: assignedMember.memberStatus,
+            memberAcceptedAt: serverTimestamp(),
+          };
+        }
+      }
+
       await updateDoc(docRef, {
         status: pendingAction,
         reviewerNote: generalReviewerNote.trim(),
@@ -1185,6 +1259,8 @@ export default function AdminPage() {
         reviewedByEmail: reviewerEmail,
         reviewedByName: reviewerName,
         updatedAt: serverTimestamp(),
+
+        ...acceptedMemberFields,
       });
 
       await writeActivityLog(
@@ -1192,10 +1268,20 @@ export default function AdminPage() {
         pendingAction,
         pendingAction === "rejected"
           ? "Reviewer marked the application as declined."
-          : `Reviewer marked the application as ${pendingAction}.`,
+          : pendingAction === "accepted"
+            ? "Reviewer accepted the application and activated the developer membership."
+            : `Reviewer marked the application as ${pendingAction}.`,
         {
           reviewerNote: generalReviewerNote.trim(),
           actorName: reviewerName,
+          ...(pendingAction === "accepted"
+            ? {
+              memberId:
+                selectedApplication.memberId ||
+                (acceptedMemberFields as { memberId?: string }).memberId ||
+                "",
+            }
+            : {}),
         }
       );
 
@@ -1231,7 +1317,15 @@ export default function AdminPage() {
           );
         } else {
           try {
-            const inviteResult = await sendAcceptedApplicantInvite(selectedApplication);
+            const acceptedMemberId =
+              selectedApplication.memberId ||
+              (acceptedMemberFields as { memberId?: string }).memberId ||
+              "";
+
+            const inviteResult = await sendAcceptedApplicantInvite(
+              selectedApplication,
+              acceptedMemberId
+            );
 
             await updateDoc(docRef, {
               discordInviteUrl: inviteResult.inviteUrl,
@@ -1877,6 +1971,12 @@ export default function AdminPage() {
 
                         <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_220px]">
                           <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 px-4 py-2">
+
+                            <DetailLine
+                              label="Member ID"
+                              value={selectedApplication.memberId || "Not assigned yet"}
+                            />
+
                             <DetailLine
                               label="Email"
                               value={selectedApplication.email}

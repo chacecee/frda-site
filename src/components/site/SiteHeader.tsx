@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 
+const SHOW_GAMES_IN_HEADER = false;
 const SHOW_BLOG_IN_HEADER = true;
 
 export default function SiteHeader() {
@@ -21,8 +22,15 @@ export default function SiteHeader() {
       { href: "/contact", label: "Contact" },
     ];
 
+    if (SHOW_GAMES_IN_HEADER) {
+      items.splice(2, 0, { href: "/games", label: "Games" });
+    }
+
     if (SHOW_BLOG_IN_HEADER) {
-      items.splice(2, 0, { href: "/blog", label: "News" });
+      items.splice(SHOW_GAMES_IN_HEADER ? 3 : 2, 0, {
+        href: "/blog",
+        label: "News",
+      });
     }
 
     return items;
@@ -49,16 +57,14 @@ export default function SiteHeader() {
   return (
     <>
       <header
-        className={`fixed inset-x-0 top-0 z-50 w-full transition-all duration-300 ${
-          scrolled
+        className={`fixed inset-x-0 top-0 z-50 w-full transition-all duration-300 ${scrolled
             ? "bg-[#03153a]/68 backdrop-blur-lg shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
             : "bg-transparent"
-        }`}
+          }`}
       >
         <div
-          className={`mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 transition-all duration-300 md:px-8 ${
-            scrolled ? "border-b border-white/10" : "border-b border-transparent"
-          }`}
+          className={`mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 transition-all duration-300 md:px-8 ${scrolled ? "border-b border-white/10" : "border-b border-transparent"
+            }`}
         >
           <div className="flex min-w-0 items-center gap-3 md:gap-4">
             <button
@@ -179,11 +185,10 @@ export default function SiteHeader() {
                       key={item.href}
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
-                      className={`rounded-[5px] px-3 py-3 text-[13px] uppercase tracking-[0.14em] transition ${
-                        active
+                      className={`rounded-[5px] px-3 py-3 text-[13px] uppercase tracking-[0.14em] transition ${active
                           ? "bg-white/5 text-white"
                           : "text-zinc-300 hover:bg-white/5 hover:text-white"
-                      }`}
+                        }`}
                     >
                       {item.label}
                     </Link>
