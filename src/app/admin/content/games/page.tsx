@@ -40,6 +40,12 @@ import {
     normalizeGameDirectoryStatus,
     normalizeGameGenre,
 } from "@/lib/gameDirectory";
+import {
+    Archive,
+    CheckCircle2,
+    Clock3,
+    XCircle,
+} from "lucide-react";
 
 type GameFormState = {
     title: string;
@@ -169,6 +175,47 @@ function TextInput({
             className="w-full border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-500"
             style={{ borderRadius: 5 }}
         />
+    );
+}
+
+type ActionTone = "neutral" | "blue" | "amber" | "red" | "zinc";
+
+function GameActionButton({
+    label,
+    icon,
+    tone = "neutral",
+    disabled,
+    onClick,
+}: {
+    label: string;
+    icon: React.ReactNode;
+    tone?: ActionTone;
+    disabled?: boolean;
+    onClick: () => void;
+}) {
+    const toneClass =
+        tone === "blue"
+            ? "border-blue-400/35 bg-blue-500/10 text-blue-200 hover:bg-blue-500/15"
+            : tone === "amber"
+                ? "border-amber-400/35 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15"
+                : tone === "red"
+                    ? "border-red-400/35 bg-red-500/10 text-red-200 hover:bg-red-500/15"
+                    : tone === "zinc"
+                        ? "border-zinc-600 bg-zinc-800/40 text-zinc-300 hover:bg-zinc-800"
+                        : "border-zinc-700 bg-zinc-950/50 text-zinc-200 hover:bg-zinc-800/70";
+
+    return (
+        <button
+            type="button"
+            disabled={disabled}
+            onClick={onClick}
+            title={label}
+            className={`inline-flex h-9 items-center justify-center gap-2 border px-3 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+            style={{ borderRadius: 5 }}
+        >
+            {icon}
+            <span>{label}</span>
+        </button>
     );
 }
 
@@ -545,7 +592,7 @@ export default function AdminGamesPage() {
         }
     }
 
-    async function saveEditedGame() {
+    async function saveEditedGame(nextStatus?: GameDirectoryStatus) {
         if (!user || !editingGame) return;
 
         const validationError = validateForm();
@@ -572,9 +619,13 @@ export default function AdminGamesPage() {
                 thumbnailPath = uploadedThumbnail.imagePath;
             }
 
-            setUploadLabel("Saving changes...");
+            setUploadLabel(
+                nextStatus
+                    ? `Saving changes and marking as ${getGameStatusLabel(nextStatus)}...`
+                    : "Saving changes..."
+            );
 
-            await updateDoc(doc(db, "gameDirectory", editingGame.id), {
+            const updatePayload: Record<string, unknown> = {
                 title: form.title.trim(),
                 description: form.description.trim().slice(0, DESCRIPTION_LIMIT),
                 robloxUrl: cleanRobloxGameUrl(form.robloxUrl),
@@ -598,7 +649,19 @@ export default function AdminGamesPage() {
                 editedAt: serverTimestamp(),
 
                 updatedAt: serverTimestamp(),
-            });
+            };
+
+            if (nextStatus) {
+                updatePayload.status = nextStatus;
+                updatePayload.isHiddenFromPublic = nextStatus !== "published";
+
+                updatePayload.reviewedByUid = user.uid;
+                updatePayload.reviewedByName = displayName;
+                updatePayload.reviewedByEmail = user.email || "";
+                updatePayload.reviewedAt = serverTimestamp();
+            }
+
+            await updateDoc(doc(db, "gameDirectory", editingGame.id), updatePayload);
 
             closeAddModal();
         } catch (error) {
@@ -770,9 +833,12 @@ export default function AdminGamesPage() {
                                             >
                                                 <td className="max-w-[320px] px-5 py-4">
                                                     <div className="flex items-start gap-3">
-                                                        <div
-                                                            className="h-14 w-20 shrink-0 overflow-hidden border border-zinc-800 bg-zinc-950"
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openEditModal(game)}
+                                                            className="h-14 w-20 shrink-0 cursor-pointer overflow-hidden border border-zinc-800 bg-zinc-950 transition hover:border-blue-400/50"
                                                             style={{ borderRadius: 5 }}
+                                                            title="Open listing details"
                                                         >
                                                             {game.thumbnailUrl ? (
                                                                 <img
@@ -785,7 +851,7 @@ export default function AdminGamesPage() {
                                                                     No image
                                                                 </div>
                                                             )}
-                                                        </div>
+                                                        </button>
 
                                                         <div className="min-w-0">
                                                             <a
@@ -856,58 +922,46 @@ export default function AdminGamesPage() {
                                                 </td>
 
                                                 <td className="px-5 py-4 text-right">
-                                                    <div className="flex flex-col items-end gap-2">
-                                                        <button
-                                                            type="button"
-                                                            disabled={updatingGameId === game.id}
-                                                            onClick={() => openEditModal(game)}
-                                                            className="cursor-pointer text-sm font-medium text-zinc-200 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                                                        >
-                                                            Edit
-                                                        </button>
+                                                    <div className="flex min-w-[180px] flex-wrap justify-end gap-2">
 
                                                         {game.status !== "published" ? (
-                                                            <button
-                                                                type="button"
+                                                            <GameActionButton
+                                                                label="Publish"
+                                                                tone="blue"
                                                                 disabled={updatingGameId === game.id}
                                                                 onClick={() => updateGameStatus(game, "published")}
-                                                                className="cursor-pointer text-sm font-medium text-blue-300 hover:text-blue-200 disabled:cursor-not-allowed disabled:opacity-50"
-                                                            >
-                                                                Publish
-                                                            </button>
+                                                                icon={<CheckCircle2 size={14} />}
+                                                            />
                                                         ) : null}
 
                                                         {game.status !== "pending" ? (
-                                                            <button
-                                                                type="button"
+                                                            <GameActionButton
+                                                                label="Pending"
+                                                                tone="amber"
                                                                 disabled={updatingGameId === game.id}
                                                                 onClick={() => updateGameStatus(game, "pending")}
-                                                                className="cursor-pointer text-sm font-medium text-amber-300 hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
-                                                            >
-                                                                Mark Pending
-                                                            </button>
+                                                                icon={<Clock3 size={14} />}
+                                                            />
                                                         ) : null}
 
                                                         {game.status !== "declined" ? (
-                                                            <button
-                                                                type="button"
+                                                            <GameActionButton
+                                                                label="Decline"
+                                                                tone="red"
                                                                 disabled={updatingGameId === game.id}
                                                                 onClick={() => updateGameStatus(game, "declined")}
-                                                                className="cursor-pointer text-sm font-medium text-red-300 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
-                                                            >
-                                                                Decline
-                                                            </button>
+                                                                icon={<XCircle size={14} />}
+                                                            />
                                                         ) : null}
 
                                                         {game.status !== "archived" ? (
-                                                            <button
-                                                                type="button"
+                                                            <GameActionButton
+                                                                label="Archive"
+                                                                tone="zinc"
                                                                 disabled={updatingGameId === game.id}
                                                                 onClick={() => updateGameStatus(game, "archived")}
-                                                                className="cursor-pointer text-sm font-medium text-zinc-400 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-                                                            >
-                                                                Archive
-                                                            </button>
+                                                                icon={<Archive size={14} />}
+                                                            />
                                                         ) : null}
                                                     </div>
                                                 </td>
@@ -982,53 +1036,46 @@ export default function AdminGamesPage() {
                                         {game.description}
                                     </p>
 
-                                    <div className="mt-4 flex flex-wrap gap-3 text-sm">
-                                        <button
-                                            type="button"
-                                            onClick={() => openEditModal(game)}
-                                            className="text-zinc-200"
-                                        >
-                                            Edit
-                                        </button>
+                                    <div className="mt-4 flex flex-wrap gap-2">
 
                                         {game.status !== "published" ? (
-                                            <button
-                                                type="button"
+                                            <GameActionButton
+                                                label="Publish"
+                                                tone="blue"
+                                                disabled={updatingGameId === game.id}
                                                 onClick={() => updateGameStatus(game, "published")}
-                                                className="text-blue-300"
-                                            >
-                                                Publish
-                                            </button>
+                                                icon={<CheckCircle2 size={14} />}
+                                            />
                                         ) : null}
 
                                         {game.status !== "pending" ? (
-                                            <button
-                                                type="button"
+                                            <GameActionButton
+                                                label="Pending"
+                                                tone="amber"
+                                                disabled={updatingGameId === game.id}
                                                 onClick={() => updateGameStatus(game, "pending")}
-                                                className="text-amber-300"
-                                            >
-                                                Pending
-                                            </button>
+                                                icon={<Clock3 size={14} />}
+                                            />
                                         ) : null}
 
                                         {game.status !== "declined" ? (
-                                            <button
-                                                type="button"
+                                            <GameActionButton
+                                                label="Decline"
+                                                tone="red"
+                                                disabled={updatingGameId === game.id}
                                                 onClick={() => updateGameStatus(game, "declined")}
-                                                className="text-red-300"
-                                            >
-                                                Decline
-                                            </button>
+                                                icon={<XCircle size={14} />}
+                                            />
                                         ) : null}
 
                                         {game.status !== "archived" ? (
-                                            <button
-                                                type="button"
+                                            <GameActionButton
+                                                label="Archive"
+                                                tone="zinc"
+                                                disabled={updatingGameId === game.id}
                                                 onClick={() => updateGameStatus(game, "archived")}
-                                                className="text-zinc-400"
-                                            >
-                                                Archive
-                                            </button>
+                                                icon={<Archive size={14} />}
+                                            />
                                         ) : null}
                                     </div>
                                 </div>
@@ -1310,31 +1357,91 @@ export default function AdminGamesPage() {
                                 </div>
                             ) : null}
 
-                            <div className="flex flex-col gap-3 border-t border-zinc-800 px-6 py-5 sm:flex-row sm:justify-end">
-                                <button
-                                    type="button"
-                                    onClick={closeAddModal}
-                                    disabled={savingGame}
-                                    className="cursor-pointer border border-zinc-700 px-5 py-3 text-sm font-medium text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
-                                    style={{ borderRadius: 5 }}
-                                >
-                                    Cancel
-                                </button>
+                            {editingGame ? (
+                                <div className="flex flex-col gap-4 border-t border-zinc-800 px-6 py-5">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            {editingGame.status !== "archived" ? (
+                                                <GameActionButton
+                                                    label="Archive"
+                                                    tone="zinc"
+                                                    disabled={savingGame}
+                                                    onClick={() => saveEditedGame("archived")}
+                                                    icon={<Archive size={14} />}
+                                                />
+                                            ) : null}
+                                        </div>
 
-                                <button
-                                    type="button"
-                                    onClick={editingGame ? saveEditedGame : addStaffGame}
-                                    disabled={savingGame}
-                                    className="cursor-pointer border border-blue-400/40 bg-blue-500/15 px-5 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                                    style={{ borderRadius: 5 }}
-                                >
-                                    {savingGame
-                                        ? "Saving..."
-                                        : editingGame
-                                            ? "Save Changes"
-                                            : "Save Game"}
-                                </button>
-                            </div>
+                                        <div className="flex flex-wrap justify-end gap-2">
+                                            {editingGame.status !== "pending" ? (
+                                                <GameActionButton
+                                                    label="Pending"
+                                                    tone="amber"
+                                                    disabled={savingGame}
+                                                    onClick={() => saveEditedGame("pending")}
+                                                    icon={<Clock3 size={14} />}
+                                                />
+                                            ) : null}
+
+                                            {editingGame.status !== "declined" ? (
+                                                <GameActionButton
+                                                    label="Decline"
+                                                    tone="red"
+                                                    disabled={savingGame}
+                                                    onClick={() => saveEditedGame("declined")}
+                                                    icon={<XCircle size={14} />}
+                                                />
+                                            ) : null}
+
+                                            {editingGame.status !== "published" ? (
+                                                <GameActionButton
+                                                    label="Publish"
+                                                    tone="blue"
+                                                    disabled={savingGame}
+                                                    onClick={() => saveEditedGame("published")}
+                                                    icon={<CheckCircle2 size={14} />}
+                                                />
+                                            ) : null}
+
+                                            <button
+                                                type="button"
+                                                onClick={closeAddModal}
+                                                disabled={savingGame}
+                                                className="cursor-pointer border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                                style={{ borderRadius: 5 }}
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <p className="text-xs leading-5 text-zinc-500">
+                                        Any edits made above will be saved when you choose a status action.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-3 border-t border-zinc-800 px-6 py-5 sm:flex-row sm:justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={closeAddModal}
+                                        disabled={savingGame}
+                                        className="cursor-pointer border border-zinc-700 px-5 py-3 text-sm font-medium text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                        style={{ borderRadius: 5 }}
+                                    >
+                                        Cancel
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={addStaffGame}
+                                        disabled={savingGame}
+                                        className="cursor-pointer border border-blue-400/40 bg-blue-500/15 px-5 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                        style={{ borderRadius: 5 }}
+                                    >
+                                        {savingGame ? "Saving..." : "Save Game"}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
