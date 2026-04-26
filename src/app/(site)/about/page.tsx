@@ -44,7 +44,7 @@ const officerMembers = [
   {
     nickname: "L11_hakari",
     realName: "Darius Sebastian Quitangon",
-    role: "Human Resource Department | Registration Systems",
+    role: "Editorial Research Staff | Public Information and Editorial",
     discord: "hakarimeow",
     roblox: "Hakari_sarashina24",
   },
@@ -60,6 +60,13 @@ const officerMembers = [
     realName: "Juno Daniel B. Ronquillo ",
     role: "Chief of Editorial Department",
     discord: "mitappinventorgod",
+    roblox: "",
+  },
+  {
+    nickname: "Yel",
+    realName: "Arielle Denise Garcia ",
+    role: "Editorial Content Associate",
+    discord: "kadesan_",
     roblox: "",
   },
 ];
