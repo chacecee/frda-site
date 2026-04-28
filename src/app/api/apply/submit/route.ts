@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { readFile } from "fs/promises";
 import path from "path";
 import { createApplication } from "@/lib/server/applications";
+import { adminDb } from "@/lib/firebaseAdmin";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -44,6 +45,67 @@ function normalizeEmail(value: FormDataEntryValue | null) {
   return String(value || "")
     .trim()
     .toLowerCase();
+}
+
+const ACTIVE_APPLICATION_STATUSES = new Set([
+  "application_sent",
+  "manual_review",
+  "needs_more_info",
+  "pending",
+  "accepted",
+]);
+
+const DUPLICATE_APPLICATION_MESSAGE =
+  "It looks like an application may already exist for these details. Please check your email for the verification instructions or use the status tracker. If you believe this is a mistake, please contact FRDA support.";
+
+function isActiveApplicationStatus(value: unknown) {
+  return ACTIVE_APPLICATION_STATUSES.has(String(value || ""));
+}
+
+async function hasActiveApplicationWithField(
+  fieldName: "email" | "discordId",
+  values: string[]
+) {
+  const uniqueValues = Array.from(
+    new Set(values.map((value) => value.trim()).filter(Boolean))
+  );
+
+  for (const value of uniqueValues) {
+    const snapshot = await adminDb
+      .collection("applications")
+      .where(fieldName, "==", value)
+      .limit(5)
+      .get();
+
+    const activeMatch = snapshot.docs.some((docSnap) => {
+      const data = docSnap.data();
+      return isActiveApplicationStatus(data.status);
+    });
+
+    if (activeMatch) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function hasActiveDuplicateApplication({
+  email,
+  discordId,
+}: {
+  email: string;
+  discordId: string;
+}) {
+  if (await hasActiveApplicationWithField("email", [email])) {
+    return true;
+  }
+
+  if (await hasActiveApplicationWithField("discordId", [discordId])) {
+    return true;
+  }
+
+  return false;
 }
 
 function escapeHtml(value: string) {
@@ -217,6 +279,29 @@ export async function POST(req: NextRequest) {
     const placeContribution = normalizeText(formData.get("placeContribution"));
     const supportingLinks = normalizeText(formData.get("supportingLinks"));
     const privacyConsent = normalizeText(formData.get("privacyConsent"));
+    const companyWebsite = normalizeText(formData.get("companyWebsite"));
+    const formStartedAtRaw = normalizeText(formData.get("formStartedAt"));
+
+    if (companyWebsite) {
+      return NextResponse.json(
+        { error: "Unable to submit application." },
+        { status: 400 }
+      );
+    }
+
+    const formStartedAt = Number(formStartedAtRaw);
+    const elapsedMs = Date.now() - formStartedAt;
+
+    if (
+      !formStartedAtRaw ||
+      Number.isNaN(formStartedAt) ||
+      elapsedMs < 2000
+    ) {
+      return NextResponse.json(
+        { error: "Unable to submit application. Please refresh the page and try again." },
+        { status: 400 }
+      );
+    }
 
     if (
       !firstName ||
@@ -291,6 +376,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Please enter a valid Facebook profile URL." },
         { status: 400 }
+      );
+    }
+
+    const hasDuplicate = await hasActiveDuplicateApplication({
+      email,
+      discordId,
+    });
+
+    if (hasDuplicate) {
+      return NextResponse.json(
+        { error: DUPLICATE_APPLICATION_MESSAGE },
+        { status: 409 }
       );
     }
 

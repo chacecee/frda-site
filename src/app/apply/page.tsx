@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const regions = [
@@ -105,6 +105,7 @@ export default function ApplyPage() {
     const [uploadStageText, setUploadStageText] = useState("");
     const router = useRouter();
     const registrationOpen = true;
+    const formStartedAtRef = useRef(Date.now());
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -115,6 +116,8 @@ export default function ApplyPage() {
 
         const form = e.currentTarget;
         const formData = new FormData(form);
+
+        formData.set("formStartedAt", String(formStartedAtRef.current));
 
         try {
             const rawBirthYear = String(formData.get("birthYear") || "").trim();
@@ -212,53 +215,13 @@ export default function ApplyPage() {
         <>
             <style jsx global>{`
   :root {
-    --page-bg: #dbeafe;
-    --page-text: #18181b;
-    --hero-title: #1d4ed8;
-    --hero-copy: #3f3f46;
-    --logo-wrap-bg: rgba(255, 255, 255, 0.3);
-    --logo-wrap-ring: rgba(96, 165, 250, 0.55);
+    color-scheme: dark;
 
-    --section-heading: #1d4ed8;
-    --label-text: rgba(29, 78, 216, 0.78);
-
-    --card-bg: rgba(255, 255, 255, 0.78);
-    --card-border: #bfdbfe;
-    --card-shadow: 0 10px 30px rgba(59, 130, 246, 0.1);
-
-    --input-bg: #ffffff;
-    --input-border: #bfdbfe;
-    --input-text: #18181b;
-    --input-placeholder: #9ca3af;
-    --input-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-
-    --muted-text: #71717a;
-    --help-text: #71717a;
-    --details-summary: #2563eb;
-    --details-text: #3f3f46;
-    --details-strong: #1d4ed8;
-    --notice-bg: #eff6ff;
-    --notice-border: #bfdbfe;
-    --notice-text: #3f3f46;
-
-    --privacy-text: #a1a1aa;
-    --error-text: #dc2626;
-
-    --button-bg: #2563eb;
-    --button-bg-hover: #1d4ed8;
-    --button-text: #ffffff;
-    --button-shadow: 0 10px 30px rgba(59, 130, 246, 0.18);
-
-    --focus-ring: #3b82f6;
-  }
-
-  @media (prefers-color-scheme: dark) {
-  :root {
     --page-bg:
-  radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.16) 0%, rgba(59, 130, 246, 0.09) 10%, rgba(59, 130, 246, 0.035) 18%, rgba(59, 130, 246, 0) 28%),
-  radial-gradient(circle at 82% 10%, rgba(37, 99, 235, 0.06) 0%, rgba(37, 99, 235, 0.025) 10%, rgba(37, 99, 235, 0) 20%),
-  radial-gradient(circle at 18% 10%, rgba(96, 165, 250, 0.05) 0%, rgba(96, 165, 250, 0.02) 9%, rgba(96, 165, 250, 0) 18%),
-  linear-gradient(to bottom, #02040a 0%, #010309 32%, #000000 100%);
+      radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.16) 0%, rgba(59, 130, 246, 0.09) 10%, rgba(59, 130, 246, 0.035) 18%, rgba(59, 130, 246, 0) 28%),
+      radial-gradient(circle at 82% 10%, rgba(37, 99, 235, 0.06) 0%, rgba(37, 99, 235, 0.025) 10%, rgba(37, 99, 235, 0) 20%),
+      radial-gradient(circle at 18% 10%, rgba(96, 165, 250, 0.05) 0%, rgba(96, 165, 250, 0.02) 9%, rgba(96, 165, 250, 0) 18%),
+      linear-gradient(to bottom, #02040a 0%, #010309 32%, #000000 100%);
 
     --page-text: #ffffff;
     --hero-title: #ffffff;
@@ -298,7 +261,6 @@ export default function ApplyPage() {
 
     --focus-ring: #60a5fa;
   }
-}
 
   .apply-theme input::placeholder,
   .apply-theme textarea::placeholder {
@@ -365,6 +327,15 @@ export default function ApplyPage() {
                         className="relative space-y-6"
                         onSubmit={registrationOpen ? handleSubmit : (e) => e.preventDefault()}
                     >
+
+                        <input
+                            type="text"
+                            name="companyWebsite"
+                            tabIndex={-1}
+                            autoComplete="off"
+                            aria-hidden="true"
+                            className="absolute left-[-9999px] top-auto h-px w-px opacity-0"
+                        />
 
                         <div
                             className={`space-y-10 ${!registrationOpen ? "pointer-events-none select-none blur-[2px]" : ""

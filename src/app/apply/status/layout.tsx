@@ -2,18 +2,16 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "FRDA Staff Portal",
-  description: "Admin area for FRDA staff and application review.",
   robots: {
     index: false,
     follow: false,
   },
 };
 
-export default function AdminLayout({
+export default function ApplyStatusLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  return <>{children}</>;
+  return children;
 }
