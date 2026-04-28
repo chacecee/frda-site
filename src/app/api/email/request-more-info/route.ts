@@ -15,8 +15,7 @@ type CorrectionRequest = {
     | "supportingLinks"
     | "facebookProfile"
     | "discordId"
-    | "email"
-    | "idPhoto";
+    | "email";
   label: string;
   note?: string;
 };

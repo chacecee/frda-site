@@ -11,8 +11,7 @@ type CorrectionRequest = {
   | "supportingLinks"
   | "facebookProfile"
   | "discordId"
-  | "email"
-  | "idPhoto";
+  | "email";
   label: string;
   note?: string;
 };
@@ -94,7 +93,7 @@ function getStatusDescription(app: ApplicationRecord) {
     case "pending":
       return "Your application is still active and is currently under internal follow-up by our team.";
     case "accepted":
-      return "Your application has been accepted. You may use the Discord invite below to join the FRDA server using the same Discord account tied to your submitted Discord user ID.";
+      return "Your application has been accepted. FRDA has verified ownership or control of your submitted Roblox work. You may use the Discord invite below to join the FRDA server using the same Discord account tied to your submitted Discord user ID.";
     case "rejected":
       return app.reviewerNote || "Your application was not approved at this time.";
     case "expired":

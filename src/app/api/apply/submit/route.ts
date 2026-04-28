@@ -3,7 +3,6 @@ import { Resend } from "resend";
 import { readFile } from "fs/promises";
 import path from "path";
 import { createApplication } from "@/lib/server/applications";
-import { adminStorage } from "@/lib/firebaseAdmin";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
@@ -45,10 +44,6 @@ function normalizeEmail(value: FormDataEntryValue | null) {
   return String(value || "")
     .trim()
     .toLowerCase();
-}
-
-function sanitizeFileName(fileName: string) {
-  return fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
 function escapeHtml(value: string) {
@@ -299,56 +294,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const idFileEntry = formData.get("idFile");
-
-    if (!(idFileEntry instanceof File)) {
-      return NextResponse.json(
-        { error: "Please upload a valid ID image." },
-        { status: 400 }
-      );
-    }
-
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-
-    if (!allowedTypes.includes(idFileEntry.type)) {
-      return NextResponse.json(
-        { error: "ID image must be a JPG, PNG, or WebP file." },
-        { status: 400 }
-      );
-    }
-
-    const maxSizeInBytes = 5 * 1024 * 1024;
-
-    if (idFileEntry.size > maxSizeInBytes) {
-      return NextResponse.json(
-        { error: "ID image must be 5 MB or smaller." },
-        { status: 400 }
-      );
-    }
-
-    const bucket = adminStorage.bucket();
-
-    const safeFileName = sanitizeFileName(idFileEntry.name || "id-upload");
-    const uniquePrefix = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    const storagePath = `application-ids/${uniquePrefix}-${safeFileName}`;
-
-    const arrayBuffer = await idFileEntry.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    const storageFile = bucket.file(storagePath);
-
-    await storageFile.save(buffer, {
-      metadata: {
-        contentType: idFileEntry.type,
-      },
-      resumable: false,
-    });
-
-    const [signedUrl] = await storageFile.getSignedUrl({
-      action: "read",
-      expires: "03-01-2500",
-    });
-
     const result = await createApplication({
       firstName,
       lastName,
@@ -363,9 +308,6 @@ export async function POST(req: NextRequest) {
       placeLink,
       placeContribution,
       supportingLinks,
-      idFileUrl: signedUrl,
-      idFilePath: storagePath,
-      idFileName: idFileEntry.name || safeFileName,
     });
 
     const baseUrl = getBaseUrl(req);

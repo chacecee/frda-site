@@ -47,8 +47,7 @@ type CorrectionFieldKey =
   | "supportingLinks"
   | "facebookProfile"
   | "discordId"
-  | "email"
-  | "idPhoto";
+  | "email";
 
 type CorrectionRequest = {
   fieldKey: CorrectionFieldKey;
@@ -111,9 +110,6 @@ type Application = {
   discordInviteCode?: string;
   discordInviteCreatedAt?: Timestamp;
   inviteEmailSentAt?: Timestamp;
-  idFilePath?: string;
-  idFileName?: string;
-  idFileUrl?: string | null;
 
   memberId?: string;
   memberIdNumber?: number;
@@ -137,7 +133,6 @@ const CORRECTION_FIELD_OPTIONS: Array<{
     { key: "facebookProfile", label: "Facebook Profile URL" },
     { key: "discordId", label: "Discord User ID" },
     { key: "email", label: "Email Address" },
-    { key: "idPhoto", label: "ID Photo Reupload" },
   ];
 
 const MOBILE_STATUS_PILLS: Array<{
@@ -996,32 +991,6 @@ export default function AdminPage() {
     );
   }
 
-
-  async function deleteUploadedId(applicationId: string) {
-    if (!user) {
-      throw new Error("No signed-in user found.");
-    }
-
-    const idToken = await user.getIdToken();
-
-    const response = await fetch("/api/applications/delete-id", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({ applicationId }),
-    });
-
-    const result = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      throw new Error(result?.error || "Could not delete uploaded ID.");
-    }
-
-    return result;
-  }
-
   async function writeActivityLog(
     applicationId: string,
     type: string,
@@ -1284,27 +1253,6 @@ export default function AdminPage() {
             : {}),
         }
       );
-
-      if (pendingAction === "accepted" || pendingAction === "rejected") {
-        try {
-          await deleteUploadedId(selectedApplication.id);
-
-          await writeActivityLog(
-            selectedApplication.id,
-            "id_deleted",
-            "Uploaded ID image was deleted after review was completed.",
-            {
-              actorName: reviewerName,
-              finalStatus: pendingAction,
-            }
-          );
-        } catch (deleteError) {
-          console.error("ID deletion error:", deleteError);
-          notify.warning(
-            "Status was updated, but the uploaded ID could not be deleted automatically."
-          );
-        }
-      }
 
       if (pendingAction === "accepted") {
         if (!selectedApplication.discordId || !/^\d+$/.test(selectedApplication.discordId)) {
@@ -1969,9 +1917,8 @@ export default function AdminPage() {
                       <div className="space-y-4">
                         <SectionTitle>Personal Details</SectionTitle>
 
-                        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_220px]">
+                        <div className="grid gap-6">
                           <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 px-4 py-2">
-
                             <DetailLine
                               label="Member ID"
                               value={selectedApplication.memberId || "Not assigned yet"}
@@ -1982,6 +1929,7 @@ export default function AdminPage() {
                               value={selectedApplication.email}
                               state={getFieldState("email")}
                             />
+
                             <DetailLine
                               label="Facebook Profile"
                               state={getFieldState("facebookProfile")}
@@ -2012,212 +1960,125 @@ export default function AdminPage() {
                                 )
                               }
                             />
+
                             <DetailLine
                               label="Discord ID"
                               value={selectedApplication.discordId || "—"}
                               state={getFieldState("discordId")}
                             />
-                            <DetailLine label="Region" value={selectedApplication.region || "—"} />
+
+                            <DetailLine
+                              label="Region"
+                              value={selectedApplication.region || "—"}
+                            />
+
                             <DetailLine
                               label="Organization"
                               value={selectedApplication.organization || "—"}
                             />
                           </div>
+                        </div>
+                      </div>
 
-                          <div
-                            className={`rounded-lg border p-4 flex flex-col justify-start text-left ${getFieldState("idPhoto") === "requested"
-                              ? "border-red-500/40"
-                              : getFieldState("idPhoto") === "updated"
-                                ? "border-amber-400/40"
-                                : "border-zinc-800"
-                              }`}
-                            style={
-                              getFieldState("idPhoto") === "requested"
-                                ? { background: "rgba(239, 68, 68, 0.04)" }
-                                : getFieldState("idPhoto") === "updated"
-                                  ? { background: "rgba(245, 158, 11, 0.06)" }
-                                  : { background: "rgba(9, 9, 11, 0.35)" }
+                      <div className="space-y-4">
+                        <SectionTitle>Developer Background</SectionTitle>
+
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 px-4 py-2">
+                          <DetailLine
+                            label="Roblox Profile"
+                            state={getFieldState("roblox")}
+                            value={
+                              selectedApplication.roblox ? (
+                                <a
+                                  href={getRobloxLink(selectedApplication.roblox) || "#"}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="cursor-pointer underline underline-offset-4"
+                                  style={{
+                                    color:
+                                      getFieldState("roblox") === "requested"
+                                        ? "rgb(252, 129, 129)"
+                                        : getFieldState("roblox") === "updated"
+                                          ? "rgb(253, 224, 71)"
+                                          : "rgb(147, 197, 253)",
+                                  }}
+                                >
+                                  {selectedApplication.roblox}
+                                </a>
+                              ) : (
+                                "—"
+                              )
                             }
-                          >
-                            <p
-                              className={`mb-3 text-[11px] font-medium uppercase tracking-wide ${getFieldState("idPhoto") === "requested"
-                                ? "text-red-200"
-                                : getFieldState("idPhoto") === "updated"
-                                  ? "text-amber-200"
-                                  : "text-zinc-500"
-                                }`}
-                            >
-                              ID Photo
-                            </p>
+                          />
 
-                            {getFieldState("idPhoto") === "requested" ? (
-                              <p className="mb-3 text-xs font-medium text-red-300">
-                                Requested reupload
-                              </p>
-                            ) : getFieldState("idPhoto") === "updated" ? (
-                              <p className="mb-3 text-xs font-medium text-amber-300">
-                                Updated by applicant
-                              </p>
-                            ) : null}
+                          <DetailLine
+                            label="Skills / Expertise"
+                            value={selectedApplication.skills || "—"}
+                          />
 
-                            {selectedApplication.idFileUrl ? (
-                              <>
+                          <DetailLine
+                            label="Experience Link"
+                            state={getFieldState("placeLink")}
+                            value={
+                              selectedApplication.placeLink ? (
                                 <a
-                                  href={selectedApplication.idFileUrl}
+                                  href={selectedApplication.placeLink}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="block cursor-pointer"
-                                  style={{ width: 180 }}
+                                  className="cursor-pointer underline underline-offset-4"
+                                  style={{
+                                    color:
+                                      getFieldState("placeLink") === "requested"
+                                        ? "rgb(252, 129, 129)"
+                                        : getFieldState("placeLink") === "updated"
+                                          ? "rgb(253, 224, 71)"
+                                          : "rgb(147, 197, 253)",
+                                  }}
                                 >
-                                  <div
-                                    className={`relative overflow-hidden border ${getFieldState("idPhoto") === "requested"
-                                      ? "border-red-500/40 bg-red-950/20"
-                                      : getFieldState("idPhoto") === "updated"
-                                        ? "border-amber-400/40 bg-amber-950/20"
-                                        : "border-zinc-700 bg-zinc-900"
-                                      }`}
-                                    style={{ borderRadius: 10, width: 180, aspectRatio: "3 / 2" }}
-                                  >
-                                    <img
-                                      src={selectedApplication.idFileUrl}
-                                      alt="Uploaded ID"
-                                      className="absolute inset-0 h-full w-full object-cover"
-                                    />
-                                  </div>
+                                  {selectedApplication.placeLink}
                                 </a>
+                              ) : (
+                                "—"
+                              )
+                            }
+                          />
 
-                                <a
-                                  href={selectedApplication.idFileUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={`mt-2 inline-block w-fit cursor-pointer text-xs underline underline-offset-4 ${getFieldState("idPhoto") === "requested"
-                                    ? "text-red-300 hover:text-red-200"
-                                    : getFieldState("idPhoto") === "updated"
-                                      ? "text-amber-300 hover:text-amber-200"
-                                      : "text-blue-300 hover:text-blue-200"
-                                    }`}
-                                >
-                                  Click to enlarge
-                                </a>
-                              </>
-                            ) : (
-                              <div
-                                className={`text-sm ${getFieldState("idPhoto") === "requested"
-                                  ? "text-red-300"
-                                  : getFieldState("idPhoto") === "updated"
-                                    ? "text-amber-300"
-                                    : "text-zinc-400"
-                                  }`}
-                              >
-                                No ID uploaded
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <div className="space-y-4">
-                          <SectionTitle>Developer Background</SectionTitle>
+                          <DetailLine
+                            label="Declared Contribution"
+                            value={selectedApplication.placeContribution || "—"}
+                            state={getFieldState("placeContribution")}
+                          />
 
-                          <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 px-4 py-2">
-                            <DetailLine
-                              label="Roblox Profile"
-                              state={getFieldState("roblox")}
-                              value={
-                                selectedApplication.roblox ? (
-                                  <a
-                                    href={getRobloxLink(selectedApplication.roblox) || "#"}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="cursor-pointer underline underline-offset-4"
-                                    style={{
-                                      color:
-                                        getFieldState("roblox") === "requested"
-                                          ? "rgb(252, 129, 129)"
-                                          : getFieldState("roblox") === "updated"
-                                            ? "rgb(253, 224, 71)"
-                                            : "rgb(147, 197, 253)",
-                                    }}
-                                  >
-                                    {selectedApplication.roblox}
-                                  </a>
-                                ) : (
-                                  "—"
-                                )
-                              }
-                            />
-
-                            <DetailLine
-                              label="Skills / Expertise"
-                              value={selectedApplication.skills || "—"}
-                            />
-
-                            <DetailLine
-                              label="Experience Link"
-                              state={getFieldState("placeLink")}
-                              value={
-                                selectedApplication.placeLink ? (
-                                  <a
-                                    href={selectedApplication.placeLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="cursor-pointer underline underline-offset-4"
-                                    style={{
-                                      color:
-                                        getFieldState("placeLink") === "requested"
-                                          ? "rgb(252, 129, 129)"
-                                          : getFieldState("placeLink") === "updated"
-                                            ? "rgb(253, 224, 71)"
-                                            : "rgb(147, 197, 253)",
-                                    }}
-                                  >
-                                    {selectedApplication.placeLink}
-                                  </a>
-                                ) : (
-                                  "—"
-                                )
-                              }
-                            />
-
-                            <DetailLine
-                              label="Declared Contribution"
-                              value={selectedApplication.placeContribution || "—"}
-                              state={getFieldState("placeContribution")}
-                            />
-
-                            <DetailLine
-                              label="Supporting Links"
-                              state={getFieldState("supportingLinks")}
-                              value={
-                                selectedApplication.supportingLinks ? (
-                                  <div className="whitespace-pre-line">
-                                    {selectedApplication.supportingLinks}
-                                  </div>
-                                ) : (
-                                  "—"
-                                )
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-2">
-                        <div className="space-y-4">
-                          <SectionTitle>Reviewer Notes</SectionTitle>
-
-                          <textarea
-                            value={generalReviewerNote}
-                            onChange={(e) => setGeneralReviewerNote(e.target.value)}
-                            rows={4}
-                            placeholder="Add a general note for the applicant or staff..."
-                            className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
-                            style={{ borderRadius: 8 }}
+                          <DetailLine
+                            label="Supporting Links"
+                            state={getFieldState("supportingLinks")}
+                            value={
+                              selectedApplication.supportingLinks ? (
+                                <div className="whitespace-pre-line">
+                                  {selectedApplication.supportingLinks}
+                                </div>
+                              ) : (
+                                "—"
+                              )
+                            }
                           />
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-3 border-t border-zinc-800 pt-5 sm:flex-row sm:justify-between sm:items-end">
+                      <div className="space-y-4">
+                        <SectionTitle>Reviewer Notes</SectionTitle>
+
+                        <textarea
+                          value={generalReviewerNote}
+                          onChange={(e) => setGeneralReviewerNote(e.target.value)}
+                          rows={4}
+                          placeholder="Add a general note for the applicant or staff..."
+                          className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
+                          style={{ borderRadius: 8 }}
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-3 border-t border-zinc-800 pt-5 sm:flex-row sm:items-end sm:justify-between">
                         <div className="text-xs leading-5 text-zinc-500">
                           Last reviewed by{" "}
                           <span className="text-zinc-300">
@@ -2271,7 +2132,9 @@ export default function AdminPage() {
                               className="cursor-pointer border border-zinc-500/40 bg-zinc-700/50 px-6 py-2 text-sm font-semibold uppercase tracking-wide leading-none text-zinc-200 transition hover:bg-zinc-600/60 disabled:cursor-not-allowed disabled:opacity-70"
                               style={{ borderRadius: 5, minWidth: 150 }}
                             >
-                              {selectedApplication.status === "pending" ? "Marked Pending" : "Mark Pending"}
+                              {selectedApplication.status === "pending"
+                                ? "Marked Pending"
+                                : "Mark Pending"}
                             </button>
 
                             <button
@@ -2292,7 +2155,8 @@ export default function AdminPage() {
                         )}
                       </div>
                     </div>
-                  ) : modalTab === "request_more_info" && selectedApplication.status !== "application_sent" ? (
+                  ) : modalTab === "request_more_info" &&
+                    selectedApplication.status !== "application_sent" ? (
                     <div className="space-y-5">
                       <div className="space-y-4">
                         <SectionTitle>Request Corrections / More Info</SectionTitle>
@@ -2329,7 +2193,9 @@ export default function AdminPage() {
                                     onClick={() => toggleCorrectionField(option.key)}
                                     className="min-w-0 flex-1 cursor-pointer text-left"
                                   >
-                                    <div className="text-sm font-medium text-white">{option.label}</div>
+                                    <div className="text-sm font-medium text-white">
+                                      {option.label}
+                                    </div>
                                   </button>
 
                                   <button
@@ -2364,7 +2230,9 @@ export default function AdminPage() {
                                   <div className="px-4 pb-2.5 pt-0">
                                     <textarea
                                       value={fieldNotes[option.key] || ""}
-                                      onChange={(e) => updateFieldNote(option.key, e.target.value)}
+                                      onChange={(e) =>
+                                        updateFieldNote(option.key, e.target.value)
+                                      }
                                       rows={3}
                                       placeholder={`Instructions (Optional) — Add instructions for ${option.label}...`}
                                       className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-zinc-500"
@@ -2455,7 +2323,9 @@ export default function AdminPage() {
                               {Array.isArray(log.meta?.correctionFieldLabels) &&
                                 log.meta.correctionFieldLabels.length > 0 ? (
                                 <div className="mt-3 text-xs text-zinc-400">
-                                  <span className="text-zinc-500">Requested corrections for:</span>{" "}
+                                  <span className="text-zinc-500">
+                                    Requested corrections for:
+                                  </span>{" "}
                                   <span className="text-zinc-200">
                                     {log.meta.correctionFieldLabels.join(", ")}
                                   </span>

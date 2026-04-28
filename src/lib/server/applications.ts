@@ -25,9 +25,6 @@ export type CreateApplicationInput = {
     placeLink: string;
     placeContribution: string;
     supportingLinks: string;
-    idFileUrl?: string | null;
-    idFilePath?: string | null;
-    idFileName?: string | null;
 };
 
 export async function createApplication(input: CreateApplicationInput) {
@@ -48,10 +45,6 @@ export async function createApplication(input: CreateApplicationInput) {
         placeLink: input.placeLink,
         placeContribution: input.placeContribution,
         supportingLinks: input.supportingLinks,
-
-        idFileUrl: input.idFileUrl || null,
-        idFilePath: input.idFilePath || null,
-        idFileName: input.idFileName || null,
 
         status: "application_sent" as ApplicationStatus,
         decisionType: null as DecisionType,
@@ -93,7 +86,6 @@ export async function createApplication(input: CreateApplicationInput) {
             placeLink: input.placeLink,
             placeContribution: input.placeContribution,
             supportingLinks: input.supportingLinks,
-            hasIdUpload: Boolean(input.idFilePath),
         },
     });
 

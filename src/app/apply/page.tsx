@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const regions = [
@@ -101,58 +101,10 @@ export default function ApplyPage() {
     const [submitError, setSubmitError] = useState("");
     const [birthYearError, setBirthYearError] = useState("");
     const [facebookError, setFacebookError] = useState("");
-    const [idFileError, setIdFileError] = useState("");
-    const [selectedIdFile, setSelectedIdFile] = useState<File | null>(null);
-    const [idPreviewUrl, setIdPreviewUrl] = useState("");
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadStageText, setUploadStageText] = useState("");
     const router = useRouter();
-    const registrationOpen = false;
-
-    useEffect(() => {
-        return () => {
-            if (idPreviewUrl) {
-                URL.revokeObjectURL(idPreviewUrl);
-            }
-        };
-    }, [idPreviewUrl]);
-
-    function handleIdFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0] || null;
-
-        setIdFileError("");
-
-        if (idPreviewUrl) {
-            URL.revokeObjectURL(idPreviewUrl);
-            setIdPreviewUrl("");
-        }
-
-        if (!file) {
-            setSelectedIdFile(null);
-            return;
-        }
-
-        const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-
-        if (!allowedTypes.includes(file.type)) {
-            setSelectedIdFile(null);
-            e.target.value = "";
-            setIdFileError("Please upload a JPG, PNG, or WebP image file.");
-            return;
-        }
-
-        const maxSizeInBytes = 5 * 1024 * 1024;
-
-        if (file.size > maxSizeInBytes) {
-            setSelectedIdFile(null);
-            e.target.value = "";
-            setIdFileError("Please upload an image that is 5 MB or smaller.");
-            return;
-        }
-
-        setSelectedIdFile(file);
-        setIdPreviewUrl(URL.createObjectURL(file));
-    }
+    const registrationOpen = true;
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -193,14 +145,6 @@ export default function ApplyPage() {
                 return;
             }
 
-            if (!selectedIdFile) {
-                setSubmitError("Please upload a valid ID image before submitting.");
-                setIsSubmitting(false);
-                setUploadProgress(0);
-                setUploadStageText("");
-                return;
-            }
-
             if (facebookProfile && !isValidFacebookProfileUrl(facebookProfile)) {
                 setFacebookError("Please enter a valid Facebook profile URL.");
                 setSubmitError("Please enter a valid Facebook profile URL.");
@@ -220,56 +164,30 @@ export default function ApplyPage() {
                 return;
             }
 
-            formData.set("idFile", selectedIdFile);
+            setUploadStageText("Submitting application...");
 
-            const result = await new Promise<{
+            const response = await fetch("/api/apply/submit", {
+                method: "POST",
+                body: formData,
+            });
+
+            const result: {
                 success: boolean;
                 applicationId?: string;
                 verificationCode?: string;
                 trackerToken?: string;
                 error?: string;
-            }>((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
+            } = await response.json();
 
-                xhr.open("POST", "/api/apply/submit");
+            if (!response.ok || !result.success) {
+                throw new Error(
+                    result?.error ||
+                    "Something went wrong while submitting your application."
+                );
+            }
 
-                xhr.upload.onprogress = (event) => {
-                    if (event.lengthComputable) {
-                        const percent = Math.round((event.loaded / event.total) * 100);
-                        setUploadProgress(percent);
-                        setUploadStageText(`Uploading ID... ${percent}%`);
-                    } else {
-                        setUploadStageText("Uploading ID...");
-                    }
-                };
-
-                xhr.onload = () => {
-                    try {
-                        const responseJson = JSON.parse(xhr.responseText || "{}");
-
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            setUploadProgress(100);
-                            setUploadStageText("Upload complete. Finalizing application...");
-                            resolve(responseJson);
-                        } else {
-                            reject(
-                                new Error(
-                                    responseJson?.error ||
-                                    "Something went wrong while submitting your application."
-                                )
-                            );
-                        }
-                    } catch {
-                        reject(new Error("The server returned an invalid response."));
-                    }
-                };
-
-                xhr.onerror = () => {
-                    reject(new Error("Network error while submitting your application."));
-                };
-
-                xhr.send(formData);
-            });
+            setUploadProgress(100);
+            setUploadStageText("Application submitted.");
 
             setUploadProgress(100);
             setUploadStageText("Application submitted.");
@@ -439,7 +357,7 @@ export default function ApplyPage() {
                             className="mx-auto mt-5 max-w-2xl text-sm leading-6 sm:text-base"
                             style={{ color: "var(--hero-copy)" }}
                         >
-                            Registered developers get first access to industry updates and selected opportunities within the community before they are shared more widely. We request identification to help FRDA review applications responsibly and connect those opportunities to registered developers with greater confidence and accountability.
+                            Registered Developers are applicants whose submitted Roblox work has been reviewed and ownership-verified by FRDA. Approved members may access community perks such as Discord access and up to 3 free Game Spotlight submissions. Future opportunities, such as job board access, may require an optional additional identity verification step.
                         </p>
                     </div>
 
@@ -449,7 +367,8 @@ export default function ApplyPage() {
                     >
 
                         <div
-                            className={!registrationOpen ? "pointer-events-none select-none blur-[2px]" : ""}
+                            className={`space-y-10 ${!registrationOpen ? "pointer-events-none select-none blur-[2px]" : ""
+                                }`}
                             aria-hidden={!registrationOpen}
                         >
                             <section style={sectionCardStyle}>
@@ -689,81 +608,6 @@ export default function ApplyPage() {
                             </section>
 
                             <section style={sectionCardStyle}>
-                                <SectionHeading title="Identity Verification" />
-
-                                <div className="grid gap-5">
-                                    <div>
-                                        <label htmlFor="idFile" style={labelStyle}>
-                                            Upload a Valid ID
-                                        </label>
-
-                                        <input
-                                            id="idFile"
-                                            name="idFile"
-                                            type="file"
-                                            accept="image/jpeg,image/png,image/webp"
-                                            required
-                                            onChange={handleIdFileChange}
-                                            className="file-input-blue block w-full cursor-pointer rounded-md border border-zinc-600 bg-zinc-900/40 px-4 py-3 text-sm text-white"
-                                        />
-
-                                        <p
-                                            className="mt-2 text-[11px] leading-5"
-                                            style={{ color: "var(--help-text)" }}
-                                        >
-                                            Please upload one valid ID that clearly shows your name. FRDA will use this only to verify that the name in your application matches the name on your submitted ID. Your uploaded ID image will be deleted after verification.
-                                        </p>
-
-                                        <p
-                                            className="mt-2 text-[11px] leading-5"
-                                            style={{ color: "var(--help-text)" }}
-                                        >
-                                            Accepted image types are JPG, PNG, and WebP. Maximum file size is
-                                            5 MB.
-                                        </p>
-
-                                        {idFileError ? (
-                                            <p
-                                                className="mt-2 text-[11px] leading-5"
-                                                style={{ color: "var(--error-text)" }}
-                                            >
-                                                {idFileError}
-                                            </p>
-                                        ) : null}
-
-                                        {selectedIdFile && idPreviewUrl ? (
-                                            <div className="mt-4 rounded-xl border border-zinc-700/80 bg-zinc-900/50 p-4">
-                                                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                                                    ID Preview
-                                                </p>
-
-                                                <div className="flex items-start gap-4">
-                                                    <img
-                                                        src={idPreviewUrl}
-                                                        alt="Selected ID preview"
-                                                        className="h-24 w-36 rounded-md border border-zinc-700 object-cover"
-                                                    />
-
-                                                    <div className="min-w-0">
-                                                        <p className="truncate text-sm font-medium text-white">
-                                                            {selectedIdFile.name}
-                                                        </p>
-                                                        <p className="mt-1 text-xs text-zinc-400">
-                                                            {(selectedIdFile.size / 1024 / 1024).toFixed(2)} MB
-                                                        </p>
-                                                        <p className="mt-2 text-xs text-zinc-500">
-                                                            This image will only be sent when you officially submit
-                                                            your application.
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                </div>
-                            </section>
-
-                            <section style={sectionCardStyle}>
                                 <SectionHeading title="Contact Information" />
 
                                 <div className="grid gap-5">
@@ -928,9 +772,9 @@ export default function ApplyPage() {
                                         >
                                             Privacy Notice
                                         </a>{" "}
-                                        and I consent to the collection and processing of my personal data,
-                                        including my uploaded ID image, for application review, identity
-                                        verification, membership administration, Discord server access
+                                        and I consent to the collection and processing of my personal data
+                                        for application review, verification of ownership or control of my
+                                        submitted Roblox work, membership administration, Discord server access
                                         coordination for accepted applicants, and related communications,
                                         subject to FRDA’s retention and security policies.
                                     </span>
@@ -979,7 +823,7 @@ export default function ApplyPage() {
                                     e.currentTarget.style.background = "var(--button-bg)";
                                 }}
                             >
-                                {isSubmitting ? "Submitting..." : "Submit Application"}
+                                {isSubmitting ? "Submitting..." : "Register as an FRDA Developer"}
                             </button>
 
                         </div>

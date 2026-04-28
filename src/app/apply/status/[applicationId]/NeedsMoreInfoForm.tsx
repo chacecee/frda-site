@@ -10,8 +10,7 @@ type CorrectionFieldKey =
   | "supportingLinks"
   | "facebookProfile"
   | "discordId"
-  | "email"
-  | "idPhoto";
+  | "email";
 
 type CorrectionRequest = {
   fieldKey: CorrectionFieldKey;
@@ -34,8 +33,6 @@ type Props = {
   };
 };
 
-const MAX_ID_FILE_SIZE_MB = 5;
-const MAX_ID_FILE_SIZE_BYTES = MAX_ID_FILE_SIZE_MB * 1024 * 1024;
 const FIELD_WIDTH = 350;
 
 export default function NeedsMoreInfoForm({
@@ -51,7 +48,6 @@ export default function NeedsMoreInfoForm({
   const [placeLink, setPlaceLink] = useState("");
   const [placeContribution, setPlaceContribution] = useState("");
   const [supportingLinks, setSupportingLinks] = useState("");
-  const [idFile, setIdFile] = useState<File | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -77,27 +73,9 @@ export default function NeedsMoreInfoForm({
         return initialValues.placeContribution || "";
       case "supportingLinks":
         return initialValues.supportingLinks || "";
-      case "idPhoto":
-        return "";
       default:
         return "";
     }
-  }
-
-  function handleIdFileChange(file: File | null) {
-    if (!file) {
-      setIdFile(null);
-      return;
-    }
-
-    if (file.size > MAX_ID_FILE_SIZE_BYTES) {
-      setIdFile(null);
-      setErrorMsg(`Your ID photo must be ${MAX_ID_FILE_SIZE_MB} MB or smaller.`);
-      return;
-    }
-
-    setErrorMsg("");
-    setIdFile(file);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -147,11 +125,6 @@ export default function NeedsMoreInfoForm({
               "supportingLinks",
               fallbackValue(supportingLinks, initialValues.supportingLinks)
             );
-            break;
-          case "idPhoto":
-            if (idFile) {
-              formData.append("idFile", idFile);
-            }
             break;
         }
       });
@@ -278,46 +251,6 @@ export default function NeedsMoreInfoForm({
           style={inputStyle}
           placeholder={getOriginalValue("supportingLinks")}
         />
-      );
-    }
-
-    if (fieldKey === "idPhoto") {
-      return (
-        <div style={{ marginTop: 4 }}>
-          <label
-            htmlFor="id-photo-upload"
-            className="inline-flex cursor-pointer items-center justify-center px-4 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/10"
-            style={{
-              borderRadius: 5,
-              border: "1px solid rgba(96, 165, 250, 0.45)",
-              background: "transparent",
-            }}
-          >
-            Choose File
-          </label>
-
-          <input
-            id="id-photo-upload"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => handleIdFileChange(e.target.files?.[0] || null)}
-            className="hidden"
-          />
-
-          <p
-            className="text-sm text-zinc-400"
-            style={{ marginTop: 10 }}
-          >
-            {idFile ? idFile.name : "No file chosen"}
-          </p>
-
-          <p
-            className="text-xs leading-6 text-zinc-500"
-            style={{ marginTop: 4 }}
-          >
-            Accepted formats — JPG, PNG, WEBP. Maximum file size — {MAX_ID_FILE_SIZE_MB} MB.
-          </p>
-        </div>
       );
     }
 

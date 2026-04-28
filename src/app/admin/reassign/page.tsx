@@ -93,7 +93,6 @@ type Application = {
   claimExpiresAt?: Timestamp | null;
 
   applicantResubmittedAt?: Timestamp;
-  idFileUrl?: string | null;
 };
 
 type ModalTab = "application" | "activity";
@@ -965,7 +964,7 @@ export default function ReassignPage() {
                     <div className="space-y-4">
                       <SectionTitle>Personal Details</SectionTitle>
 
-                      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_220px]">
+                      <div className="grid gap-6">
                         <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 px-4 py-2">
                           <DetailLine label="Email" value={selectedApplication.email} />
                           <DetailLine
@@ -1000,45 +999,6 @@ export default function ReassignPage() {
                           />
                         </div>
 
-                        <div className="rounded-lg border border-zinc-800 bg-zinc-950/35 p-4 text-left">
-                          <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                            ID Photo
-                          </p>
-
-                          {selectedApplication.idFileUrl ? (
-                            <>
-                              <a
-                                href={selectedApplication.idFileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block cursor-pointer"
-                                style={{ width: 180 }}
-                              >
-                                <div
-                                  className="relative overflow-hidden border border-zinc-700 bg-zinc-900"
-                                  style={{ borderRadius: 10, width: 180, aspectRatio: "3 / 2" }}
-                                >
-                                  <img
-                                    src={selectedApplication.idFileUrl}
-                                    alt="Uploaded ID"
-                                    className="absolute inset-0 h-full w-full object-cover"
-                                  />
-                                </div>
-                              </a>
-
-                              <a
-                                href={selectedApplication.idFileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-2 inline-block w-fit cursor-pointer text-xs text-blue-300 underline underline-offset-4 hover:text-blue-200"
-                              >
-                                Click to enlarge
-                              </a>
-                            </>
-                          ) : (
-                            <div className="text-sm text-zinc-400">No ID uploaded</div>
-                          )}
-                        </div>
                       </div>
                     </div>
 

@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { getApps } from "firebase-admin/app";
-import { getStorage } from "firebase-admin/storage";
 import { Timestamp, FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 
@@ -11,8 +9,7 @@ type CorrectionFieldKey =
     | "supportingLinks"
     | "facebookProfile"
     | "discordId"
-    | "email"
-    | "idPhoto";
+    | "email";
 
 type CorrectionRequest = {
     fieldKey: CorrectionFieldKey;
@@ -26,19 +23,6 @@ function safeString(value: FormDataEntryValue | null) {
 
 function normalizeOptional(value: string) {
     return value.trim() || "";
-}
-
-function fileExtensionFromType(contentType?: string) {
-    switch (contentType) {
-        case "image/jpeg":
-            return "jpg";
-        case "image/png":
-            return "png";
-        case "image/webp":
-            return "webp";
-        default:
-            return "jpg";
-    }
 }
 
 export async function POST(req: Request) {
@@ -138,49 +122,6 @@ export async function POST(req: Request) {
             updates.supportingLinks = normalizeOptional(
                 safeString(formData.get("supportingLinks"))
             );
-        }
-
-        if (requestedKeys.has("idPhoto")) {
-            const idFileEntry = formData.get("idFile");
-
-            if (!(idFileEntry instanceof File) || idFileEntry.size === 0) {
-                return NextResponse.json(
-                    { error: "A replacement ID photo is required." },
-                    { status: 400 }
-                );
-            }
-
-            const buffer = Buffer.from(await idFileEntry.arrayBuffer());
-
-            const appInstance = getApps()[0];
-            if (!appInstance) {
-                return NextResponse.json(
-                    { error: "Firebase Admin is not initialized." },
-                    { status: 500 }
-                );
-            }
-
-            const ext = fileExtensionFromType(idFileEntry.type);
-            const storagePath = `application_ids/${applicationId}/updated-id-${Date.now()}.${ext}`;
-
-            const bucket = getStorage(appInstance).bucket();
-            const storageFile = bucket.file(storagePath);
-
-            await storageFile.save(buffer, {
-                metadata: {
-                    contentType: idFileEntry.type || "image/jpeg",
-                },
-                resumable: false,
-            });
-
-            const [signedUrl] = await storageFile.getSignedUrl({
-                action: "read",
-                expires: "03-01-2500",
-            });
-
-            updates.idFileUrl = signedUrl;
-            updates.idFilePath = storagePath;
-            updates.idFileName = idFileEntry.name || `updated-id.${ext}`;
         }
 
         await docRef.update(updates);

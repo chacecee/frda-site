@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { getStorage } from "firebase-admin/storage";
 import { adminDb } from "@/lib/firebaseAdmin";
 
 function toMillis(value: unknown): number | null {
@@ -28,13 +27,6 @@ function toMillis(value: unknown): number | null {
   }
 
   return null;
-}
-
-async function deleteIdFileIfPresent(idFilePath?: string | null) {
-  if (!idFilePath) return;
-
-  const bucket = getStorage().bucket();
-  await bucket.file(idFilePath).delete({ ignoreNotFound: true });
 }
 
 export async function GET(
@@ -72,15 +64,10 @@ export async function GET(
 
     if (shouldExpire) {
       try {
-        await deleteIdFileIfPresent(app.idFilePath || null);
 
         await docRef.update({
           status: "expired",
           reviewerNote: app.reviewerNote || "",
-          idFileUrl: null,
-          idFilePath: null,
-          idFileName: null,
-          idDeletedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
 
@@ -96,14 +83,13 @@ export async function GET(
             message: "Application expired after reaching the pending review time limit.",
             meta: {
               previousStatus: "pending",
-              idDeleted: true,
             },
             createdAt: FieldValue.serverTimestamp(),
           });
 
         docSnap = await docRef.get();
       } catch (expireError) {
-        console.error("Could not expire application and delete ID:", expireError);
+        console.error("Could not expire application:", expireError);
       }
     }
 

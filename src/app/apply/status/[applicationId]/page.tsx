@@ -19,8 +19,7 @@ type CorrectionRequest = {
     | "supportingLinks"
     | "facebookProfile"
     | "discordId"
-    | "email"
-    | "idPhoto";
+    | "email";
     label: string;
     note?: string;
 };
@@ -76,7 +75,17 @@ function serializeApplicationForClient(raw: Record<string, unknown>): Applicatio
         reviewerNote:
             typeof raw.reviewerNote === "string" ? raw.reviewerNote : null,
         correctionRequests: Array.isArray(raw.correctionRequests)
-            ? (raw.correctionRequests as CorrectionRequest[])
+            ? (raw.correctionRequests as Array<CorrectionRequest | { fieldKey?: string; label?: string; note?: string }>)
+                .filter((item) => item.fieldKey !== "idPhoto")
+                .filter((item): item is CorrectionRequest =>
+                    item.fieldKey === "roblox" ||
+                    item.fieldKey === "placeLink" ||
+                    item.fieldKey === "placeContribution" ||
+                    item.fieldKey === "supportingLinks" ||
+                    item.fieldKey === "facebookProfile" ||
+                    item.fieldKey === "discordId" ||
+                    item.fieldKey === "email"
+                )
             : [],
         applicantResubmittedAt,
     };

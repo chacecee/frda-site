@@ -141,10 +141,13 @@ export async function POST(req: NextRequest) {
               Hi ${safeFirstName},
             </p>
 
-                        <p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
-              Your developer registration has been accepted.
-            </p>
+              <p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
+  Your developer registration has been accepted. FRDA has verified ownership or control of the Roblox work you submitted using your unique verification code.
+</p>
 
+<p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
+  You are now recognized as an FRDA Registered Developer. Some future opportunities, such as job board access or client-facing developer profiles, may require an optional additional identity verification step.
+</p>
             ${memberId
           ? `<p style="margin:0 0 18px 0;font-size:16px;line-height:1.75;color:#374151;">
                     Your FRDA Member ID is <strong>${escapeHtml(memberId)}</strong>. Please keep this ID for future member-only submissions, including Game Directory listings.
