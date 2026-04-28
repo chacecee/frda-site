@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   collection,
@@ -41,6 +41,10 @@ export default function FeaturedWorkShowcase() {
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const showcaseRef = useRef<HTMLDivElement | null>(null);
+  const sectionVisibleRef = useRef(false);
+  const loggedImpressionsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     const q = query(collection(db, "featuredGames"), orderBy("sortOrder", "asc"));
 
@@ -68,6 +72,7 @@ export default function FeaturedWorkShowcase() {
         setItems(publishedItems);
         setLoading(false);
         setActiveIndex(0);
+        loggedImpressionsRef.current.clear();
       },
       (error) => {
         console.error("Error loading featured showcase games:", error);
@@ -99,6 +104,55 @@ export default function FeaturedWorkShowcase() {
     return items[activeIndex];
   }, [items, activeIndex]);
 
+  function logFeaturedGameImpression(item: ShowcaseItem, index: number) {
+    const impressionKey = `${item.id}:${index}`;
+
+    if (loggedImpressionsRef.current.has(impressionKey)) return;
+
+    loggedImpressionsRef.current.add(impressionKey);
+
+    logAnalyticsEvent({
+      eventName: "featured_game_impression",
+      path: "/",
+      metadata: {
+        gameId: item.id,
+        gameTitle: item.title,
+        creator: item.creator,
+        slideIndex: index,
+        placement: "homepage_featured_work",
+      },
+    });
+  }
+
+  useEffect(() => {
+    const node = showcaseRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        sectionVisibleRef.current = entry.isIntersecting;
+
+        if (entry.isIntersecting && activeItem) {
+          logFeaturedGameImpression(activeItem, activeIndex);
+        }
+      },
+      {
+        threshold: 0.45,
+      }
+    );
+
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [activeItem, activeIndex]);
+
+  useEffect(() => {
+    if (!activeItem) return;
+    if (!sectionVisibleRef.current) return;
+
+    logFeaturedGameImpression(activeItem, activeIndex);
+  }, [activeItem, activeIndex]);
+
   const goToSlide = (index: number) => {
     setActiveIndex(index);
   };
@@ -110,6 +164,22 @@ export default function FeaturedWorkShowcase() {
   const goNext = () => {
     setActiveIndex((prev) => (prev + 1) % items.length);
   };
+
+  function logFeaturedGameClick(clickType: "title" | "play_button") {
+    if (!activeItem) return;
+
+    logAnalyticsEvent({
+      eventName: "featured_game_click",
+      path: "/",
+      metadata: {
+        gameId: activeItem.id,
+        gameTitle: activeItem.title,
+        creator: activeItem.creator,
+        clickType,
+        placement: "homepage_featured_work",
+      },
+    });
+  }
 
   if (loading) {
     return (
@@ -146,7 +216,9 @@ export default function FeaturedWorkShowcase() {
       <div className="relative z-20 md:-mt-24">
         <div className="rounded-[8px] border border-white/6 bg-[#0d1522] p-6 shadow-[0_0_60px_rgba(0,0,0,0.35)]">
           <div className="rounded-[6px] bg-black/30 p-6">
-            <p className="text-lg font-semibold text-white">Featured projects coming soon</p>
+            <p className="text-lg font-semibold text-white">
+              Featured projects coming soon
+            </p>
             <p className="mt-2 text-sm leading-7 text-zinc-400">
               We’re preparing selected works to spotlight here soon.
             </p>
@@ -157,7 +229,7 @@ export default function FeaturedWorkShowcase() {
   }
 
   return (
-    <div className="relative z-20 md:-mt-24">
+    <div ref={showcaseRef} className="relative z-20 md:-mt-24">
       <div className="rounded-[8px] border border-white/6 bg-[#0d1522] p-4 shadow-[0_0_60px_rgba(0,0,0,0.35)] md:p-5">
         <div className="overflow-hidden rounded-[6px] bg-[#101a2a]">
           <div className="relative aspect-[16/10] overflow-hidden">
@@ -209,8 +281,11 @@ export default function FeaturedWorkShowcase() {
                   type="button"
                   aria-label={`Go to slide ${index + 1}`}
                   onClick={() => goToSlide(index)}
-                  className={`h-2.5 w-2.5 rounded-full transition ${index === activeIndex ? "bg-blue-400" : "bg-white/15 hover:bg-white/30"
-                    }`}
+                  className={`h-2.5 w-2.5 rounded-full transition ${
+                    index === activeIndex
+                      ? "bg-blue-400"
+                      : "bg-white/15 hover:bg-white/30"
+                  }`}
                 />
               ))}
             </div>
@@ -228,17 +303,7 @@ export default function FeaturedWorkShowcase() {
                 href={activeItem.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() =>
-                  logAnalyticsEvent({
-                    eventName: "featured_game_click",
-                    metadata: {
-                      gameId: activeItem.id,
-                      gameTitle: activeItem.title,
-                      creator: activeItem.creator,
-                      clickType: "title",
-                    },
-                  })
-                }
+                onClick={() => logFeaturedGameClick("title")}
                 className="text-lg font-semibold text-white transition hover:text-blue-300"
               >
                 {activeItem.title}
@@ -252,17 +317,7 @@ export default function FeaturedWorkShowcase() {
               href={activeItem.href}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() =>
-                logAnalyticsEvent({
-                  eventName: "featured_game_click",
-                  metadata: {
-                    gameId: activeItem.id,
-                    gameTitle: activeItem.title,
-                    creator: activeItem.creator,
-                    clickType: "play_button",
-                  },
-                })
-              }
+              onClick={() => logFeaturedGameClick("play_button")}
               className="inline-flex shrink-0 items-center justify-center rounded-[5px] border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-blue-200 transition hover:border-blue-300/30 hover:bg-blue-500/15 hover:text-white"
             >
               Play This Game

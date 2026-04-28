@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 const ALLOWED_EVENTS = new Set([
   "page_view",
   "featured_game_click",
+  "featured_game_impression",
   "game_directory_visit",
   "game_card_click",
   "play_on_roblox_click",

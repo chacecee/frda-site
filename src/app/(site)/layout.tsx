@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
+import PageViewTracker from "@/components/analytics/PageViewTracker";
 
 const SITE_URL = "https://frdaph.org";
 
@@ -39,6 +40,8 @@ export const metadata: Metadata = {
 export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-[#04163a] text-white">
+      <PageViewTracker />
+
       <div className="relative">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(24,119,255,0.16),transparent_32%)]" />

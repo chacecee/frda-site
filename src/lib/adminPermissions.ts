@@ -8,7 +8,11 @@ export type AdminSidebarActive =
   | "content_game_directory"
   | "content_announcements"
   | "content_blog"
-  | "analytics_overview";
+  | "analytics_overview"
+  | "analytics_games"
+  | "analytics_featured"
+  | "analytics_sponsor"
+  | "analytics_developers";
 
 export type ApplicationsTabKey = "applications_developers";
 
@@ -18,7 +22,12 @@ export type ContentTabKey =
   | "content_announcements"
   | "content_blog";
 
-export type AnalyticsTabKey = "analytics_overview";
+export type AnalyticsTabKey =
+  | "analytics_overview"
+  | "analytics_games"
+  | "analytics_featured"
+  | "analytics_sponsor"
+  | "analytics_developers";
 
 export type SidebarPermissionKey =
   | ApplicationsTabKey
@@ -80,7 +89,13 @@ export function canViewAnalyticsSection(
 ): boolean {
   if (isAdminRole(role)) return true;
 
-  return canViewSidebarTab(role, staffId, permissionMap, "analytics_overview");
+  return (
+    canViewSidebarTab(role, staffId, permissionMap, "analytics_overview") ||
+    canViewSidebarTab(role, staffId, permissionMap, "analytics_games") ||
+    canViewSidebarTab(role, staffId, permissionMap, "analytics_featured") ||
+    canViewSidebarTab(role, staffId, permissionMap, "analytics_sponsor") ||
+    canViewSidebarTab(role, staffId, permissionMap, "analytics_developers")
+  );
 }
 
 export function canManageApplications(
@@ -129,4 +144,36 @@ export function canViewAnalyticsOverview(
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
   return canViewSidebarTab(role, staffId, permissionMap, "analytics_overview");
+}
+
+export function canViewAnalyticsGames(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(role, staffId, permissionMap, "analytics_games");
+}
+
+export function canViewAnalyticsFeatured(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(role, staffId, permissionMap, "analytics_featured");
+}
+
+export function canViewAnalyticsSponsor(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(role, staffId, permissionMap, "analytics_sponsor");
+}
+
+export function canViewAnalyticsDevelopers(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(role, staffId, permissionMap, "analytics_developers");
 }

@@ -5,6 +5,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import BlogArticleBody from "@/components/site/BlogArticleBody";
 import BlogShareButtons from "@/components/site/BlogShareButtons";
 import SiteHeader from "@/components/site/SiteHeader";
+import PageViewTracker from "@/components/analytics/PageViewTracker";
 
 type BlogPost = {
   id: string;
@@ -130,6 +131,8 @@ export default async function BlogPostPage({
   }
 
   return (
+     <>
+      <PageViewTracker />
     <div className="min-h-screen bg-[linear-gradient(180deg,#06132d_0%,#040914_40%,#03070f_100%)] text-white">
       <SiteHeader />
 
@@ -187,5 +190,6 @@ export default async function BlogPostPage({
         </div>
       </article>
     </div>
+    </>
   );
 }

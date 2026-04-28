@@ -211,7 +211,11 @@ export default function AdminSidebar({
   );
 
   const [analyticsOpen, setAnalyticsOpen] = useState(
-    active === "analytics_overview"
+    active === "analytics_overview" ||
+    active === "analytics_games" ||
+    active === "analytics_featured" ||
+    active === "analytics_sponsor" ||
+    active === "analytics_developers"
   );
 
   const [form, setForm] = useState<ProfileFormState>({
@@ -333,7 +337,13 @@ export default function AdminSidebar({
       setContentOpen(true);
     }
 
-    if (active === "analytics_overview") {
+    if (
+      active === "analytics_overview" ||
+      active === "analytics_games" ||
+      active === "analytics_featured" ||
+      active === "analytics_sponsor" ||
+      active === "analytics_developers"
+    ) {
       setAnalyticsOpen(true);
     }
   }, [active]);
@@ -406,6 +416,34 @@ export default function AdminSidebar({
     staffProfile?.id,
     permissionMap,
     "analytics_overview"
+  );
+
+  const canSeeAnalyticsGames = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "analytics_games"
+  );
+
+  const canSeeAnalyticsFeatured = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "analytics_featured"
+  );
+
+  const canSeeAnalyticsSponsor = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "analytics_sponsor"
+  );
+
+  const canSeeAnalyticsDevelopers = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "analytics_developers"
   );
 
   async function openPermissionsModal(
@@ -778,12 +816,30 @@ export default function AdminSidebar({
           ) : null}
 
 
+          {isAdmin ? (
+            <SidebarLink
+              label="Admin"
+              icon={<ShieldUser size={18} strokeWidth={1.3} />}
+              active={active === "admin_tools"}
+              onClick={() => {
+                onCloseSidebar();
+                onNavigate("/admin/reassign");
+              }}
+            />
+          ) : null}
+
           {hasAnalyticsAccess ? (
             <>
               <SidebarSectionToggle
                 label="Analytics"
                 icon={<BarChart3 size={18} strokeWidth={1.3} />}
-                active={active === "analytics_overview"}
+                active={
+                  active === "analytics_overview" ||
+                  active === "analytics_games" ||
+                  active === "analytics_featured" ||
+                  active === "analytics_sponsor" ||
+                  active === "analytics_developers"
+                }
                 open={analyticsOpen}
                 onClick={() => setAnalyticsOpen((prev) => !prev)}
               />
@@ -821,22 +877,139 @@ export default function AdminSidebar({
                       }
                     />
                   ) : null}
+
+                  {canSeeAnalyticsGames ? (
+                    <SidebarLink
+                      label="Game Directory"
+                      icon={<Gamepad2 size={16} strokeWidth={1.3} />}
+                      active={active === "analytics_games"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/analytics/games");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal(
+                                "analytics_games",
+                                "Analytics — Game Directory"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+
+                  {canSeeAnalyticsFeatured ? (
+                    <SidebarLink
+                      label="Featured Games"
+                      icon={<Trophy size={16} strokeWidth={1.3} />}
+                      active={active === "analytics_featured"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/analytics/featured");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal(
+                                "analytics_featured",
+                                "Analytics — Featured Games"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+
+                  {canSeeAnalyticsSponsor ? (
+                    <SidebarLink
+                      label="Sponsor Report"
+                      icon={<Megaphone size={16} strokeWidth={1.3} />}
+                      active={active === "analytics_sponsor"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/analytics/sponsor");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal(
+                                "analytics_sponsor",
+                                "Analytics — Sponsor Report"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+
+                  {canSeeAnalyticsDevelopers ? (
+                    <SidebarLink
+                      label="Developers"
+                      icon={<Users size={16} strokeWidth={1.3} />}
+                      active={active === "analytics_developers"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/analytics/developers");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal(
+                                "analytics_developers",
+                                "Analytics — Developers"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </>
           ) : null}
 
-          {isAdmin ? (
-            <SidebarLink
-              label="Admin"
-              icon={<ShieldUser size={18} strokeWidth={1.3} />}
-              active={active === "admin_tools"}
-              onClick={() => {
-                onCloseSidebar();
-                onNavigate("/admin/reassign");
-              }}
-            />
-          ) : null}
         </nav>
 
         <div className="mt-auto p-5">

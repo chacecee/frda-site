@@ -17,6 +17,7 @@ type RecentAnalyticsEvent = {
     id: string;
     eventName: string;
     path: string;
+    rawPath?: string;
     pageTitle: string;
     metadata: Record<string, unknown>;
     createdAt: string | null;
@@ -33,18 +34,46 @@ type AnalyticsSummary = {
         pageViews: number;
         uniqueVisitors: number;
         sessions: number;
-        featuredGameClicks: number;
+
+        directoryVisits?: number;
+        gameCardClicks?: number;
         playOnRobloxClicks: number;
+        categoryClicks?: number;
+
+        featuredGameImpressions?: number;
+        featuredGameClicks: number;
         submitGameCtaClicks: number;
         completedSubmissions: number;
         searches: number;
+
+        developerApplications?: number;
+        approvedDevelopers?: number;
+        needsMoreInfoApplications?: number;
+        declinedApplications?: number;
     };
     eventBreakdown: AnalyticsRow[];
     recentEvents: RecentAnalyticsEvent[];
+
     topPages: AnalyticsRow[];
+    topContentEntries?: AnalyticsRow[];
+
+    directoryFunnel?: AnalyticsRow[];
+    topGames?: AnalyticsRow[];
+    topGameCardClicks?: AnalyticsRow[];
+    topPlayOnRobloxGames?: AnalyticsRow[];
+    topSearches?: AnalyticsRow[];
+    topCategories?: AnalyticsRow[];
+
+    topFeaturedGameImpressions?: AnalyticsRow[];
     topFeaturedGames: AnalyticsRow[];
+
     dailyPageViews: AnalyticsRow[];
     dailyClicks: AnalyticsRow[];
+    dailyGameActivity?: AnalyticsRow[];
+
+    applicationsByRegion?: AnalyticsRow[];
+    applicationsByStatus?: AnalyticsRow[];
+    applicationsByDay?: AnalyticsRow[];
 };
 
 function StatCard({
@@ -91,52 +120,78 @@ function formatEventDate(value: string | null) {
     }).format(new Date(value));
 }
 
+function getMetadataString(
+    metadata: Record<string, unknown>,
+    key: string,
+    fallback = ""
+) {
+    const value = metadata[key];
+    return typeof value === "string" ? value : fallback;
+}
+
 function getEventDetail(event: RecentAnalyticsEvent) {
     const metadata = event.metadata || {};
 
     if (event.eventName === "featured_game_click") {
-        const gameTitle =
-            typeof metadata.gameTitle === "string" ? metadata.gameTitle : "Featured game";
-
-        const clickType =
-            typeof metadata.clickType === "string" ? metadata.clickType : "click";
+        const gameTitle = getMetadataString(metadata, "gameTitle", "Featured game");
+        const clickType = getMetadataString(metadata, "clickType", "click");
 
         return `${gameTitle} · ${clickType}`;
+    }
+
+    if (event.eventName === "game_card_click") {
+        const gameTitle = getMetadataString(metadata, "gameTitle", "Game card");
+        const clickType = getMetadataString(metadata, "clickType", "card click");
+
+        return `${gameTitle} · ${clickType}`;
+    }
+
+    if (event.eventName === "play_on_roblox_click") {
+        const gameTitle = getMetadataString(metadata, "gameTitle", "Game");
+        return `${gameTitle} · Play on Roblox`;
     }
 
     if (event.eventName === "game_directory_visit") {
         return "Visited public game directory";
     }
 
+    if (event.eventName === "submit_game_cta_click") {
+        return "Clicked submit game CTA";
+    }
+
+    if (event.eventName === "game_submission_completed") {
+        return "Game submission completed";
+    }
+
     if (event.eventName === "page_view") {
-        return event.pageTitle || event.path;
+        return event.pageTitle || event.rawPath || event.path;
     }
 
     if (event.eventName === "search_used") {
-        const searchTerm =
-            typeof metadata.searchTerm === "string" ? metadata.searchTerm : "";
+        const searchTerm = getMetadataString(metadata, "searchTerm");
 
         return searchTerm ? `Searched for “${searchTerm}”` : "Search used";
     }
 
     if (event.eventName === "category_click") {
-        const category =
-            typeof metadata.category === "string" ? metadata.category : "Category";
+        const category = getMetadataString(metadata, "category", "Category");
 
         return category;
     }
 
-    return event.pageTitle || event.path || "—";
+    return event.pageTitle || event.rawPath || event.path || "—";
 }
 
 function DataTable({
     title,
     rows,
     empty,
+    note,
 }: {
     title: string;
     rows: AnalyticsRow[];
     empty: string;
+    note?: string;
 }) {
     return (
         <div
@@ -145,6 +200,7 @@ function DataTable({
         >
             <div className="border-b border-zinc-800 px-5 py-4">
                 <h2 className="text-base font-semibold text-white">{title}</h2>
+                {note ? <p className="mt-1 text-xs text-zinc-500">{note}</p> : null}
             </div>
 
             <div className="overflow-x-auto">
@@ -182,11 +238,7 @@ function DataTable({
     );
 }
 
-function RecentEventsTable({
-    rows,
-}: {
-    rows: RecentAnalyticsEvent[];
-}) {
+function RecentEventsTable({ rows }: { rows: RecentAnalyticsEvent[] }) {
     return (
         <div
             className="overflow-hidden border border-zinc-800 bg-zinc-950/25"
@@ -195,13 +247,14 @@ function RecentEventsTable({
             <div className="border-b border-zinc-800 px-5 py-4">
                 <h2 className="text-base font-semibold text-white">Recent Events</h2>
                 <p className="mt-1 text-xs text-zinc-500">
-                    Latest tracked activity from the website.
+                    Latest tracked activity. Kept scrollable so raw logs do not dominate
+                    the dashboard.
                 </p>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="max-h-[420px] overflow-auto">
                 <table className="min-w-full text-left text-sm">
-                    <thead className="bg-zinc-950/60 text-[11px] uppercase tracking-wide text-zinc-500">
+                    <thead className="sticky top-0 z-10 bg-zinc-950 text-[11px] uppercase tracking-wide text-zinc-500">
                         <tr>
                             <th className="px-5 py-3">Event</th>
                             <th className="px-5 py-3">Details</th>
@@ -245,9 +298,11 @@ function RecentEventsTable({
 function MiniBarList({
     title,
     rows,
+    note,
 }: {
     title: string;
     rows: AnalyticsRow[];
+    note?: string;
 }) {
     const max = useMemo(() => {
         return Math.max(...rows.map((row) => row.count), 1);
@@ -259,6 +314,7 @@ function MiniBarList({
             style={{ borderRadius: 8 }}
         >
             <h2 className="text-base font-semibold text-white">{title}</h2>
+            {note ? <p className="mt-1 text-xs text-zinc-500">{note}</p> : null}
 
             <div className="mt-5 space-y-3">
                 {rows.length === 0 ? (
@@ -276,7 +332,10 @@ function MiniBarList({
                                     </span>
                                 </div>
 
-                                <div className="h-2 overflow-hidden bg-zinc-900" style={{ borderRadius: 999 }}>
+                                <div
+                                    className="h-2 overflow-hidden bg-zinc-900"
+                                    style={{ borderRadius: 999 }}
+                                >
                                     <div
                                         className="h-full bg-blue-500/70"
                                         style={{
@@ -289,6 +348,74 @@ function MiniBarList({
                         );
                     })
                 )}
+            </div>
+        </div>
+    );
+}
+
+function DirectoryFunnelCard({ rows }: { rows: AnalyticsRow[] }) {
+    const visits = rows.find((row) => row.label === "Directory visits")?.count || 0;
+    const cardClicks =
+        rows.find((row) => row.label === "Game card clicks")?.count || 0;
+    const robloxClicks =
+        rows.find((row) => row.label === "Play on Roblox clicks")?.count || 0;
+
+    const cardClickRate = visits > 0 ? (cardClicks / visits) * 100 : 0;
+    const robloxClickRate = cardClicks > 0 ? (robloxClicks / cardClicks) * 100 : 0;
+
+    return (
+        <div
+            className="border border-zinc-800 bg-zinc-950/25 p-5"
+            style={{ borderRadius: 8 }}
+        >
+            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <h2 className="text-base font-semibold text-white">Directory Funnel</h2>
+                    <p className="mt-1 text-xs text-zinc-500">
+                        Shows how visitors move from browsing the directory to clicking into
+                        games.
+                    </p>
+                </div>
+
+                <div className="text-xs text-zinc-500">
+                    Card CTR{" "}
+                    <span className="font-semibold text-zinc-200">
+                        {cardClickRate.toFixed(1)}%
+                    </span>{" "}
+                    · Roblox CTR{" "}
+                    <span className="font-semibold text-zinc-200">
+                        {robloxClickRate.toFixed(1)}%
+                    </span>
+                </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <div className="border border-zinc-800 bg-zinc-950/45 p-4" style={{ borderRadius: 8 }}>
+                    <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                        Directory Visits
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                        {visits.toLocaleString()}
+                    </p>
+                </div>
+
+                <div className="border border-zinc-800 bg-zinc-950/45 p-4" style={{ borderRadius: 8 }}>
+                    <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                        Game Card Clicks
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                        {cardClicks.toLocaleString()}
+                    </p>
+                </div>
+
+                <div className="border border-zinc-800 bg-zinc-950/45 p-4" style={{ borderRadius: 8 }}>
+                    <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                        Play on Roblox Clicks
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                        {robloxClicks.toLocaleString()}
+                    </p>
+                </div>
             </div>
         </div>
     );
@@ -413,9 +540,12 @@ export default function AdminAnalyticsPage() {
 
                     <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                         <div>
-                            <h1 className="text-2xl font-semibold text-white">Analytics Overview</h1>
+                            <h1 className="text-2xl font-semibold text-white">
+                                Analytics Overview
+                            </h1>
                             <p className="mt-2 text-sm leading-6 text-zinc-400">
-                                Anonymous website activity from Firestore.
+                                Site, directory, featured placement, and content activity from
+                                anonymous website events.
                             </p>
                         </div>
 
@@ -451,40 +581,220 @@ export default function AdminAnalyticsPage() {
                     ) : summary ? (
                         <div className="space-y-6">
                             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                                <StatCard label="Page Views" value={summary.totals.pageViews} />
-                                <StatCard label="Unique Visitors" value={summary.totals.uniqueVisitors} />
-                                <StatCard label="Sessions" value={summary.totals.sessions} />
-                                <StatCard label="Featured Game Clicks" value={summary.totals.featuredGameClicks} />
-                                <StatCard label="Play on Roblox Clicks" value={summary.totals.playOnRobloxClicks} />
-                                <StatCard label="Submit Game CTA Clicks" value={summary.totals.submitGameCtaClicks} />
-                                <StatCard label="Completed Submissions" value={summary.totals.completedSubmissions} />
-                                <StatCard label="Searches" value={summary.totals.searches} />
+                                <StatCard
+                                    label="Page Views"
+                                    value={summary.totals.pageViews}
+                                    note="All tracked site views"
+                                />
+                                <StatCard
+                                    label="Unique Visitors"
+                                    value={summary.totals.uniqueVisitors}
+                                    note="Anonymous visitor IDs"
+                                />
+                                <StatCard
+                                    label="Directory Visits"
+                                    value={summary.totals.directoryVisits || 0}
+                                    note="Public game directory"
+                                />
+                                <StatCard
+                                    label="Game Card Clicks"
+                                    value={summary.totals.gameCardClicks || 0}
+                                    note="Directory game interest"
+                                />
+                                <StatCard
+                                    label="Play on Roblox Clicks"
+                                    value={summary.totals.playOnRobloxClicks}
+                                    note="Outbound Roblox interest"
+                                />
+                                <StatCard
+                                    label="Featured Impressions"
+                                    value={summary.totals.featuredGameImpressions || 0}
+                                    note="Homepage featured views"
+                                />
+
+                                <StatCard
+                                    label="Featured Game Clicks"
+                                    value={summary.totals.featuredGameClicks}
+                                    note="Homepage featured clicks"
+                                />
+
+                                <StatCard
+                                    label="Featured CTR"
+                                    value={
+                                        summary.totals.featuredGameImpressions
+                                            ? Number(
+                                                (
+                                                    (summary.totals.featuredGameClicks /
+                                                        summary.totals.featuredGameImpressions) *
+                                                    100
+                                                ).toFixed(1)
+                                            )
+                                            : 0
+                                    }
+                                    note="Clicks per featured impression"
+                                />
+
+                                <StatCard
+                                    label="Searches"
+                                    value={summary.totals.searches}
+                                    note="Directory search usage"
+                                />
+                                <StatCard
+                                    label="Completed Submissions"
+                                    value={summary.totals.completedSubmissions}
+                                    note="Game submission completions"
+                                />
+
+                                <StatCard
+                                    label="Developer Applications"
+                                    value={summary.totals.developerApplications || 0}
+                                    note="Registration form submissions"
+                                />
+
+                                <StatCard
+                                    label="Approved Developers"
+                                    value={summary.totals.approvedDevelopers || 0}
+                                    note="Accepted registrations"
+                                />
+                            </div>
+
+                            <div className="grid gap-6 xl:grid-cols-3">
+                                <div className="xl:col-span-2">
+                                    <DirectoryFunnelCard rows={summary.directoryFunnel || []} />
+                                </div>
+
+                                <MiniBarList
+                                    title="Daily Game Activity"
+                                    rows={summary.dailyGameActivity || []}
+                                    note="Directory visits, searches, category clicks, and game clicks"
+                                />
                             </div>
 
                             <div className="grid gap-6 xl:grid-cols-2">
-                                <MiniBarList title="Daily Page Views" rows={summary.dailyPageViews} />
-                                <MiniBarList title="Daily Click Activity" rows={summary.dailyClicks} />
+                                <MiniBarList
+                                    title="Daily Page Views"
+                                    rows={summary.dailyPageViews}
+                                    note="All tracked site pages"
+                                />
+                                <MiniBarList
+                                    title="Daily Click Activity"
+                                    rows={summary.dailyClicks}
+                                    note="Featured, directory, Roblox, and CTA clicks"
+                                />
                             </div>
-
-                            <RecentEventsTable rows={summary.recentEvents || []} />
 
                             <div className="grid gap-6 xl:grid-cols-2">
                                 <DataTable
                                     title="Top Pages"
                                     rows={summary.topPages}
                                     empty="No page views recorded yet."
+                                    note="Noisy dynamic URLs are grouped for cleaner reporting."
                                 />
 
                                 <DataTable
-                                    title="Top Featured Games"
-                                    rows={summary.topFeaturedGames}
-                                    empty="No featured game clicks recorded yet."
+                                    title="Top Content Entries"
+                                    rows={summary.topContentEntries || []}
+                                    empty="No content entry views recorded yet."
+                                    note="Individual blog or content entries getting attention."
                                 />
 
+                                <DataTable
+                                    title="Top Games"
+                                    rows={summary.topGames || []}
+                                    empty="No game interactions recorded yet."
+                                    note="Combines game card and Play on Roblox clicks."
+                                />
+
+                                <DataTable
+                                    title="Top Featured Game Impressions"
+                                    rows={summary.topFeaturedGameImpressions || []}
+                                    empty="No featured game impressions recorded yet."
+                                    note="Homepage featured games shown to visitors."
+                                />
+
+                                <DataTable
+                                    title="Top Featured Game Clicks"
+                                    rows={summary.topFeaturedGames}
+                                    empty="No featured game clicks recorded yet."
+                                    note="Homepage featured section click activity."
+                                />
+
+                                <DataTable
+                                    title="Top Searches"
+                                    rows={summary.topSearches || []}
+                                    empty="No searches recorded yet."
+                                    note="What visitors are trying to find in the directory."
+                                />
+
+                                <DataTable
+                                    title="Top Categories"
+                                    rows={summary.topCategories || []}
+                                    empty="No category clicks recorded yet."
+                                    note="Directory categories visitors are exploring."
+                                />
+                            </div>
+
+                            <div className="grid gap-6 xl:grid-cols-3">
+                                <div className="xl:col-span-2">
+                                    <MiniBarList
+                                        title="Developer Applications by Day"
+                                        rows={summary.applicationsByDay || []}
+                                        note="Registration submissions over the selected date range"
+                                    />
+                                </div>
+
+                                <DataTable
+                                    title="Applications by Status"
+                                    rows={summary.applicationsByStatus || []}
+                                    empty="No developer applications recorded yet."
+                                    note="Current review status of submitted applications."
+                                />
+                            </div>
+
+                            <div className="grid gap-6 xl:grid-cols-2">
+                                <DataTable
+                                    title="Applications by Region"
+                                    rows={summary.applicationsByRegion || []}
+                                    empty="No regional application data recorded yet."
+                                    note="Where registered developer applicants are coming from."
+                                />
+
+                                <DataTable
+                                    title="Application Review Signals"
+                                    rows={[
+                                        {
+                                            label: "Approved Developers",
+                                            count: summary.totals.approvedDevelopers || 0,
+                                        },
+                                        {
+                                            label: "Needs More Info",
+                                            count: summary.totals.needsMoreInfoApplications || 0,
+                                        },
+                                        {
+                                            label: "Declined Applications",
+                                            count: summary.totals.declinedApplications || 0,
+                                        },
+                                    ]}
+                                    empty="No application review signals yet."
+                                    note="Useful for understanding registration quality and review workload."
+                                />
+                            </div>
+
+                            <RecentEventsTable rows={summary.recentEvents || []} />
+
+                            <div className="grid gap-6 xl:grid-cols-2">
                                 <DataTable
                                     title="Event Breakdown"
                                     rows={summary.eventBreakdown}
                                     empty="No events recorded yet."
+                                    note="Raw event mix for debugging and internal review."
+                                />
+
+                                <DataTable
+                                    title="Top Play on Roblox Clicks"
+                                    rows={summary.topPlayOnRobloxGames || []}
+                                    empty="No Play on Roblox clicks recorded yet."
+                                    note="Games that drove the most outbound Roblox interest."
                                 />
                             </div>
                         </div>

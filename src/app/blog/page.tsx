@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import SiteHeader from "@/components/site/SiteHeader";
+import PageViewTracker from "@/components/analytics/PageViewTracker";
 
 type BlogPost = {
   id: string;
@@ -110,6 +111,8 @@ export default function BlogIndexPage() {
   const remainingPosts = useMemo(() => posts.slice(1), [posts]);
 
   return (
+     <>
+      <PageViewTracker />
     <div className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#06132d_0%,#040914_40%,#03070f_100%)] text-white">
       <SiteHeader />
 
@@ -272,5 +275,6 @@ export default function BlogIndexPage() {
         </div>
       </section>
     </div>
+    </>
   );
 }
