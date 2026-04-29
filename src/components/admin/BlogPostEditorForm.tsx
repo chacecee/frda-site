@@ -16,6 +16,7 @@ import {
 } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import { db, storage } from "@/lib/firebase";
+import RichTextEditor from "@/components/admin/RichTextEditor";
 
 type BlogPost = {
   id: string;
@@ -144,7 +145,9 @@ export default function BlogPostEditorForm({
 
     return await new Promise<{ imagePath: string; imageUrl: string }>(
       (resolve, reject) => {
-        const uploadTask = uploadBytesResumable(storageRef, file);
+        const uploadTask = uploadBytesResumable(storageRef, file, {
+          contentType: file.type || "image/png",
+        });
 
         uploadTask.on(
           "state_changed",
@@ -435,9 +438,14 @@ export default function BlogPostEditorForm({
                 </div>
 
                 <div className="flex-1">
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs leading-6 text-zinc-500">
                     Optional. The file will only upload after you press Save.
                   </p>
+
+                  <p className="mt-2 text-xs leading-6 text-zinc-500">
+                    Recommended image size: 1600 × 900 px, or any 16:9 image. JPG, PNG, or WebP under 5 MB works best.
+                  </p>
+
                   {selectedImageFile ? (
                     <p className="mt-2 text-xs text-blue-300">
                       Selected — {selectedImageFile.name}
@@ -464,50 +472,26 @@ export default function BlogPostEditorForm({
 
             <div className="md:col-span-2">
               <label className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-zinc-400">
-                Image Caption / Credit (Optional)
+                Article Body
               </label>
-              <input
-                type="text"
-                value={form.featuredImageCaption}
-                onChange={(e) =>
+
+              <RichTextEditor
+                value={form.body}
+                onChange={(value) =>
                   setForm((prev) => ({
                     ...prev,
-                    featuredImageCaption: e.target.value,
+                    body: value,
                   }))
                 }
-                className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
-                style={{ borderRadius: 5 }}
-                placeholder="Photo courtesy of ..."
-                disabled={saving}
+                placeholder="Write the article body here. Highlight text and use the toolbar for bold, italic, underline, links, lists, and quotes."
               />
-            </div>
 
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-[11px] font-medium uppercase tracking-wide text-zinc-400">
-                Article Body (Markdown Supported)
-              </label>
-              <textarea
-                value={form.body}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, body: e.target.value }))
-                }
-                rows={18}
-                className="w-full border border-zinc-700 bg-zinc-900 px-4 py-3 font-mono text-sm text-white outline-none placeholder:text-zinc-500 focus:border-blue-500"
-                style={{ borderRadius: 5 }}
-                placeholder={`## Heading
-
-Write your article here.
-
-- Bullet point
-- Another bullet
-
-[Link text](https://example.com)`}
-                disabled={saving}
-              />
-              <p className="mt-2 text-xs text-zinc-500">
-                Use markdown for headings, lists, bold text, and links.
+              <p className="mt-2 text-xs leading-6 text-zinc-500">
+                Use the toolbar to format text. You can add bold, italic, underline, links,
+                bullet lists, numbered lists, quotes, and headings.
               </p>
             </div>
+
 
             <div className="md:col-span-2 flex flex-wrap gap-6">
               <label className="flex items-center gap-3 text-sm text-white">
