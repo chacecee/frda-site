@@ -4,6 +4,8 @@ export type AdminSidebarActive =
   | "applications"
   | "staff"
   | "admin_tools"
+  | "admin_reassign_applications"
+  | "admin_staff_meetings"
   | "content_featured_games"
   | "content_game_directory"
   | "content_announcements"

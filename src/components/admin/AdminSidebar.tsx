@@ -28,6 +28,7 @@ import {
   FileCheck,
   BarChart3,
   Gamepad2,
+  CalendarClock,
 } from "lucide-react";
 import { usePresence } from "@/lib/usePresence";
 import {
@@ -203,11 +204,18 @@ export default function AdminSidebar({
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [applicationsOpen, setApplicationsOpen] = useState(active === "applications");
+
   const [contentOpen, setContentOpen] = useState(
     active === "content_featured_games" ||
     active === "content_game_directory" ||
     active === "content_announcements" ||
     active === "content_blog"
+  );
+
+  const [adminOpen, setAdminOpen] = useState(
+    active === "admin_tools" ||
+    active === "admin_reassign_applications" ||
+    active === "admin_staff_meetings"
   );
 
   const [analyticsOpen, setAnalyticsOpen] = useState(
@@ -328,6 +336,7 @@ export default function AdminSidebar({
     if (active === "applications") {
       setApplicationsOpen(true);
     }
+
     if (
       active === "content_featured_games" ||
       active === "content_game_directory" ||
@@ -335,6 +344,14 @@ export default function AdminSidebar({
       active === "content_blog"
     ) {
       setContentOpen(true);
+    }
+
+    if (
+      active === "admin_tools" ||
+      active === "admin_reassign_applications" ||
+      active === "admin_staff_meetings"
+    ) {
+      setAdminOpen(true);
     }
 
     if (
@@ -817,15 +834,48 @@ export default function AdminSidebar({
 
 
           {isAdmin ? (
-            <SidebarLink
-              label="Admin"
-              icon={<ShieldUser size={18} strokeWidth={1.3} />}
-              active={active === "admin_tools"}
-              onClick={() => {
-                onCloseSidebar();
-                onNavigate("/admin/reassign");
-              }}
-            />
+            <>
+              <SidebarSectionToggle
+                label="Admin"
+                icon={<ShieldUser size={18} strokeWidth={1.3} />}
+                active={
+                  active === "admin_tools" ||
+                  active === "admin_reassign_applications" ||
+                  active === "admin_staff_meetings"
+                }
+                open={adminOpen}
+                onClick={() => setAdminOpen((prev) => !prev)}
+              />
+
+              {adminOpen ? (
+                <div className="bg-zinc-950/25">
+                  <SidebarLink
+                    label="Reassign Applications"
+                    icon={<ShieldUser size={16} strokeWidth={1.3} />}
+                    active={
+                      active === "admin_tools" ||
+                      active === "admin_reassign_applications"
+                    }
+                    className="pl-6"
+                    onClick={() => {
+                      onCloseSidebar();
+                      onNavigate("/admin/reassign");
+                    }}
+                  />
+
+                  <SidebarLink
+                    label="Staff Meetings"
+                    icon={<CalendarClock size={16} strokeWidth={1.3} />}
+                    active={active === "admin_staff_meetings"}
+                    className="pl-6"
+                    onClick={() => {
+                      onCloseSidebar();
+                      onNavigate("/admin/meeting-polls");
+                    }}
+                  />
+                </div>
+              ) : null}
+            </>
           ) : null}
 
           {hasAnalyticsAccess ? (
