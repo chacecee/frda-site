@@ -38,7 +38,10 @@ import { auth, db, storage } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { setPresenceOffline } from "@/lib/usePresence";
-import { canManageAnnouncements } from "@/lib/adminPermissions";
+import {
+    SidebarPermissionMap,
+    canManageAnnouncements,
+} from "@/lib/adminPermissions";
 
 type AnnouncementType = "standard" | "livestream";
 type LivestreamProvider = "facebook";
@@ -117,6 +120,9 @@ export default function AnnouncementsAdminPage() {
 
     const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
     const [roleLoading, setRoleLoading] = useState(true);
+
+    const [permissionMap, setPermissionMap] = useState<SidebarPermissionMap>({});
+    const [permissionsLoading, setPermissionsLoading] = useState(true);
 
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
@@ -260,9 +266,39 @@ export default function AnnouncementsAdminPage() {
         };
     }, [user?.email, signedInEmail]);
 
+    useEffect(() => {
+        const permissionsRef = doc(db, "adminUiPermissions", "sidebar");
+
+        const unsubscribe = onSnapshot(
+            permissionsRef,
+            (snapshot) => {
+                if (!snapshot.exists()) {
+                    setPermissionMap({});
+                    setPermissionsLoading(false);
+                    return;
+                }
+
+                setPermissionMap(snapshot.data() as SidebarPermissionMap);
+                setPermissionsLoading(false);
+            },
+            (error) => {
+                console.error("Error loading announcements permissions:", error);
+                setPageError("Could not verify your page permissions.");
+                setPermissionMap({});
+                setPermissionsLoading(false);
+            }
+        );
+
+        return () => unsubscribe();
+    }, []);
+
     const hasAccess = useMemo(() => {
-        return canManageAnnouncements(staffProfile?.role);
-    }, [staffProfile?.role]);
+        return canManageAnnouncements(
+            staffProfile?.role,
+            staffProfile?.id,
+            permissionMap
+        );
+    }, [staffProfile?.role, staffProfile?.id, permissionMap]);
 
     useEffect(() => {
         if (!user || !hasAccess) {
@@ -595,7 +631,7 @@ export default function AnnouncementsAdminPage() {
         }
     }
 
-    if (authLoading || !user || roleLoading) {
+    if (authLoading || !user || roleLoading || permissionsLoading) {
         return (
             <main className="min-h-screen bg-zinc-950 text-white">
                 <div className="mx-auto max-w-7xl px-6 py-10">

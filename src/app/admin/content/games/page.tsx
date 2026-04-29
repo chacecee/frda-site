@@ -7,12 +7,15 @@ import {
     addDoc,
     collection,
     doc,
+    getDocs,
+    limit,
     onSnapshot,
     orderBy,
     query,
     serverTimestamp,
     Timestamp,
     updateDoc,
+    where,
 } from "firebase/firestore";
 import {
     getDownloadURL,
@@ -22,6 +25,10 @@ import {
 import { auth, db, storage } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { setPresenceOffline } from "@/lib/usePresence";
+import {
+    SidebarPermissionMap,
+    canViewSidebarTab,
+} from "@/lib/adminPermissions";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import {
     cleanRobloxGameUrl,
@@ -64,6 +71,12 @@ type GameFormState = {
     isHighlighted: boolean;
 };
 
+type StaffProfile = {
+    id: string;
+    emailAddress?: string;
+    role?: string;
+};
+
 const DESCRIPTION_LIMIT = 500;
 
 const EMPTY_FORM: GameFormState = {
@@ -84,6 +97,10 @@ const EMPTY_FORM: GameFormState = {
 };
 
 function normalizeText(value?: string | null) {
+    return value?.trim().toLowerCase() || "";
+}
+
+function normalizeEmail(value?: string | null): string {
     return value?.trim().toLowerCase() || "";
 }
 
@@ -245,6 +262,13 @@ export default function AdminGamesPage() {
     const { user, authLoading } = useAuthUser();
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
+    const [roleLoading, setRoleLoading] = useState(true);
+
+    const [permissionMap, setPermissionMap] = useState<SidebarPermissionMap>({});
+    const [permissionsLoading, setPermissionsLoading] = useState(true);
+
     const [games, setGames] = useState<GameDirectoryItem[]>([]);
     const [loadingGames, setLoadingGames] = useState(true);
     const [errorMsg, setErrorMsg] = useState("");
@@ -270,11 +294,128 @@ export default function AdminGamesPage() {
         user?.displayName?.trim() ||
         (user?.email ? user.email.split("@")[0] : "Unknown User");
 
+    const signedInEmail = normalizeEmail(user?.email);
+
     useEffect(() => {
         if (!authLoading && !user) {
             router.replace("/admin/login");
         }
     }, [authLoading, user, router]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadRole() {
+            if (!user?.email) {
+                if (!isMounted) return;
+                setStaffProfile(null);
+                setRoleLoading(false);
+                return;
+            }
+
+            setRoleLoading(true);
+            setErrorMsg("");
+
+            try {
+                const exactQuery = query(
+                    collection(db, "staff"),
+                    where("emailAddress", "==", user.email),
+                    limit(1)
+                );
+
+                const exactSnapshot = await getDocs(exactQuery);
+
+                if (!exactSnapshot.empty) {
+                    const docSnap = exactSnapshot.docs[0];
+                    if (!isMounted) return;
+
+                    setStaffProfile({
+                        id: docSnap.id,
+                        ...(docSnap.data() as Omit<StaffProfile, "id">),
+                    });
+                    setRoleLoading(false);
+                    return;
+                }
+
+                const lowerQuery = query(
+                    collection(db, "staff"),
+                    where("emailAddress", "==", signedInEmail),
+                    limit(1)
+                );
+
+                const lowerSnapshot = await getDocs(lowerQuery);
+
+                if (!lowerSnapshot.empty) {
+                    const docSnap = lowerSnapshot.docs[0];
+                    if (!isMounted) return;
+
+                    setStaffProfile({
+                        id: docSnap.id,
+                        ...(docSnap.data() as Omit<StaffProfile, "id">),
+                    });
+                    setRoleLoading(false);
+                    return;
+                }
+
+                const allStaffSnapshot = await getDocs(collection(db, "staff"));
+                const match = allStaffSnapshot.docs.find((docSnap) => {
+                    const data = docSnap.data() as { emailAddress?: string; role?: string };
+                    return normalizeEmail(data.emailAddress) === signedInEmail;
+                });
+
+                if (!isMounted) return;
+
+                if (!match) {
+                    setStaffProfile(null);
+                    setRoleLoading(false);
+                    return;
+                }
+
+                setStaffProfile({
+                    id: match.id,
+                    ...(match.data() as Omit<StaffProfile, "id">),
+                });
+                setRoleLoading(false);
+            } catch (error) {
+                console.error("Error checking game directory access:", error);
+                if (!isMounted) return;
+                setErrorMsg("Could not verify your permissions.");
+                setRoleLoading(false);
+            }
+        }
+
+        loadRole();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [user?.email, signedInEmail]);
+
+    useEffect(() => {
+        const permissionsRef = doc(db, "adminUiPermissions", "sidebar");
+
+        const unsubscribe = onSnapshot(
+            permissionsRef,
+            (snapshot) => {
+                if (!snapshot.exists()) {
+                    setPermissionMap({});
+                    setPermissionsLoading(false);
+                    return;
+                }
+
+                setPermissionMap(snapshot.data() as SidebarPermissionMap);
+                setPermissionsLoading(false);
+            },
+            (error) => {
+                console.error("Error loading game directory permissions:", error);
+                setErrorMsg("Could not verify your page permissions.");
+                setPermissionMap({});
+                setPermissionsLoading(false);
+            }
+        );
+
+        return () => unsubscribe();
+    }, []);
 
     useEffect(() => {
         let objectUrl: string | null = null;
@@ -293,8 +434,21 @@ export default function AdminGamesPage() {
         };
     }, [selectedThumbnailFile]);
 
+    const hasAccess = useMemo(() => {
+        return canViewSidebarTab(
+            staffProfile?.role,
+            staffProfile?.id,
+            permissionMap,
+            "content_game_directory"
+        );
+    }, [staffProfile?.role, staffProfile?.id, permissionMap]);
+
     useEffect(() => {
-        if (!user) return;
+        if (!user || !hasAccess) {
+            setGames([]);
+            setLoadingGames(false);
+            return;
+        }
 
         setLoadingGames(true);
         setErrorMsg("");
@@ -330,7 +484,7 @@ export default function AdminGamesPage() {
         );
 
         return () => unsubscribe();
-    }, [user]);
+    }, [user, hasAccess]);
 
     const statusCounts = useMemo(() => {
         const counts: Record<GameDirectoryStatus, number> = {
@@ -702,11 +856,23 @@ export default function AdminGamesPage() {
         }
     }
 
-    if (authLoading || !user) {
+    if (authLoading || !user || roleLoading || permissionsLoading) {
         return (
             <main className="min-h-screen bg-zinc-950 text-white">
                 <div className="mx-auto max-w-7xl px-6 py-10">
                     <p className="text-sm text-zinc-400">Loading game directory...</p>
+                </div>
+            </main>
+        );
+    }
+
+    if (!hasAccess) {
+        return (
+            <main className="min-h-screen bg-zinc-950 text-white">
+                <div className="mx-auto max-w-7xl px-6 py-10">
+                    <p className="text-sm text-red-300">
+                        You do not have permission to access the Game Directory.
+                    </p>
                 </div>
             </main>
         );

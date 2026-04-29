@@ -35,7 +35,10 @@ import { auth, db, storage } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { setPresenceOffline } from "@/lib/usePresence";
-import { canManageFeaturedGames } from "@/lib/adminPermissions";
+import {
+    SidebarPermissionMap,
+    canManageFeaturedGames,
+} from "@/lib/adminPermissions";
 
 type FeaturedGame = {
     id: string;
@@ -101,6 +104,9 @@ export default function FeaturedGamesAdminPage() {
 
     const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
     const [roleLoading, setRoleLoading] = useState(true);
+
+    const [permissionMap, setPermissionMap] = useState<SidebarPermissionMap>({});
+    const [permissionsLoading, setPermissionsLoading] = useState(true);
 
     const [games, setGames] = useState<FeaturedGame[]>([]);
     const [loadingGames, setLoadingGames] = useState(true);
@@ -241,9 +247,39 @@ export default function FeaturedGamesAdminPage() {
         };
     }, [user?.email, signedInEmail]);
 
+    useEffect(() => {
+        const permissionsRef = doc(db, "adminUiPermissions", "sidebar");
+
+        const unsubscribe = onSnapshot(
+            permissionsRef,
+            (snapshot) => {
+                if (!snapshot.exists()) {
+                    setPermissionMap({});
+                    setPermissionsLoading(false);
+                    return;
+                }
+
+                setPermissionMap(snapshot.data() as SidebarPermissionMap);
+                setPermissionsLoading(false);
+            },
+            (error) => {
+                console.error("Error loading featured games permissions:", error);
+                setPageError("Could not verify your page permissions.");
+                setPermissionMap({});
+                setPermissionsLoading(false);
+            }
+        );
+
+        return () => unsubscribe();
+    }, []);
+
     const hasAccess = useMemo(() => {
-        return canManageFeaturedGames(staffProfile?.role);
-    }, [staffProfile?.role]);
+        return canManageFeaturedGames(
+            staffProfile?.role,
+            staffProfile?.id,
+            permissionMap
+        );
+    }, [staffProfile?.role, staffProfile?.id, permissionMap]);
 
     useEffect(() => {
         if (!user || !hasAccess) {
@@ -540,7 +576,7 @@ export default function FeaturedGamesAdminPage() {
         }
     }
 
-    if (authLoading || !user || roleLoading) {
+    if (authLoading || !user || roleLoading || permissionsLoading) {
         return (
             <main className="min-h-screen bg-zinc-950 text-white">
                 <div className="grid min-h-screen lg:grid-cols-[290px_minmax(0,1fr)]">

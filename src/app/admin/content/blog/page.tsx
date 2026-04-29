@@ -24,7 +24,10 @@ import { auth, db, storage } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { setPresenceOffline } from "@/lib/usePresence";
-import { canManageBlog } from "@/lib/adminPermissions";
+import {
+  SidebarPermissionMap,
+  canManageBlog,
+} from "@/lib/adminPermissions";
 
 type StaffProfile = {
   id: string;
@@ -74,6 +77,9 @@ export default function BlogAdminPage() {
 
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
+
+  const [permissionMap, setPermissionMap] = useState<SidebarPermissionMap>({});
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
@@ -183,9 +189,39 @@ export default function BlogAdminPage() {
     };
   }, [user?.email, signedInEmail]);
 
+  useEffect(() => {
+    const permissionsRef = doc(db, "adminUiPermissions", "sidebar");
+
+    const unsubscribe = onSnapshot(
+      permissionsRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setPermissionMap({});
+          setPermissionsLoading(false);
+          return;
+        }
+
+        setPermissionMap(snapshot.data() as SidebarPermissionMap);
+        setPermissionsLoading(false);
+      },
+      (error) => {
+        console.error("Error loading blog permissions:", error);
+        setPageError("Could not verify your page permissions.");
+        setPermissionMap({});
+        setPermissionsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
   const hasAccess = useMemo(() => {
-    return canManageBlog(staffProfile?.role);
-  }, [staffProfile?.role]);
+    return canManageBlog(
+      staffProfile?.role,
+      staffProfile?.id,
+      permissionMap
+    );
+  }, [staffProfile?.role, staffProfile?.id, permissionMap]);
 
   useEffect(() => {
     if (!user || !hasAccess) {
@@ -281,7 +317,7 @@ export default function BlogAdminPage() {
     }
   }
 
-  if (authLoading || !user || roleLoading) {
+  if (authLoading || !user || roleLoading || permissionsLoading) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white">
         <div className="mx-auto max-w-7xl px-6 py-10">
@@ -398,11 +434,10 @@ export default function BlogAdminPage() {
                         <h3 className="text-lg font-semibold text-white">{post.title}</h3>
 
                         <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide ${
-                            post.isPublished
-                              ? "border border-blue-500/30 bg-blue-500/15 text-blue-200"
-                              : "border border-zinc-700 bg-zinc-800 text-zinc-300"
-                          }`}
+                          className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide ${post.isPublished
+                            ? "border border-blue-500/30 bg-blue-500/15 text-blue-200"
+                            : "border border-zinc-700 bg-zinc-800 text-zinc-300"
+                            }`}
                         >
                           {post.isPublished ? "Published" : "Draft"}
                         </span>

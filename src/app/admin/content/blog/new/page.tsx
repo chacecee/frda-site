@@ -3,13 +3,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
-import { collection, getDocs, limit, query, where } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDocs,
+  limit,
+  onSnapshot,
+  query,
+  where,
+} from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import BlogPostEditorForm from "@/components/admin/BlogPostEditorForm";
 import { setPresenceOffline } from "@/lib/usePresence";
-import { canManageBlog } from "@/lib/adminPermissions";
+import {
+  SidebarPermissionMap,
+  canManageBlog,
+} from "@/lib/adminPermissions";
 
 type StaffProfile = {
   id: string;
@@ -28,6 +39,10 @@ export default function NewBlogPostPage() {
 
   const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
+
+  const [permissionMap, setPermissionMap] = useState<SidebarPermissionMap>({});
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+
   const [pageError, setPageError] = useState("");
 
   const displayName =
@@ -130,9 +145,39 @@ export default function NewBlogPostPage() {
     };
   }, [user?.email, signedInEmail]);
 
+  useEffect(() => {
+    const permissionsRef = doc(db, "adminUiPermissions", "sidebar");
+
+    const unsubscribe = onSnapshot(
+      permissionsRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setPermissionMap({});
+          setPermissionsLoading(false);
+          return;
+        }
+
+        setPermissionMap(snapshot.data() as SidebarPermissionMap);
+        setPermissionsLoading(false);
+      },
+      (error) => {
+        console.error("Error loading blog permissions:", error);
+        setPageError("Could not verify your page permissions.");
+        setPermissionMap({});
+        setPermissionsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
   const hasAccess = useMemo(() => {
-    return canManageBlog(staffProfile?.role);
-  }, [staffProfile?.role]);
+    return canManageBlog(
+      staffProfile?.role,
+      staffProfile?.id,
+      permissionMap
+    );
+  }, [staffProfile?.role, staffProfile?.id, permissionMap]);
 
   async function handleSignOut() {
     try {
@@ -144,7 +189,7 @@ export default function NewBlogPostPage() {
     }
   }
 
-  if (authLoading || !user || roleLoading) {
+  if (authLoading || !user || roleLoading || permissionsLoading) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white">
         <div className="mx-auto max-w-7xl px-6 py-10">
