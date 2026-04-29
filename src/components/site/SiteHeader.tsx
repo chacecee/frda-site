@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
 
-const SHOW_GAMES_IN_HEADER = false;
+const SHOW_GAMES_IN_HEADER = true;
 const SHOW_BLOG_IN_HEADER = true;
 
 export default function SiteHeader() {
