@@ -300,6 +300,44 @@ export default function SubmitGameForm({
                 className="border border-zinc-800 bg-zinc-950/35 p-5"
                 style={{ borderRadius: 8 }}
             >
+                <h2 className="text-base font-semibold text-white">Member Verification</h2>
+
+                <p className="mt-2 text-sm leading-6 text-zinc-500">
+                    Enter the FRDA Member ID and email address from your approval email so
+                    we can confirm that this submission is tied to an accepted developer
+                    account.
+                </p>
+
+                <div className="mt-5 grid gap-5 md:grid-cols-2">
+                    <div>
+                        <FieldLabel>FRDA Member ID</FieldLabel>
+                        <TextInput
+                            name="memberId"
+                            value={memberId}
+                            onChange={setMemberId}
+                            placeholder="Example: FRDA-M-ABC123"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <FieldLabel>Approval Email Address</FieldLabel>
+                        <TextInput
+                            name="contactEmail"
+                            type="email"
+                            value={contactEmail}
+                            onChange={setContactEmail}
+                            placeholder="you@example.com"
+                            required
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div
+                className="border border-zinc-800 bg-zinc-950/35 p-5"
+                style={{ borderRadius: 8 }}
+            >
                 <h2 className="text-base font-semibold text-white">Game Details</h2>
 
                 <div className="mt-5 grid gap-5 md:grid-cols-2">
