@@ -471,7 +471,7 @@ export default function MeetingPollDetailsPage() {
     return (
         <>
             <main className="min-h-screen bg-zinc-950 text-white">
-                <div className="grid min-h-screen lg:grid-cols-[250px_minmax(0,1fr)]">
+                <div className="grid min-h-screen overflow-x-hidden lg:grid-cols-[250px_minmax(0,1fr)]">
                     <AdminSidebar
                         active="admin_staff_meetings"
                         sidebarOpen={sidebarOpen}
@@ -482,7 +482,7 @@ export default function MeetingPollDetailsPage() {
                         email={user.email}
                     />
 
-                    <section className="relative bg-zinc-900/75 px-5 py-5 md:px-10 md:py-8 xl:px-14">
+                    <section className="relative min-w-0 overflow-x-hidden bg-zinc-900/75 px-4 py-5 md:px-10 md:py-8 xl:px-14">
                         <div className="mb-5 flex items-center gap-3 lg:hidden">
                             <button
                                 type="button"
@@ -521,7 +521,7 @@ export default function MeetingPollDetailsPage() {
                                     <div>
                                         <div className="flex items-center gap-3">
                                             <div
-                                                className="flex h-11 w-11 items-center justify-center border border-blue-400/30 bg-blue-500/10 text-blue-300"
+                                                className="hidden h-11 w-11 shrink-0 items-center justify-center border border-blue-400/30 bg-blue-500/10 text-blue-300 sm:flex"
                                                 style={{ borderRadius: 8 }}
                                             >
                                                 <CalendarClock size={21} strokeWidth={1.5} />
@@ -571,7 +571,7 @@ export default function MeetingPollDetailsPage() {
                                     <p className="mt-5 text-sm text-red-400">{pageError}</p>
                                 ) : null}
 
-                                <div className="mt-7 grid gap-4 md:grid-cols-3">
+                                <div className="mt-7 grid min-w-0 gap-4 md:grid-cols-3">
                                     <div
                                         className="border border-zinc-800 bg-zinc-950/35 p-4"
                                         style={{ borderRadius: 10 }}
@@ -588,7 +588,7 @@ export default function MeetingPollDetailsPage() {
                                                 {poll.invitedMembers?.length || 0}
                                             </p>
                                         </div>
-                                        <p className="mt-2 text-xs leading-5 text-zinc-400">
+                                        <p className="mt-2 break-words text-xs leading-5 text-zinc-400">
                                             {getMemberNames(overlapResults.submittedMembers)}
                                         </p>
                                     </div>
@@ -608,7 +608,7 @@ export default function MeetingPollDetailsPage() {
                                                 {overlapResults.waitingMembers.length}
                                             </p>
                                         </div>
-                                        <p className="mt-2 text-xs leading-5 text-zinc-400">
+                                        <p className="mt-2 break-words text-xs leading-5 text-zinc-400">
                                             {getMemberNames(overlapResults.waitingMembers)}
                                         </p>
                                     </div>
@@ -637,7 +637,7 @@ export default function MeetingPollDetailsPage() {
                                 </div>
 
                                 <section
-                                    className="mt-7 border border-zinc-800 bg-zinc-950/35"
+                                    className="mt-7 max-w-full overflow-hidden border border-zinc-800 bg-zinc-950/35"
                                     style={{ borderRadius: 12 }}
                                 >
                                     <div className="border-b border-zinc-800 px-5 py-4">
@@ -650,11 +650,11 @@ export default function MeetingPollDetailsPage() {
                                         </p>
                                     </div>
 
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-max border-collapse text-sm">
+                                    <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
+                                        <table className="w-max min-w-full border-collapse text-sm">
                                             <thead>
                                                 <tr className="border-b border-zinc-800">
-                                                    <th className="sticky left-0 z-20 w-[180px] min-w-[180px] bg-zinc-950 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                                                    <th className="sticky left-0 z-20 w-[125px] min-w-[125px] bg-zinc-950 px-3 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500 sm:w-[180px] sm:min-w-[180px] sm:px-4">
                                                         Member
                                                     </th>
 
@@ -670,7 +670,7 @@ export default function MeetingPollDetailsPage() {
                                                         return (
                                                             <th
                                                                 key={slot.id}
-                                                                className={`min-w-[190px] px-4 py-3 text-left align-top text-xs font-semibold uppercase tracking-[0.14em] ${isFinal
+                                                                className={`min-w-[160px] px-3 py-3 text-left align-top text-xs font-semibold uppercase tracking-[0.14em] sm:min-w-[190px] sm:px-4 ${isFinal
                                                                     ? "bg-emerald-500/10 text-emerald-200"
                                                                     : isBest
                                                                         ? "bg-blue-500/10 text-blue-200"
@@ -711,8 +711,10 @@ export default function MeetingPollDetailsPage() {
                                                             key={member.discordUserId}
                                                             className="border-b border-zinc-900"
                                                         >
-                                                            <td className="sticky left-0 z-10 w-[180px] min-w-[180px] bg-zinc-950 px-4 py-4 font-semibold text-white">
-                                                                {member.displayName}
+                                                            <td className="sticky left-0 z-10 w-[125px] min-w-[125px] bg-zinc-950 px-3 py-4 text-sm font-semibold text-white sm:w-[180px] sm:min-w-[180px] sm:px-4">
+                                                                <span className="block max-w-[105px] break-words sm:max-w-[160px]">
+                                                                    {member.displayName}
+                                                                </span>
                                                             </td>
 
                                                             {allSlots.map((slot) => {
@@ -727,7 +729,7 @@ export default function MeetingPollDetailsPage() {
                                                                 return (
                                                                     <td
                                                                         key={slot.id}
-                                                                        className={`px-4 py-4 ${isFinal
+                                                                        className={`px-3 py-4 sm:px-4 ${isFinal
                                                                             ? "bg-emerald-500/10"
                                                                             : isBest
                                                                                 ? "bg-blue-500/5"
@@ -762,7 +764,7 @@ export default function MeetingPollDetailsPage() {
                                                 })}
 
                                                 <tr>
-                                                    <td className="sticky left-0 z-10 w-[180px] min-w-[180px] bg-zinc-950 px-4 py-4 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                                                    <td className="sticky left-0 z-10 w-[125px] min-w-[125px] bg-zinc-950 px-3 py-4 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500 sm:w-[180px] sm:min-w-[180px] sm:px-4">
                                                         Final
                                                     </td>
 
@@ -770,7 +772,7 @@ export default function MeetingPollDetailsPage() {
                                                         const isFinal = poll.finalSlotId === slot.id;
 
                                                         return (
-                                                            <td key={slot.id} className="px-4 py-4">
+                                                            <td key={slot.id} className="px-3 py-4 sm:px-4">
                                                                 <button
                                                                     type="button"
                                                                     disabled={
@@ -778,7 +780,7 @@ export default function MeetingPollDetailsPage() {
                                                                         finalizingSlotId === slot.id
                                                                     }
                                                                     onClick={() => openFinalizeModal(slot.id)}
-                                                                    className={`inline-flex w-full min-w-[150px] cursor-pointer items-center justify-center gap-2 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${isFinal
+                                                                    className={`inline-flex w-full min-w-[135px] cursor-pointer items-center justify-center gap-2 px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[150px] sm:px-4 ${isFinal
                                                                         ? "text-emerald-100"
                                                                         : "text-white"
                                                                         }`}

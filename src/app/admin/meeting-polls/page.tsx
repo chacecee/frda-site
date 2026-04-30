@@ -285,7 +285,7 @@ export default function MeetingPollsAdminPage() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
-      <div className="grid min-h-screen lg:grid-cols-[250px_minmax(0,1fr)]">
+      <div className="grid min-h-screen overflow-x-hidden lg:grid-cols-[250px_minmax(0,1fr)]">
         <AdminSidebar
           active="admin_staff_meetings"
           sidebarOpen={sidebarOpen}
@@ -296,7 +296,7 @@ export default function MeetingPollsAdminPage() {
           email={user.email}
         />
 
-        <section className="relative bg-zinc-900/75 px-5 py-5 md:px-10 md:py-8 xl:px-14">
+        <section className="relative min-w-0 overflow-x-hidden bg-zinc-900/75 px-4 py-5 md:px-10 md:py-8 xl:px-14">
           <div className="mb-5 flex items-center gap-3 lg:hidden">
             <button
               type="button"
@@ -311,11 +311,11 @@ export default function MeetingPollsAdminPage() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <div className="flex items-center gap-3">
                 <div
-                  className="flex h-11 w-11 items-center justify-center border border-blue-400/30 bg-blue-500/10 text-blue-300"
+                  className="hidden h-11 w-11 shrink-0 items-center justify-center border border-blue-400/30 bg-blue-500/10 text-blue-300 sm:flex"
                   style={{ borderRadius: 8 }}
                 >
                   <CalendarClock size={21} strokeWidth={1.5} />
@@ -335,7 +335,7 @@ export default function MeetingPollsAdminPage() {
             <button
               type="button"
               onClick={() => router.push("/admin/meeting-polls/new")}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white"
+              className="inline-flex w-full max-w-full cursor-pointer items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white md:w-auto md:px-5"
               style={{
                 borderRadius: 5,
                 background:
@@ -353,7 +353,7 @@ export default function MeetingPollsAdminPage() {
             <p className="mt-5 text-sm text-red-400">{pageError}</p>
           ) : null}
 
-          <div className="mt-7 grid gap-4 md:grid-cols-3">
+          <div className="mt-7 grid min-w-0 gap-4 md:grid-cols-3">
             <div
               className="border border-zinc-800 bg-zinc-950/35 p-4"
               style={{ borderRadius: 10 }}
@@ -408,7 +408,7 @@ export default function MeetingPollsAdminPage() {
           </div>
 
           <div
-            className="mt-7 border border-zinc-800 bg-zinc-950/35"
+            className="mt-7 max-w-full overflow-hidden border border-zinc-800 bg-zinc-950/35"
             style={{ borderRadius: 12 }}
           >
             <div className="border-b border-zinc-800 px-5 py-4">
@@ -458,12 +458,12 @@ export default function MeetingPollsAdminPage() {
                       key={poll.id}
                       type="button"
                       onClick={() => router.push(`/admin/meeting-polls/${poll.id}`)}
-                      className="block w-full cursor-pointer px-5 py-4 text-left transition hover:bg-zinc-900/85"
+                      className="block w-full min-w-0 cursor-pointer px-4 py-4 text-left transition hover:bg-zinc-900/85 md:px-5"
                     >
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div className="min-w-0">
+                      <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0 max-w-full">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate text-sm font-semibold text-white">
+                            <p className="max-w-full break-words text-sm font-semibold text-white md:truncate">
                               {poll.title || "Untitled Meeting Poll"}
                             </p>
                             <span
@@ -486,7 +486,7 @@ export default function MeetingPollsAdminPage() {
                           </div>
                         </div>
 
-                        <div className="shrink-0 text-sm text-blue-300">
+                        <div className="text-sm text-blue-300 md:shrink-0">
                           View overlaps →
                         </div>
                       </div>
