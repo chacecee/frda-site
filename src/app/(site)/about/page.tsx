@@ -7,15 +7,7 @@ const leadershipMembers = [
     discord: "frdaphilippines",
     email: "official@frdaph.org",
     roblox: "",
-  },
-  {
-    nickname: "Chace",
-    realName: "Chace Aluzan",
-    role: "Vice Executive Director and Head of ICT",
-    discord: "chace_space",
-    email: "admin@frdaph.org",
-    roblox: "mad_vyntra",
-  },
+  },  
   {
     nickname: "Lord Vesper/Ari",
     realName: "Airelle Nabuya",
