@@ -705,7 +705,7 @@ export default function CommunitySafetySurveyPage() {
             </div>
 
             <h1 className="mt-5 text-3xl font-bold tracking-tight sm:text-5xl">
-              Help bring the Roblox community’s voice to the Senate
+              Help bring the Roblox developer community’s voice to the Senate
             </h1>
 
             <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-zinc-300 sm:text-base">
