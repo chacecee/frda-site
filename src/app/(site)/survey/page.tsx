@@ -301,22 +301,20 @@ function CheckboxOption({
     <button
       type="button"
       onClick={onChange}
-      className={`flex w-full cursor-pointer items-start gap-3 border px-4 py-3 text-left text-sm leading-6 transition ${
-        checked
-          ? "border-blue-400/55 bg-blue-500/12 text-white"
-          : invalid
-            ? "border-red-400/70 bg-red-500/8 text-zinc-200"
-            : "border-zinc-700/80 bg-zinc-950/30 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900/70"
-      }`}
+      className={`flex w-full cursor-pointer items-start gap-3 border px-4 py-3 text-left text-sm leading-6 transition ${checked
+        ? "border-blue-400/55 bg-blue-500/12 text-white"
+        : invalid
+          ? "border-red-400/70 bg-red-500/8 text-zinc-200"
+          : "border-zinc-700/80 bg-zinc-950/30 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900/70"
+        }`}
       style={{ borderRadius: 8 }}
       aria-pressed={checked}
     >
       <span
-        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center border text-xs ${
-          checked
-            ? "border-blue-400 bg-blue-500 text-white"
-            : "border-zinc-600 bg-zinc-900 text-transparent"
-        }`}
+        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center border text-xs ${checked
+          ? "border-blue-400 bg-blue-500 text-white"
+          : "border-zinc-600 bg-zinc-900 text-transparent"
+          }`}
         style={{ borderRadius: 5 }}
       >
         ✓
@@ -342,22 +340,20 @@ function RadioOption({
     <button
       type="button"
       onClick={onChange}
-      className={`flex w-full cursor-pointer items-center gap-3 border px-4 py-3 text-left text-sm transition ${
-        checked
-          ? "border-blue-400/55 bg-blue-500/12 text-white"
-          : invalid
-            ? "border-red-400/70 bg-red-500/8 text-zinc-200"
-            : "border-zinc-700/80 bg-zinc-950/30 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900/70"
-      }`}
+      className={`flex w-full cursor-pointer items-center gap-3 border px-4 py-3 text-left text-sm transition ${checked
+        ? "border-blue-400/55 bg-blue-500/12 text-white"
+        : invalid
+          ? "border-red-400/70 bg-red-500/8 text-zinc-200"
+          : "border-zinc-700/80 bg-zinc-950/30 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-900/70"
+        }`}
       style={{ borderRadius: 8 }}
       aria-pressed={checked}
     >
       <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-          checked
-            ? "border-blue-400 bg-blue-500/20"
-            : "border-zinc-600 bg-zinc-900"
-        }`}
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${checked
+          ? "border-blue-400 bg-blue-500/20"
+          : "border-zinc-600 bg-zinc-900"
+          }`}
       >
         {checked ? (
           <span className="h-2.5 w-2.5 rounded-full bg-blue-400" />
@@ -564,6 +560,15 @@ export default function CommunitySafetySurveyPage() {
     setErrorMessage("");
   }
 
+  function scrollToSurveyCard() {
+    window.setTimeout(() => {
+      document.getElementById("survey-form-card")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 50);
+  }
+
   function goNext() {
     setErrorMessage("");
 
@@ -574,14 +579,16 @@ export default function CommunitySafetySurveyPage() {
 
     setInvalidFields([]);
     setShowValidationModal(false);
-    setStep((current) => Math.min(current + 1, STEP_DETAILS.length - 1));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setStep((current) =>
+      Math.min(current + 1, STEP_DETAILS.length - 1),
+    );
+    scrollToSurveyCard();
   }
 
   function goBack() {
     setErrorMessage("");
     setStep((current) => Math.max(current - 1, 0));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollToSurveyCard();
   }
 
   async function submitSurvey() {
@@ -613,7 +620,7 @@ export default function CommunitySafetySurveyPage() {
       if (!response.ok || !result?.success) {
         throw new Error(
           result?.error ||
-            "Something went wrong while submitting your response.",
+          "Something went wrong while submitting your response.",
         );
       }
 
@@ -730,7 +737,8 @@ export default function CommunitySafetySurveyPage() {
           </header>
 
           <section
-            className="overflow-hidden border border-zinc-700/75 bg-zinc-900/80 shadow-[0_24px_70px_rgba(0,0,0,0.38)] backdrop-blur"
+            id="survey-form-card"
+            className="scroll-mt-24 overflow-hidden border border-zinc-700/75 bg-zinc-900/80 shadow-[0_24px_70px_rgba(0,0,0,0.38)] backdrop-blur"
             style={{ borderRadius: 14 }}
           >
             <div className="border-b border-zinc-800 px-5 py-5 sm:px-7">
@@ -864,11 +872,10 @@ export default function CommunitySafetySurveyPage() {
 
                   <section
                     ref={experienceRef}
-                    className={`border-t pt-8 transition ${
-                      invalidFields.includes("experience")
-                        ? "border-red-400/70 rounded-[10px] bg-red-500/5 px-4 pb-4"
-                        : "border-zinc-800"
-                    }`}
+                    className={`border-t pt-8 transition ${invalidFields.includes("experience")
+                      ? "border-red-400/70 rounded-[10px] bg-red-500/5 px-4 pb-4"
+                      : "border-zinc-800"
+                      }`}
                   >
                     <QuestionTitle number="2">
                       What best describes your experience with Roblox?
@@ -916,11 +923,10 @@ export default function CommunitySafetySurveyPage() {
                 <div className="space-y-8">
                   <section
                     ref={risksRef}
-                    className={`transition ${
-                      invalidFields.includes("risks")
-                        ? "rounded-[10px] border border-red-400/70 bg-red-500/5 p-4"
-                        : ""
-                    }`}
+                    className={`transition ${invalidFields.includes("risks")
+                      ? "rounded-[10px] border border-red-400/70 bg-red-500/5 p-4"
+                      : ""
+                      }`}
                   >
                     <QuestionTitle number="3">
                       Based on what you have seen or experienced, which issues
@@ -933,11 +939,10 @@ export default function CommunitySafetySurveyPage() {
                       </p>
 
                       <span
-                        className={`text-xs ${
-                          selectedRiskCount >= 3
-                            ? "text-amber-300"
-                            : "text-zinc-500"
-                        }`}
+                        className={`text-xs ${selectedRiskCount >= 3
+                          ? "text-amber-300"
+                          : "text-zinc-500"
+                          }`}
                       >
                         {selectedRiskCount}/3 selected
                       </span>
@@ -1024,11 +1029,10 @@ export default function CommunitySafetySurveyPage() {
                 <div className="space-y-8">
                   <section
                     ref={creatorActionsRef}
-                    className={`transition ${
-                      invalidFields.includes("creatorActions")
-                        ? "rounded-[10px] border border-red-400/70 bg-red-500/5 p-4"
-                        : ""
-                    }`}
+                    className={`transition ${invalidFields.includes("creatorActions")
+                      ? "rounded-[10px] border border-red-400/70 bg-red-500/5 p-4"
+                      : ""
+                      }`}
                   >
                     <QuestionTitle number="5">
                       What can independent Roblox creators, game owners, or
@@ -1087,11 +1091,10 @@ export default function CommunitySafetySurveyPage() {
 
                   <section
                     ref={robloxResponsibilitiesRef}
-                    className={`border-t pt-8 transition ${
-                      invalidFields.includes("robloxResponsibilities")
-                        ? "border-red-400/70 rounded-[10px] bg-red-500/5 px-4 pb-4"
-                        : "border-zinc-800"
-                    }`}
+                    className={`border-t pt-8 transition ${invalidFields.includes("robloxResponsibilities")
+                      ? "border-red-400/70 rounded-[10px] bg-red-500/5 px-4 pb-4"
+                      : "border-zinc-800"
+                      }`}
                   >
                     <QuestionTitle number="6">
                       Which safety problems mainly require action from Roblox
@@ -1158,11 +1161,10 @@ export default function CommunitySafetySurveyPage() {
                 <div className="space-y-8">
                   <section
                     ref={loopholeRef}
-                    className={`transition ${
-                      invalidFields.includes("loophole")
-                        ? "rounded-[10px] border border-red-400/70 bg-red-500/5 p-4"
-                        : ""
-                    }`}
+                    className={`transition ${invalidFields.includes("loophole")
+                      ? "rounded-[10px] border border-red-400/70 bg-red-500/5 p-4"
+                      : ""
+                      }`}
                   >
                     <QuestionTitle number="7">
                       Could any existing or proposed safety measure be easy to
@@ -1253,11 +1255,10 @@ export default function CommunitySafetySurveyPage() {
 
                   <section
                     ref={practicalSolutionRef}
-                    className={`border-t pt-8 transition ${
-                      invalidFields.includes("practicalSolution")
-                        ? "border-red-400/70 rounded-[10px] bg-red-500/5 px-4 pb-4"
-                        : "border-zinc-800"
-                    }`}
+                    className={`border-t pt-8 transition ${invalidFields.includes("practicalSolution")
+                      ? "border-red-400/70 rounded-[10px] bg-red-500/5 px-4 pb-4"
+                      : "border-zinc-800"
+                      }`}
                   >
                     <QuestionTitle number="8">
                       What is one practical action that could make Roblox safer
@@ -1273,11 +1274,10 @@ export default function CommunitySafetySurveyPage() {
                       placeholder="Your idea does not need to sound formal. We are interested in practical solutions."
                       rows={5}
                       maxLength={1500}
-                      className={`survey-textarea w-full resize-y border bg-zinc-950/55 px-4 py-3 text-sm leading-6 text-white outline-none ${
-                        invalidFields.includes("practicalSolution")
-                          ? "border-red-400/70"
-                          : "border-zinc-700"
-                      }`}
+                      className={`survey-textarea w-full resize-y border bg-zinc-950/55 px-4 py-3 text-sm leading-6 text-white outline-none ${invalidFields.includes("practicalSolution")
+                        ? "border-red-400/70"
+                        : "border-zinc-700"
+                        }`}
                       style={{ borderRadius: 8 }}
                     />
 
@@ -1344,7 +1344,7 @@ export default function CommunitySafetySurveyPage() {
                     ) : null}
 
                     {form.creditPreference === "alias" &&
-                    !form.robloxAlias.trim() ? (
+                      !form.robloxAlias.trim() ? (
                       <p className="mt-3 text-xs text-amber-300">
                         You selected alias credit but did not enter an alias.
                         Your response will be treated as anonymous unless you
@@ -1355,11 +1355,10 @@ export default function CommunitySafetySurveyPage() {
 
                   <label
                     ref={consentRef}
-                    className={`flex cursor-pointer items-start gap-3 border bg-zinc-950/40 p-4 text-sm leading-6 text-zinc-300 transition ${
-                      invalidFields.includes("consent")
-                        ? "border-red-400/70 bg-red-500/5"
-                        : "border-zinc-700"
-                    }`}
+                    className={`flex cursor-pointer items-start gap-3 border bg-zinc-950/40 p-4 text-sm leading-6 text-zinc-300 transition ${invalidFields.includes("consent")
+                      ? "border-red-400/70 bg-red-500/5"
+                      : "border-zinc-700"
+                      }`}
                     style={{ borderRadius: 8 }}
                   >
                     <input
