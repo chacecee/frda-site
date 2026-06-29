@@ -49,6 +49,7 @@ export default function SiteHeader() {
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
+
     return () => {
       document.body.style.overflow = "";
     };
@@ -57,15 +58,13 @@ export default function SiteHeader() {
   return (
     <>
       <header
-        className={`fixed inset-x-0 top-0 z-50 w-full transition-all duration-300 ${scrolled
-            ? "bg-[#03153a]/68 backdrop-blur-lg shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
-            : "bg-transparent"
-          }`}
+        className={`fixed inset-x-0 top-0 z-50 w-full border-b border-white/10 bg-[#03153a]/68 backdrop-blur-lg transition-all duration-300 ${
+          scrolled
+            ? "shadow-[0_10px_30px_rgba(0,0,0,0.24)]"
+            : "shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+        }`}
       >
-        <div
-          className={`mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 transition-all duration-300 md:px-8 ${scrolled ? "border-b border-white/10" : "border-b border-transparent"
-            }`}
-        >
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 transition-all duration-300 md:px-8">
           <div className="flex min-w-0 items-center gap-3 md:gap-4">
             <button
               type="button"
@@ -88,7 +87,7 @@ export default function SiteHeader() {
 
               <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-white sm:text-[12px] md:text-[13px] md:tracking-[0.14em]">
                 <span>Filipino Roblox Developers</span>
-                <span className="block md:inline md:ml-1">Association</span>
+                <span className="block md:ml-1 md:inline">Association</span>
               </p>
             </Link>
           </div>
@@ -161,6 +160,7 @@ export default function SiteHeader() {
                     height={44}
                     className="h-11 w-11 shrink-0 object-contain"
                   />
+
                   <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
                     FRDA
                   </p>
@@ -185,10 +185,11 @@ export default function SiteHeader() {
                       key={item.href}
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
-                      className={`rounded-[5px] px-3 py-3 text-[13px] uppercase tracking-[0.14em] transition ${active
+                      className={`rounded-[5px] px-3 py-3 text-[13px] uppercase tracking-[0.14em] transition ${
+                        active
                           ? "bg-white/5 text-white"
                           : "text-zinc-300 hover:bg-white/5 hover:text-white"
-                        }`}
+                      }`}
                     >
                       {item.label}
                     </Link>

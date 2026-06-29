@@ -6,6 +6,7 @@ export type AdminSidebarActive =
   | "admin_tools"
   | "admin_reassign_applications"
   | "admin_staff_meetings"
+  | "admin_community_survey"
   | "content_featured_games"
   | "content_game_directory"
   | "content_announcements"
@@ -17,6 +18,8 @@ export type AdminSidebarActive =
   | "analytics_developers";
 
 export type ApplicationsTabKey = "applications_developers";
+
+export type AdminTabKey = "admin_community_survey";
 
 export type ContentTabKey =
   | "content_featured_games"
@@ -33,10 +36,13 @@ export type AnalyticsTabKey =
 
 export type SidebarPermissionKey =
   | ApplicationsTabKey
+  | AdminTabKey
   | ContentTabKey
   | AnalyticsTabKey;
 
-export type SidebarPermissionMap = Partial<Record<SidebarPermissionKey, string[]>>;
+export type SidebarPermissionMap = Partial<
+  Record<SidebarPermissionKey, string[]>
+>;
 
 function normalizeRole(role?: string | null): string {
   return role?.trim().toLowerCase() || "";
@@ -66,7 +72,27 @@ export function canViewApplicationsSection(
 ): boolean {
   if (isAdminRole(role)) return true;
 
-  return canViewSidebarTab(role, staffId, permissionMap, "applications_developers");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "applications_developers"
+  );
+}
+
+export function canViewAdminSection(
+  role: string | null | undefined,
+  staffId: string | null | undefined,
+  permissionMap: SidebarPermissionMap | null | undefined
+): boolean {
+  if (isAdminRole(role)) return true;
+
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "admin_community_survey"
+  );
 }
 
 export function canViewContentSection(
@@ -77,9 +103,24 @@ export function canViewContentSection(
   if (isAdminRole(role)) return true;
 
   return (
-    canViewSidebarTab(role, staffId, permissionMap, "content_featured_games") ||
-    canViewSidebarTab(role, staffId, permissionMap, "content_game_directory") ||
-    canViewSidebarTab(role, staffId, permissionMap, "content_announcements") ||
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "content_featured_games"
+    ) ||
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "content_game_directory"
+    ) ||
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "content_announcements"
+    ) ||
     canViewSidebarTab(role, staffId, permissionMap, "content_blog")
   );
 }
@@ -92,11 +133,31 @@ export function canViewAnalyticsSection(
   if (isAdminRole(role)) return true;
 
   return (
-    canViewSidebarTab(role, staffId, permissionMap, "analytics_overview") ||
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "analytics_overview"
+    ) ||
     canViewSidebarTab(role, staffId, permissionMap, "analytics_games") ||
-    canViewSidebarTab(role, staffId, permissionMap, "analytics_featured") ||
-    canViewSidebarTab(role, staffId, permissionMap, "analytics_sponsor") ||
-    canViewSidebarTab(role, staffId, permissionMap, "analytics_developers")
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "analytics_featured"
+    ) ||
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "analytics_sponsor"
+    ) ||
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "analytics_developers"
+    )
   );
 }
 
@@ -105,7 +166,25 @@ export function canManageApplications(
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
-  return canViewSidebarTab(role, staffId, permissionMap, "applications_developers");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "applications_developers"
+  );
+}
+
+export function canViewCommunitySurvey(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "admin_community_survey"
+  );
 }
 
 export function canManageFeaturedGames(
@@ -113,7 +192,12 @@ export function canManageFeaturedGames(
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
-  return canViewSidebarTab(role, staffId, permissionMap, "content_featured_games");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "content_featured_games"
+  );
 }
 
 export function canManageGameDirectory(
@@ -121,7 +205,12 @@ export function canManageGameDirectory(
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
-  return canViewSidebarTab(role, staffId, permissionMap, "content_game_directory");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "content_game_directory"
+  );
 }
 
 export function canManageAnnouncements(
@@ -129,7 +218,12 @@ export function canManageAnnouncements(
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
-  return canViewSidebarTab(role, staffId, permissionMap, "content_announcements");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "content_announcements"
+  );
 }
 
 export function canManageBlog(
@@ -137,7 +231,12 @@ export function canManageBlog(
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
-  return canViewSidebarTab(role, staffId, permissionMap, "content_blog");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "content_blog"
+  );
 }
 
 export function canViewAnalyticsOverview(
@@ -145,7 +244,12 @@ export function canViewAnalyticsOverview(
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
-  return canViewSidebarTab(role, staffId, permissionMap, "analytics_overview");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "analytics_overview"
+  );
 }
 
 export function canViewAnalyticsGames(
@@ -153,7 +257,12 @@ export function canViewAnalyticsGames(
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
-  return canViewSidebarTab(role, staffId, permissionMap, "analytics_games");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "analytics_games"
+  );
 }
 
 export function canViewAnalyticsFeatured(
@@ -161,7 +270,12 @@ export function canViewAnalyticsFeatured(
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
-  return canViewSidebarTab(role, staffId, permissionMap, "analytics_featured");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "analytics_featured"
+  );
 }
 
 export function canViewAnalyticsSponsor(
@@ -169,7 +283,12 @@ export function canViewAnalyticsSponsor(
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
-  return canViewSidebarTab(role, staffId, permissionMap, "analytics_sponsor");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "analytics_sponsor"
+  );
 }
 
 export function canViewAnalyticsDevelopers(
@@ -177,5 +296,10 @@ export function canViewAnalyticsDevelopers(
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null
 ): boolean {
-  return canViewSidebarTab(role, staffId, permissionMap, "analytics_developers");
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "analytics_developers"
+  );
 }

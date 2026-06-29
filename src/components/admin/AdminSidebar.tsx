@@ -215,7 +215,8 @@ export default function AdminSidebar({
   const [adminOpen, setAdminOpen] = useState(
     active === "admin_tools" ||
     active === "admin_reassign_applications" ||
-    active === "admin_staff_meetings"
+    active === "admin_staff_meetings" ||
+    active === "admin_community_survey"
   );
 
   const [analyticsOpen, setAnalyticsOpen] = useState(
@@ -349,7 +350,8 @@ export default function AdminSidebar({
     if (
       active === "admin_tools" ||
       active === "admin_reassign_applications" ||
-      active === "admin_staff_meetings"
+      active === "admin_staff_meetings" ||
+      active === "admin_community_survey"
     ) {
       setAdminOpen(true);
     }
@@ -381,6 +383,15 @@ export default function AdminSidebar({
     permissionMap,
     "applications_developers"
   );
+
+  const canSeeCommunitySurvey = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "admin_community_survey"
+  );
+
+  const hasAdminSectionAccess = isAdmin || canSeeCommunitySurvey;
 
   const canSeeFeaturedGames = canViewSidebarTab(
     staffProfile?.role,
@@ -833,7 +844,7 @@ export default function AdminSidebar({
           ) : null}
 
 
-          {isAdmin ? (
+          {hasAdminSectionAccess ? (
             <>
               <SidebarSectionToggle
                 label="Admin"
@@ -841,7 +852,8 @@ export default function AdminSidebar({
                 active={
                   active === "admin_tools" ||
                   active === "admin_reassign_applications" ||
-                  active === "admin_staff_meetings"
+                  active === "admin_staff_meetings" ||
+                  active === "admin_community_survey"
                 }
                 open={adminOpen}
                 onClick={() => setAdminOpen((prev) => !prev)}
@@ -849,30 +861,66 @@ export default function AdminSidebar({
 
               {adminOpen ? (
                 <div className="bg-zinc-950/25">
-                  <SidebarLink
-                    label="Reassign Applications"
-                    icon={<ShieldUser size={16} strokeWidth={1.3} />}
-                    active={
-                      active === "admin_tools" ||
-                      active === "admin_reassign_applications"
-                    }
-                    className="pl-6"
-                    onClick={() => {
-                      onCloseSidebar();
-                      onNavigate("/admin/reassign");
-                    }}
-                  />
+                  {isAdmin ? (
+                    <>
+                      <SidebarLink
+                        label="Reassign Applications"
+                        icon={<ShieldUser size={16} strokeWidth={1.3} />}
+                        active={
+                          active === "admin_tools" ||
+                          active === "admin_reassign_applications"
+                        }
+                        className="pl-6"
+                        onClick={() => {
+                          onCloseSidebar();
+                          onNavigate("/admin/reassign");
+                        }}
+                      />
 
-                  <SidebarLink
-                    label="Staff Meetings"
-                    icon={<CalendarClock size={16} strokeWidth={1.3} />}
-                    active={active === "admin_staff_meetings"}
-                    className="pl-6"
-                    onClick={() => {
-                      onCloseSidebar();
-                      onNavigate("/admin/meeting-polls");
-                    }}
-                  />
+                      <SidebarLink
+                        label="Staff Meetings"
+                        icon={<CalendarClock size={16} strokeWidth={1.3} />}
+                        active={active === "admin_staff_meetings"}
+                        className="pl-6"
+                        onClick={() => {
+                          onCloseSidebar();
+                          onNavigate("/admin/meeting-polls");
+                        }}
+                      />
+                    </>
+                  ) : null}
+
+                  {canSeeCommunitySurvey ? (
+                    <SidebarLink
+                      label="Community Survey"
+                      icon={<ClipboardList size={16} strokeWidth={1.3} />}
+                      active={active === "admin_community_survey"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/community-survey");
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openPermissionsModal(
+                                "admin_community_survey",
+                                "Community Survey"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </>
