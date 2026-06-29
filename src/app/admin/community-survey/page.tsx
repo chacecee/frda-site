@@ -261,19 +261,21 @@ function StatCard({
 }) {
   return (
     <div
-      className="border border-zinc-800 bg-zinc-950/35 p-5"
+      className="min-w-0 border border-zinc-800 bg-zinc-950/35 px-4 py-3.5 sm:p-5"
       style={{ borderRadius: 8 }}
     >
-      <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
-        {label}
-      </p>
+      <div className="flex items-center justify-between gap-3 sm:block">
+        <p className="min-w-0 text-[10px] font-medium uppercase leading-4 tracking-[0.13em] text-zinc-500 sm:text-xs sm:tracking-[0.16em]">
+          {label}
+        </p>
 
-      <p className="mt-3 text-3xl font-semibold text-white">
-        {value.toLocaleString()}
-      </p>
+        <p className="shrink-0 text-2xl font-semibold leading-none text-white sm:mt-3 sm:text-3xl">
+          {value.toLocaleString()}
+        </p>
+      </div>
 
       {note ? (
-        <p className="mt-2 text-sm leading-6 text-zinc-500">
+        <p className="mt-2 text-[11px] leading-4 text-zinc-500 sm:text-sm sm:leading-6">
           {note}
         </p>
       ) : null}
@@ -464,13 +466,13 @@ export default function CommunitySurveyAdminPage() {
 
         const result =
           (await response.json().catch(() => null)) as
-            | ApiResponse
-            | null;
+          | ApiResponse
+          | null;
 
         if (!response.ok || !result?.ok) {
           throw new Error(
             result?.error ||
-              "Could not load community survey responses."
+            "Could not load community survey responses."
           );
         }
 
@@ -593,7 +595,7 @@ export default function CommunitySurveyAdminPage() {
       if (!response.ok || !result?.ok) {
         throw new Error(
           result?.error ||
-            "Could not update this survey response."
+          "Could not update this survey response."
         );
       }
 
@@ -722,11 +724,10 @@ export default function CommunitySurveyAdminPage() {
             <button
               type="button"
               onClick={() => setActiveTab("responses")}
-              className={`cursor-pointer border-b-2 px-4 py-3 text-sm font-semibold transition ${
-                activeTab === "responses"
-                  ? "border-blue-400 text-blue-300"
-                  : "border-transparent text-zinc-400 hover:text-white"
-              }`}
+              className={`cursor-pointer border-b-2 px-4 py-3 text-sm font-semibold transition ${activeTab === "responses"
+                ? "border-blue-400 text-blue-300"
+                : "border-transparent text-zinc-400 hover:text-white"
+                }`}
             >
               Responses
             </button>
@@ -734,11 +735,10 @@ export default function CommunitySurveyAdminPage() {
             <button
               type="button"
               onClick={() => setActiveTab("findings")}
-              className={`cursor-pointer border-b-2 px-4 py-3 text-sm font-semibold transition ${
-                activeTab === "findings"
-                  ? "border-blue-400 text-blue-300"
-                  : "border-transparent text-zinc-400 hover:text-white"
-              }`}
+              className={`cursor-pointer border-b-2 px-4 py-3 text-sm font-semibold transition ${activeTab === "findings"
+                ? "border-blue-400 text-blue-300"
+                : "border-transparent text-zinc-400 hover:text-white"
+                }`}
             >
               Findings
             </button>
@@ -762,7 +762,7 @@ export default function CommunitySurveyAdminPage() {
             </div>
           ) : activeTab === "responses" ? (
             <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-5 xl:gap-4">
                 <StatCard
                   label="Total"
                   value={summary?.statusCounts.total || 0}
@@ -780,16 +780,12 @@ export default function CommunitySurveyAdminPage() {
 
                 <StatCard
                   label="Needs Review"
-                  value={
-                    summary?.statusCounts.needsReview || 0
-                  }
+                  value={summary?.statusCounts.needsReview || 0}
                 />
 
                 <StatCard
                   label="Excluded"
-                  value={
-                    summary?.statusCounts.excluded || 0
-                  }
+                  value={summary?.statusCounts.excluded || 0}
                 />
               </div>
 
@@ -810,8 +806,8 @@ export default function CommunitySurveyAdminPage() {
                   onChange={(event) =>
                     setStatusFilter(
                       event.target.value as
-                        | ReviewStatus
-                        | "all"
+                      | ReviewStatus
+                      | "all"
                     )
                   }
                   className="w-full border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white outline-none"
@@ -891,7 +887,7 @@ export default function CommunitySurveyAdminPage() {
                                 .join(", ") || "—"}
 
                               {response.robloxExperience.length >
-                              2 ? (
+                                2 ? (
                                 <span className="text-zinc-500">
                                   {" "}
                                   +{response.robloxExperience.length - 2}
@@ -1016,11 +1012,11 @@ export default function CommunitySurveyAdminPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
                 <StatCard
                   label="Valid Responses"
                   value={summary?.statusCounts.valid || 0}
-                  note="Only these responses are counted below."
+                  note="Counted in the findings below."
                 />
 
                 <StatCard
@@ -1029,23 +1025,19 @@ export default function CommunitySurveyAdminPage() {
                     (summary?.statusCounts.new || 0) +
                     (summary?.statusCounts.needsReview || 0)
                   }
-                  note="Not included in findings yet."
+                  note="Not included yet."
                 />
 
                 <StatCard
                   label="Excluded"
-                  value={
-                    summary?.statusCounts.excluded || 0
-                  }
-                  note="Removed from the official findings."
+                  value={summary?.statusCounts.excluded || 0}
+                  note="Removed from findings."
                 />
 
                 <StatCard
                   label="Auto-Flagged"
-                  value={
-                    summary?.statusCounts.suspicious || 0
-                  }
-                  note="May still be valid after manual review."
+                  value={summary?.statusCounts.suspicious || 0}
+                  note="May still be valid."
                 />
               </div>
 
@@ -1212,10 +1204,10 @@ export default function CommunitySurveyAdminPage() {
 
                     <DetailRow label="Credit Preference">
                       {selectedResponse.creditPreference ===
-                      "name"
+                        "name"
                         ? "Use their name"
                         : selectedResponse.creditPreference ===
-                            "alias"
+                          "alias"
                           ? "Use their Roblox alias"
                           : "Keep anonymous"}
                     </DetailRow>
@@ -1322,8 +1314,8 @@ export default function CommunitySurveyAdminPage() {
                       {selectedResponse.suspiciousReasons
                         .length
                         ? selectedResponse.suspiciousReasons.join(
-                            "\n"
-                          )
+                          "\n"
+                        )
                         : "None"}
                     </DetailRow>
 
