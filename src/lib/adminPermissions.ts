@@ -7,6 +7,7 @@ export type AdminSidebarActive =
   | "admin_reassign_applications"
   | "admin_staff_meetings"
   | "admin_community_survey"
+  | "admin_geekout_opportunity"
   | "content_featured_games"
   | "content_game_directory"
   | "content_announcements"
@@ -175,6 +176,19 @@ export function canManageApplications(
 }
 
 export function canViewCommunitySurvey(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "admin_community_survey"
+  );
+}
+
+export function canViewGeekOutOpportunity(
   role: string | null | undefined,
   staffId?: string | null,
   permissionMap?: SidebarPermissionMap | null

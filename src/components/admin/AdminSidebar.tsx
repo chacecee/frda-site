@@ -216,7 +216,8 @@ export default function AdminSidebar({
     active === "admin_tools" ||
     active === "admin_reassign_applications" ||
     active === "admin_staff_meetings" ||
-    active === "admin_community_survey"
+    active === "admin_community_survey" ||
+    active === "admin_geekout_opportunity"
   );
 
   const [analyticsOpen, setAnalyticsOpen] = useState(
@@ -351,7 +352,8 @@ export default function AdminSidebar({
       active === "admin_tools" ||
       active === "admin_reassign_applications" ||
       active === "admin_staff_meetings" ||
-      active === "admin_community_survey"
+      active === "admin_community_survey" ||
+      active === "admin_geekout_opportunity"
     ) {
       setAdminOpen(true);
     }
@@ -853,7 +855,8 @@ export default function AdminSidebar({
                   active === "admin_tools" ||
                   active === "admin_reassign_applications" ||
                   active === "admin_staff_meetings" ||
-                  active === "admin_community_survey"
+                  active === "admin_community_survey" ||
+                  active === "admin_geekout_opportunity"
                 }
                 open={adminOpen}
                 onClick={() => setAdminOpen((prev) => !prev)}
@@ -921,6 +924,20 @@ export default function AdminSidebar({
                       }
                     />
                   ) : null}
+
+                  {canSeeCommunitySurvey ? (
+                    <SidebarLink
+                      label="GeekOut Opportunity"
+                      icon={<Trophy size={16} strokeWidth={1.3} />}
+                      active={active === "admin_geekout_opportunity"}
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate("/admin/geekout-opportunity");
+                      }}
+                    />
+                  ) : null}
+
                 </div>
               ) : null}
             </>
