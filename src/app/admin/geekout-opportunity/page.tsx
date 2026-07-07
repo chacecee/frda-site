@@ -78,6 +78,10 @@ type PortfolioSubmission = {
 
   candidateInviteGenerated: boolean;
   candidateInviteUrl: string;
+  candidateInviteEmailSent: boolean;
+  candidateInviteEmailSentAt: string | null;
+  candidateInviteEmailSentTo: string;
+  candidateInviteEmailError: string;
 
   sentToGeekOut: boolean;
   selectedByGeekOut: boolean;
@@ -100,6 +104,11 @@ type ApiResponse = {
   portfolioSubmissions: PortfolioSubmission[];
   error?: string;
 };
+
+type ToastState = {
+  message: string;
+  tone: "success" | "error";
+} | null;
 
 const VISITOR_STATUSES: VisitorReviewStatus[] = [
   "new",
@@ -392,6 +401,19 @@ export default function GeekOutOpportunityAdminPage() {
 
   const [reviewNote, setReviewNote] = useState("");
   const [savingReview, setSavingReview] = useState(false);
+  const [sendingCandidateInvite, setSendingCandidateInvite] =
+    useState(false);
+  const [toast, setToast] = useState<ToastState>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+
+    const timeout = window.setTimeout(() => {
+      setToast(null);
+    }, 5000);
+
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
 
   const displayName =
     user?.displayName?.trim() ||
@@ -601,7 +623,7 @@ export default function GeekOutOpportunityAdminPage() {
   }
 
   function closeReviewPanel() {
-    if (savingReview) return;
+    if (savingReview || sendingCandidateInvite) return;
 
     setSelectedVisitor(null);
     setSelectedPortfolio(null);
@@ -627,6 +649,99 @@ export default function GeekOutOpportunityAdminPage() {
       setErrorMessage(
         "Could not copy the value to your clipboard."
       );
+    }
+  }
+
+  async function sendCandidateInvite({
+    submission,
+    isResend = false,
+  }: {
+    submission: PortfolioSubmission;
+    isResend?: boolean;
+  }) {
+    if (!user || sendingCandidateInvite) return null;
+
+    setSendingCandidateInvite(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const idToken = await user.getIdToken();
+
+      const response = await fetch(
+        "/api/admin/geekout-opportunity/send-candidate-invite",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            submissionId: submission.id,
+            resend: isResend,
+          }),
+        }
+      );
+
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(
+          result?.error ||
+            "Could not send the GeekOut Candidate invitation."
+        );
+      }
+
+      const updatedSubmission: PortfolioSubmission = {
+        ...submission,
+        candidateInviteGenerated: true,
+        candidateInviteEmailSent: true,
+        candidateInviteEmailSentAt: new Date().toISOString(),
+        candidateInviteEmailSentTo: submission.email,
+        candidateInviteEmailError: "",
+      };
+
+      setPortfolioSubmissions((current) =>
+        current.map((item) =>
+          item.id === updatedSubmission.id
+            ? updatedSubmission
+            : item
+        )
+      );
+
+      setSelectedPortfolio(updatedSubmission);
+
+      const message = isResend
+        ? "Candidate Discord invitation resent successfully."
+        : "Candidate Discord invitation emailed successfully.";
+
+      setSuccessMessage(message);
+      setToast({
+        message,
+        tone: "success",
+      });
+
+      return updatedSubmission;
+    } catch (error) {
+      console.error(
+        "GeekOut candidate invitation send error:",
+        error
+      );
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not send the GeekOut Candidate invitation.";
+
+      setErrorMessage(message);
+      setToast({
+        message,
+        tone: "error",
+      });
+
+      return null;
+    } finally {
+      setSendingCandidateInvite(false);
     }
   }
 
@@ -718,9 +833,42 @@ export default function GeekOutOpportunityAdminPage() {
         setReviewNote(
           updatedSubmission.reviewNote || ""
         );
+
+        const shouldSendCandidateInvite =
+          updatedSubmission.reviewStatus === "candidate" &&
+          updatedSubmission.wantsDiscordInvite === true &&
+          updatedSubmission.candidateInviteEmailSent !== true;
+
+        if (shouldSendCandidateInvite) {
+          const sentSubmission =
+            await sendCandidateInvite({
+              submission: updatedSubmission,
+            });
+
+          if (sentSubmission) {
+            setSuccessMessage(
+              "Review saved and candidate Discord invitation emailed."
+            );
+            setToast({
+              message:
+                "Review saved and candidate Discord invitation emailed.",
+              tone: "success",
+            });
+          } else {
+            setSuccessMessage(
+              "Review saved, but the candidate invitation could not be sent."
+            );
+          }
+
+          return;
+        }
       }
 
       setSuccessMessage("Review saved successfully.");
+      setToast({
+        message: "Review saved successfully.",
+        tone: "success",
+      });
     } catch (error) {
       console.error(
         "GeekOut opportunity review save error:",
@@ -1620,6 +1768,34 @@ export default function GeekOutOpportunityAdminPage() {
                       />
                     </DetailRow>
 
+                    <DetailRow label="Candidate invite emailed">
+                      <BooleanValue
+                        value={Boolean(
+                          selectedPortfolio
+                            .candidateInviteEmailSent
+                        )}
+                      />
+                    </DetailRow>
+
+                    {selectedPortfolio.candidateInviteEmailSentAt ? (
+                      <DetailRow label="Invite last emailed">
+                        {formatDate(
+                          selectedPortfolio.candidateInviteEmailSentAt
+                        )}
+                      </DetailRow>
+                    ) : null}
+
+                    {selectedPortfolio.candidateInviteEmailError ? (
+                      <DetailRow label="Last invite error">
+                        <span className="text-red-300">
+                          {
+                            selectedPortfolio
+                              .candidateInviteEmailError
+                          }
+                        </span>
+                      </DetailRow>
+                    ) : null}
+
                     <DetailRow label="Sent to GeekOut">
                       <BooleanValue
                         value={Boolean(
@@ -1758,30 +1934,84 @@ export default function GeekOutOpportunityAdminPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-zinc-800 px-5 py-4 sm:px-6">
-              <button
-                type="button"
-                onClick={closeReviewPanel}
-                disabled={savingReview}
-                className="cursor-pointer border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                style={{ borderRadius: 8 }}
-              >
-                Close
-              </button>
+            <div className="flex flex-col gap-3 border-t border-zinc-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div>
+                {selectedPortfolio &&
+                selectedPortfolio.reviewStatus === "candidate" &&
+                selectedPortfolio.wantsDiscordInvite ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      sendCandidateInvite({
+                        submission: selectedPortfolio,
+                        isResend:
+                          selectedPortfolio
+                            .candidateInviteEmailSent === true,
+                      })
+                    }
+                    disabled={
+                      savingReview ||
+                      sendingCandidateInvite
+                    }
+                    className="w-full cursor-pointer border border-violet-500/40 bg-violet-500/10 px-4 py-2.5 text-sm font-semibold text-violet-200 hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                    style={{ borderRadius: 8 }}
+                  >
+                    {sendingCandidateInvite
+                      ? "Sending invite..."
+                      : selectedPortfolio
+                            .candidateInviteEmailSent
+                        ? "Resend Discord invite"
+                        : "Send Discord invite"}
+                  </button>
+                ) : null}
+              </div>
 
-              <button
-                type="button"
-                onClick={saveReview}
-                disabled={savingReview}
-                className="cursor-pointer bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                style={{ borderRadius: 8 }}
-              >
-                {savingReview
-                  ? "Saving..."
-                  : "Save review"}
-              </button>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeReviewPanel}
+                  disabled={
+                    savingReview ||
+                    sendingCandidateInvite
+                  }
+                  className="cursor-pointer border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ borderRadius: 8 }}
+                >
+                  Close
+                </button>
+
+                <button
+                  type="button"
+                  onClick={saveReview}
+                  disabled={
+                    savingReview ||
+                    sendingCandidateInvite
+                  }
+                  className="cursor-pointer bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ borderRadius: 8 }}
+                >
+                  {savingReview
+                    ? "Saving..."
+                    : "Save review"}
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {toast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed right-4 top-4 z-[140] max-w-sm border px-4 py-3 text-sm font-medium shadow-2xl ${
+            toast.tone === "success"
+              ? "border-emerald-500/30 bg-emerald-950 text-emerald-100"
+              : "border-red-500/30 bg-red-950 text-red-100"
+          }`}
+          style={{ borderRadius: 8 }}
+        >
+          {toast.message}
         </div>
       ) : null}
     </main>
