@@ -141,18 +141,9 @@ export default function GeekOutOpportunityPage() {
 
                         <p className="mx-auto mt-6 max-w-3xl text-base leading-8 text-zinc-200 sm:text-lg">
                             GeekOut K.K. is a Tokyo-based company working across Roblox development,
-                            publishing, creator support, and Japanese entertainment IP. The GeekOut
+                            publishing, creator support, and collaborations with entertainment partners. The GeekOut
                             team will be meeting developers around PGDX this July and is also open to
                             online conversations with experienced Filipino Roblox creators.
-                        </p>
-
-                        <p className="mx-auto mt-4 max-w-3xl text-sm leading-7 text-zinc-400 sm:text-base">
-                            You know{" "}
-                            <span className="font-semibold text-white">
-                                Attack on Titan
-                            </span>
-                            ? GeekOut&apos;s public work includes official Roblox projects tied to the
-                            series, along with creator initiatives across Asia.
                         </p>
 
                         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
@@ -269,12 +260,12 @@ export default function GeekOutOpportunityPage() {
                             </p>
 
                             <p className="mt-4 text-sm leading-7 text-zinc-400 sm:text-base">
-                                You know Attack on Titan? GeekOut&apos;s public activity includes official
-                                Roblox projects tied to the series, giving creators a clearer sense of
-                                the entertainment ecosystem the GeekOut team operates within.
+                                GeekOut also creates opportunities for developers to connect with
+                                entertainment partners and explore projects that can reach audiences
+                                beyond their existing Roblox communities.
                             </p>
 
-                            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                            <div className="mt-7">
                                 <a
                                     href="https://geek-out.io/en/"
                                     target="_blank"
@@ -285,15 +276,6 @@ export default function GeekOutOpportunityPage() {
                                     <ExternalLink className="h-4 w-4" />
                                 </a>
 
-                                <a
-                                    href="https://geek-out.io/en/topics/aot_winners_en/"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center justify-center gap-2 rounded-[7px] border border-yellow-300/20 bg-yellow-300/[0.07] px-4 py-3 text-sm font-semibold text-yellow-100 transition hover:bg-yellow-300/[0.12]"
-                                >
-                                    See GeekOut&apos;s Attack on Titan work
-                                    <ExternalLink className="h-4 w-4" />
-                                </a>
                             </div>
                         </div>
 
@@ -337,43 +319,52 @@ export default function GeekOutOpportunityPage() {
                     <div className="mx-auto max-w-6xl">
                         <div className="mx-auto max-w-3xl text-center">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-300">
-                                GeekOut in Asia
+                                GeekOut&apos;s creator community
                             </p>
 
                             <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
-                                GeekOut has already connected creators with Japan&apos;s IP industry
+                                Connecting creators across Asia and beyond
                             </h2>
 
                             <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
-                                GeekOut recently held a creator mixer in Thailand that brought local
-                                Roblox talent together with members of Japan&apos;s IP industry. The
-                                GeekOut team is now looking to build similar connections with Filipino
-                                developers through in-person meetups and online conversations.
+                                From regional creator gatherings to large international events,
+                                GeekOut brings Roblox developers and industry partners together to
+                                exchange ideas, build relationships, and explore new opportunities.
                             </p>
                         </div>
 
-                        <div className="mx-auto mt-10 max-w-[600px]">
-                            <div className="overflow-hidden rounded-[10px] border border-white/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.32)]">
-                                <iframe
-                                    title="GeekOut Mixer in Thailand post on X"
-                                    src="https://platform.twitter.com/embed/Tweet.html?id=2042528023057174825&dnt=true&theme=light"
-                                    className="block h-[690px] w-full border-0 sm:h-[650px]"
-                                    loading="lazy"
-                                />
+                        <div className="mt-10 grid gap-8 lg:grid-cols-2">
+                            <div>
+                                <div className="overflow-hidden rounded-[10px] border border-white/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.32)]">
+                                    <iframe
+                                        title="GeekOut CreatorCon 2026 in Tokyo post on X"
+                                        src="https://platform.twitter.com/embed/Tweet.html?id=2066450833106182282&dnt=true&theme=light"
+                                        className="block h-[690px] w-full border-0 sm:h-[650px]"
+                                        loading="lazy"
+                                    />
+                                </div>
+
+                                <p className="mt-4 text-center text-xs leading-6 text-zinc-500">
+                                    GeekOut CreatorCon 2026 brought nearly 200 creators and partners
+                                    from around the world together in Tokyo.
+                                </p>
                             </div>
 
-                            <p className="mt-4 text-center text-xs leading-6 text-zinc-500">
-                                If the post does not load,{" "}
-                                <a
-                                    href="https://x.com/GeekOutKK/status/2042528023057174825"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-medium text-blue-300 hover:text-blue-200 hover:underline"
-                                >
-                                    open it directly on X
-                                </a>
-                                .
-                            </p>
+                            <div>
+                                <div className="overflow-hidden rounded-[10px] border border-white/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.32)]">
+                                    <iframe
+                                        title="GeekOut Thailand creator event post on X"
+                                        src="https://platform.twitter.com/embed/Tweet.html?id=2042528023057174825&dnt=true&theme=light"
+                                        className="block h-[690px] w-full border-0 sm:h-[650px]"
+                                        loading="lazy"
+                                    />
+                                </div>
+
+                                <p className="mt-4 text-center text-xs leading-6 text-zinc-500">
+                                    GeekOut has also hosted regional gatherings that connect Roblox
+                                    creators with members of Japan&apos;s entertainment industry.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </section>
