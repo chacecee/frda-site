@@ -7,6 +7,14 @@ const leadershipMembers = [
     discord: "frdaphilippines",
     email: "official@frdaph.org",
     roblox: "",
+  },
+  {
+    nickname: "Chace",
+    realName: "Chace Aluzan",
+    role: "Deputy Executive Director",
+    discord: "chace_space",
+    email: "chace@frdaph.org",
+    roblox: "",
   },  
   {
     nickname: "Lord Vesper/Ari",
