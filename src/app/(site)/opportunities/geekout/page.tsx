@@ -287,12 +287,12 @@ export default function GeekOutOpportunityPage() {
                             <ul className="mt-5 space-y-4 text-sm leading-7 text-zinc-300 sm:text-base">
                                 <li className="flex gap-3">
                                     <Check className="mt-1 h-4 w-4 shrink-0 text-blue-300" />
-                                    <span>You built or led development of a complete Roblox game.</span>
+                                    <span>You built or helped complete a Roblox game.</span>
                                 </li>
 
                                 <li className="flex gap-3">
                                     <Check className="mt-1 h-4 w-4 shrink-0 text-blue-300" />
-                                    <span>You made a major contribution to a successful title.</span>
+                                    <span>You made a clear and substantial contribution to the finished project.</span>
                                 </li>
 
                                 <li className="flex gap-3">
@@ -1216,7 +1216,7 @@ function PortfolioModal({
                         }
                         rows={4}
                         maxLength={1200}
-                        placeholder="For example — creator, lead scripter, builder, UI designer, animator, or another major contribution."
+                        placeholder="For example — creator, lead scripter, builder, UI designer, animator, or another role that helped bring the game to completion."
                         className={`${inputClassName} resize-y leading-6`}
                     />
 
