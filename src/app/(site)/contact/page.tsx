@@ -92,7 +92,7 @@ export default function ContactPage() {
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-200/65">
                       Contact person
                     </p>
-                    <p className="mt-0.5 text-zinc-200">Vesper</p>
+                    <p className="mt-0.5 text-zinc-200">Airelle Nabuya</p>
                   </div>
 
                   <div>
