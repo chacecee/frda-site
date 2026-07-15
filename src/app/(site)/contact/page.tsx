@@ -52,7 +52,7 @@ export default function ContactPage() {
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-200/65">
                       Contact person
                     </p>
-                    <p className="mt-0.5 text-zinc-200">Berry</p>
+                    <p className="mt-0.5 text-zinc-200">Daryll "Berry" Pagsolingan</p>
                   </div>
 
                   <div>
@@ -65,12 +65,6 @@ export default function ContactPage() {
                         className="block break-all text-blue-100/90 transition hover:text-white"
                       >
                         official@frdaph.org
-                      </a>
-                      <a
-                        href="mailto:frdaphofficial@gmail.com"
-                        className="block break-all text-blue-100/90 transition hover:text-white"
-                      >
-                        frdaphofficial@gmail.com
                       </a>
                     </div>
                   </div>
