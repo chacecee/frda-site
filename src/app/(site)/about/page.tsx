@@ -13,9 +13,17 @@ const leadershipMembers = [
     realName: "Chace Aluzan",
     role: "Deputy Executive Director",
     discord: "chace_space",
-    email: "chace@frdaph.org | communications@frdaph.org",
+    email: "chace@frdaph.org",
     roblox: "",
   },  
+  {
+    nickname: "Tanjiro",
+    realName: "Rajyd Carandang",
+    role: "Director of External Relations and Growth",
+    discord: "tanjiro_ae",
+    email: "communications@frdaph.org",
+    roblox: "",
+  }, 
 
 ];
 
