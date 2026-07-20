@@ -13,17 +13,10 @@ const leadershipMembers = [
     realName: "Chace Aluzan",
     role: "Deputy Executive Director",
     discord: "chace_space",
-    email: "chace@frdaph.org",
+    email: "chace@frdaph.org | communications@frdaph.org",
     roblox: "",
   },  
-  {
-    nickname: "Lord Vesper/Ari",
-    realName: "Airelle Nabuya",
-    role: "Secretary and External Affairs",
-    discord: "limbusemployer",
-    email: "communications@frdaph.org",
-    roblox: "09redlemon",
-  },
+
 ];
 
 const officerMembers = [
@@ -40,13 +33,6 @@ const officerMembers = [
     role: "Human Resource Department | Staff Affairs",
     discord: "ro.0397_03790",
     roblox: "RONX23ron",
-  },
-  {
-    nickname: "L11_hakari",
-    realName: "Darius Quitangon",
-    role: "Public Information and Editorial | Editorial Research Staff",
-    discord: "hakarimeow",
-    roblox: "Hakari_sarashina24",
   },
   {
     nickname: "Astriel",

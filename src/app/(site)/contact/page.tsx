@@ -44,7 +44,7 @@ export default function ContactPage() {
 
                 <p className="mt-4 text-sm leading-7 text-zinc-300">
                   For general concerns, official communication, and direct
-                  coordination with FRDA leadership, please reach out to Berry.
+                  coordination with FRDA leadership, please reach out to Daryll.
                 </p>
 
                 <div className="mt-5 space-y-3 text-sm leading-6 text-zinc-300">
@@ -84,7 +84,7 @@ export default function ContactPage() {
 
                 <p className="mt-4 text-sm leading-7 text-zinc-300">
                   For partnerships, collaborations, media-related inquiries, and
-                  external coordination, please reach out to Vesper.
+                  external coordination, please reach out to Chace.
                 </p>
 
                 <div className="mt-5 space-y-3 text-sm leading-6 text-zinc-300">
@@ -92,7 +92,7 @@ export default function ContactPage() {
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-200/65">
                       Contact person
                     </p>
-                    <p className="mt-0.5 text-zinc-200">Airelle Nabuya</p>
+                    <p className="mt-0.5 text-zinc-200">Chace Aluzan</p>
                   </div>
 
                   <div>
@@ -128,7 +128,7 @@ export default function ContactPage() {
 
               <div className="mt-6">
                 <Link
-                  href="https://www.facebook.com/Frdaofficial"
+                  href="https://www.facebook.com/Frdaphilippines"
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center rounded-[7px] border border-blue-300/18 bg-blue-500/10 px-4 py-2.5 text-sm font-medium text-blue-100 transition hover:border-blue-200/30 hover:bg-blue-500/15 hover:text-white"
