@@ -454,6 +454,47 @@ export default function PublicDeveloperProfilePage() {
         };
     }, [slug]);
 
+    function openAccountModal(
+        tab: "signup" | "login",
+    ) {
+        closeContactModal();
+
+        const hostname =
+            window.location.hostname.toLowerCase();
+
+        const port =
+            window.location.port
+                ? `:${window.location.port}`
+                : "";
+
+        const mainOrigin =
+            hostname.endsWith(".localhost")
+                ? `http://localhost${port}`
+                : "https://frdaph.org";
+
+        const targetUrl =
+            new URL(
+                `/developers/${encodeURIComponent(
+                    slug
+                )}`,
+                mainOrigin
+            );
+
+        targetUrl.searchParams.set(
+            "account",
+            tab
+        );
+
+        targetUrl.searchParams.set(
+            "purpose",
+            "talent_seeker"
+        );
+
+        window.location.assign(
+            targetUrl.toString()
+        );
+    }
+
     async function openContactModal() {
         setContactOpen(true);
         setContactError("");
@@ -1331,48 +1372,40 @@ export default function PublicDeveloperProfilePage() {
                         ) : contactAccess === "logged_out" ? (
                             <div className="p-6">
                                 <h3 className="text-lg font-semibold text-white">
-                                    Sign in to continue
+                                    Create an account or log in
                                 </h3>
 
                                 <p className="mt-3 text-sm leading-6 text-zinc-400">
-                                    Only verified talent-seeker accounts can
-                                    send connection requests.
+                                    You need a free FRDA account to contact this
+                                    developer. Talent-seeker accounts are verified
+                                    before they can send connection requests.
                                 </p>
 
-                                <div className="mt-6 flex flex-wrap gap-3">
+                                <div className="mt-6 grid gap-3 sm:grid-cols-2">
                                     <button
                                         type="button"
                                         onClick={() =>
-                                            router.push(
-                                                "/member/login"
+                                            openAccountModal(
+                                                "signup"
                                             )
                                         }
-                                        className="cursor-pointer bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500"
+                                        className="cursor-pointer bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
                                         style={{ borderRadius: 5 }}
                                     >
-                                        Member Login
+                                        Sign Up
                                     </button>
 
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            closeContactModal();
-
-                                            document
-                                                .querySelector<HTMLButtonElement>(
-                                                    '[aria-label="Open navigation menu"]'
-                                                )
-                                                ?.click();
-
-                                            window.scrollTo({
-                                                top: 0,
-                                                behavior: "smooth",
-                                            });
-                                        }}
-                                        className="cursor-pointer border border-white/15 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-zinc-200"
+                                        onClick={() =>
+                                            openAccountModal(
+                                                "login"
+                                            )
+                                        }
+                                        className="cursor-pointer border border-white/15 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.08] hover:text-white"
                                         style={{ borderRadius: 5 }}
                                     >
-                                        Join FRDA from the site menu
+                                        Log In
                                     </button>
                                 </div>
                             </div>

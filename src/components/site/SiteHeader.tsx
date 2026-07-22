@@ -25,7 +25,6 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
-import { notify } from "@/components/ToastConfig";
 
 const SHOW_GAMES_IN_HEADER = true;
 const SHOW_BLOG_IN_HEADER = true;
@@ -220,18 +219,32 @@ export default function SiteHeader() {
     const url =
       new URL(window.location.href);
 
+    const requestedAccountTab =
+      url.searchParams.get("account");
+
+    const requestedPurpose =
+      url.searchParams.get("purpose");
+
     if (
-      url.searchParams.get(
-        "loggedOut",
-      ) === "1"
+      requestedAccountTab === "signup" ||
+      requestedAccountTab === "login"
     ) {
-      notify.success(
-        "You’ve been logged out.",
+      const accountPurpose:
+        | AccountPurpose
+        | undefined =
+        requestedPurpose === "developer" ||
+        requestedPurpose === "talent_seeker" ||
+        requestedPurpose === "both"
+          ? requestedPurpose
+          : undefined;
+
+      openAccountModal(
+        requestedAccountTab,
+        accountPurpose,
       );
 
-      url.searchParams.delete(
-        "loggedOut",
-      );
+      url.searchParams.delete("account");
+      url.searchParams.delete("purpose");
 
       window.history.replaceState(
         {},
@@ -606,15 +619,10 @@ async function submitJoinForm(
   async function handlePublicLogout() {
     setAccountMenuOpen(false);
     setMobileOpen(false);
-
     await signOut(auth);
-
     setHeaderMember(null);
-
-    window.location.assign(
-      getPublicHref(
-        "/?loggedOut=1",
-      ),
+    router.push(
+      getPublicHref("/")
     );
   }
 
