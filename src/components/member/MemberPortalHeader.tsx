@@ -9,6 +9,7 @@ import {
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import {
+  ArrowLeft,
   Bell,
   CheckCircle2,
   Gamepad2,
@@ -554,19 +555,31 @@ export default function MemberPortalHeader({
                     />
 
                     <div
-                      className="absolute right-0 top-12 z-50 w-[min(360px,calc(100vw-32px))] overflow-hidden border border-white/10 bg-[#081426] shadow-2xl"
+                      className="fixed inset-0 z-50 flex h-dvh w-full flex-col overflow-hidden bg-[#081426] shadow-2xl md:absolute md:inset-auto md:right-0 md:top-12 md:h-auto md:w-[min(360px,calc(100vw-32px))] md:border md:border-white/10"
                       style={{
-                        borderRadius: 8,
+                        borderRadius: 0,
                       }}
                     >
-                      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                        <div>
-                          <p className="text-sm font-semibold text-white">
-                            Notifications
-                          </p>
-                          <p className="mt-0.5 text-xs text-zinc-500">
-                            Account activity
-                          </p>
+                      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 md:px-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setNotificationsOpen(false)
+                            }
+                            className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-zinc-300 transition hover:bg-white/5 hover:text-white md:hidden"
+                            aria-label="Close notifications"
+                          >
+                            <ArrowLeft size={20} />
+                          </button>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-white">
+                              Notifications
+                            </p>
+                            <p className="mt-0.5 text-xs text-zinc-500">
+                              Account activity
+                            </p>
+                          </div>
                         </div>
 
                         {unreadNotificationCount >
@@ -588,7 +601,7 @@ export default function MemberPortalHeader({
                           No notifications yet.
                         </div>
                       ) : (
-                        <div className="max-h-[420px] overflow-y-auto">
+                        <div className="min-h-0 flex-1 overflow-y-auto md:max-h-[420px]">
                           {generalNotifications.map(
                             (notification) => (
                               <button
@@ -717,17 +730,14 @@ export default function MemberPortalHeader({
                       <button
                         type="button"
                         onClick={() => {
-                          setNotificationsOpen(
-                            false,
-                          );
+                          setNotificationsOpen(false);
                           router.push(
                             "/member/connection-requests",
                           );
                         }}
-                        className="block w-full cursor-pointer border-t border-white/10 px-4 py-3 text-center text-xs font-semibold text-sky-300 hover:bg-white/[0.03]"
+                        className="block w-full shrink-0 cursor-pointer border-t border-white/10 px-4 py-4 text-center text-sm font-semibold text-sky-300 hover:bg-white/[0.03] md:py-3 md:text-xs"
                       >
-                        View All Connection
-                        Requests
+                        View All Connection Requests
                       </button>
                     </div>
                   </>

@@ -656,33 +656,33 @@ export default function MemberDashboardPage() {
                                             </button>
                                         </div>
 
-                                        <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-3 sm:divide-x sm:divide-white/10">
-                                            <div className="sm:pr-5">
-                                                <p className="text-xs uppercase tracking-wide text-zinc-500">
-                                                    Listings Approved
+                                        <div className="mt-6 grid grid-cols-3 divide-x divide-white/10">
+                                            <div className="min-w-0 pr-3 sm:pr-5">
+                                                <p className="truncate text-[10px] uppercase tracking-[0.08em] text-zinc-500 sm:text-xs sm:tracking-wide">
+                                                    Approved
                                                 </p>
 
-                                                <p className="mt-2 text-3xl font-semibold text-white">
+                                                <p className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
                                                     {member.listingsApproved}
                                                 </p>
                                             </div>
 
-                                            <div className="sm:px-5">
-                                                <p className="text-xs uppercase tracking-wide text-zinc-500">
-                                                    Pending Review
+                                            <div className="min-w-0 px-3 sm:px-5">
+                                                <p className="truncate text-[10px] uppercase tracking-[0.08em] text-zinc-500 sm:text-xs sm:tracking-wide">
+                                                    Pending
                                                 </p>
 
-                                                <p className="mt-2 text-3xl font-semibold text-white">
+                                                <p className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
                                                     {member.listingsPendingReview}
                                                 </p>
                                             </div>
 
-                                            <div className="sm:pl-5">
-                                                <p className="text-xs uppercase tracking-wide text-zinc-500">
-                                                    Available Listings
+                                            <div className="min-w-0 pl-3 sm:pl-5">
+                                                <p className="truncate text-[10px] uppercase tracking-[0.08em] text-zinc-500 sm:text-xs sm:tracking-wide">
+                                                    Available
                                                 </p>
 
-                                                <p className="mt-2 text-3xl font-semibold text-sky-200">
+                                                <p className="mt-2 text-2xl font-semibold text-sky-200 sm:text-3xl">
                                                     {member.availableListings}
                                                 </p>
                                             </div>
