@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, ExternalLink, X } from "lucide-react";
+import {
+    ExternalLink,
+    Gamepad2,
+    Search,
+    UserRound,
+    X,
+} from "lucide-react";
+import {
+    AnimatePresence,
+    motion,
+} from "framer-motion";
 import { logAnalyticsEvent } from "@/lib/analytics";
 import {
     GAME_CONTENT_MATURITY_OPTIONS,
@@ -13,7 +23,7 @@ import {
     normalizeGameContentMaturity,
     normalizeGameGenre,
 } from "@/lib/gameDirectory";
-import SubmitGameModal from "@/components/games/SubmitGameModal";
+
 
 type PublicGame = {
     id: string;
@@ -249,6 +259,23 @@ function GameDetailsModal({
                 </div>
             </div>
         </div>
+    );
+}
+
+function openPublicAccountModal(
+    tab: "signup" | "login",
+) {
+    window.dispatchEvent(
+        new CustomEvent(
+            "frda:open-account-modal",
+            {
+                detail: {
+                    tab,
+                    accountPurpose:
+                        "developer",
+                },
+            },
+        ),
     );
 }
 
@@ -759,9 +786,119 @@ export default function PublicGamesDirectory() {
                 />
             ) : null}
 
-            {submitModalOpen ? (
-                <SubmitGameModal onClose={() => setSubmitModalOpen(false)} />
-            ) : null}
+            <AnimatePresence>
+                {submitModalOpen ? (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+                        onMouseDown={(event) => {
+                            if (
+                                event.target ===
+                                event.currentTarget
+                            ) {
+                                setSubmitModalOpen(false);
+                            }
+                        }}
+                    >
+                        <motion.div
+                            initial={{
+                                opacity: 0,
+                                y: 18,
+                                scale: 0.985,
+                            }}
+                            animate={{
+                                opacity: 1,
+                                y: 0,
+                                scale: 1,
+                            }}
+                            exit={{
+                                opacity: 0,
+                                y: 12,
+                                scale: 0.99,
+                            }}
+                            transition={{
+                                duration: 0.22,
+                                ease: [0.22, 1, 0.36, 1],
+                            }}
+                            className="w-full max-w-lg overflow-hidden border border-sky-300/15 bg-[#081426]/98 shadow-[0_0_48px_rgba(37,99,235,0.16),0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+                            style={{ borderRadius: 10 }}
+                        >
+                            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
+                                <div className="flex items-start gap-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-400/10 text-sky-300">
+                                        <Gamepad2 className="h-5 w-5" />
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs font-medium uppercase tracking-wide text-sky-300">
+                                            Game Submissions
+                                        </p>
+
+                                        <h2 className="mt-1 text-xl font-semibold text-white">
+                                            Developer account required
+                                        </h2>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setSubmitModalOpen(false)
+                                    }
+                                    className="flex h-9 w-9 cursor-pointer items-center justify-center text-zinc-400 transition hover:text-white"
+                                    aria-label="Close"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            <div className="p-6">
+                                <p className="text-sm leading-7 text-zinc-300">
+                                    Game submissions are available through an FRDA developer account. Creating an account is free, and accepted developers receive three included Game Directory listing slots.
+                                </p>
+
+                                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSubmitModalOpen(false);
+                                            openPublicAccountModal(
+                                                "signup"
+                                            );
+                                        }}
+                                        className="inline-flex cursor-pointer items-center justify-center gap-2 bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
+                                        style={{ borderRadius: 6 }}
+                                    >
+                                        <UserRound className="h-4 w-4" />
+                                        Create Free Account
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSubmitModalOpen(false);
+                                            openPublicAccountModal(
+                                                "login"
+                                            );
+                                        }}
+                                        className="cursor-pointer border border-white/15 bg-white/[0.035] px-5 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.07] hover:text-white"
+                                        style={{ borderRadius: 6 }}
+                                    >
+                                        Log In
+                                    </button>
+                                </div>
+
+                                <p className="mt-5 text-xs leading-5 text-zinc-500">
+                                    Once signed in, submit and manage your games from the member dashboard.
+                                </p>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                ) : null}
+            </AnimatePresence>
         </section>
     );
 }

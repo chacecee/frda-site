@@ -1,4 +1,4 @@
-import Link from "next/link";
+import PublicSiteLink from "@/components/site/PublicSiteLink";
 
 export default function SiteFooter() {
   return (
@@ -17,15 +17,23 @@ export default function SiteFooter() {
             Pages
           </h4>
           <div className="mt-4 flex flex-col gap-3 text-sm text-zinc-400">
-            <Link href="/" className="hover:text-white">
+            <PublicSiteLink href="/" className="hover:text-white">
               Home
-            </Link>
-            <Link href="/about" className="hover:text-white">
+            </PublicSiteLink>
+            <PublicSiteLink href="/about" className="hover:text-white">
               About
-            </Link>
-            <Link href="/contact" className="hover:text-white">
+            </PublicSiteLink>
+
+            <PublicSiteLink
+              href="/developers"
+              className="hover:text-white"
+            >
+              Developers
+            </PublicSiteLink>
+
+            <PublicSiteLink href="/contact" className="hover:text-white">
               Contact
-            </Link>
+            </PublicSiteLink>
           </div>
         </div>
 
@@ -37,12 +45,12 @@ export default function SiteFooter() {
             Apply to become a registered developer and, once approved, be added
             to the FRDA Discord community.
           </p>
-          <Link
+          <PublicSiteLink
             href="/apply"
             className="mt-4 inline-flex rounded-[5px] bg-white/5 px-4 py-2 text-sm text-white ring-1 ring-white/10 transition hover:bg-white/10"
           >
             Open registration
-          </Link>
+          </PublicSiteLink>
         </div>
       </div>
 

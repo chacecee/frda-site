@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UploadCloud } from "lucide-react";
+import {
+    LoaderCircle,
+    UploadCloud,
+} from "lucide-react";
+import { auth } from "@/lib/firebase";
+import { notify } from "@/components/ToastConfig";
 import { logAnalyticsEvent } from "@/lib/analytics";
 import {
     GAME_CONTENT_MATURITY_OPTIONS,
@@ -102,8 +107,12 @@ function FileInput({
 
 export default function SubmitGameForm({
     onSuccess,
+    memberMode = false,
+    defaultCreatorName = "",
 }: {
     onSuccess?: () => void;
+    memberMode?: boolean;
+    defaultCreatorName?: string;
 }) {
     const [formStartedAt, setFormStartedAt] = useState("");
     const [memberId, setMemberId] = useState("");
@@ -111,7 +120,9 @@ export default function SubmitGameForm({
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [robloxUrl, setRobloxUrl] = useState("");
-    const [creatorName, setCreatorName] = useState("");
+    const [creatorName, setCreatorName] = useState(
+        defaultCreatorName
+    );
     const [creatorType, setCreatorType] = useState<"individual" | "group">(
         "individual"
     );
@@ -146,8 +157,13 @@ export default function SubmitGameForm({
     }, [thumbnailFile]);
 
     function validateBeforeSubmit() {
-        if (!memberId.trim()) return "Please enter your FRDA member ID.";
-        if (!contactEmail.trim()) return "Please enter your contact email.";
+        if (!memberMode && !memberId.trim()) {
+            return "Please enter your FRDA member ID.";
+        }
+
+        if (!memberMode && !contactEmail.trim()) {
+            return "Please enter your contact email.";
+        }
         if (!title.trim()) return "Please enter your game title.";
         if (!creatorName.trim()) return "Please enter the developer or group name.";
         if (!description.trim()) return "Please enter a short game description.";
@@ -188,8 +204,10 @@ export default function SubmitGameForm({
             body.set("formStartedAt", formStartedAt);
             body.set("companyWebsite", companyWebsite);
 
-            body.set("memberId", memberId);
-            body.set("contactEmail", contactEmail);
+            if (!memberMode) {
+                body.set("memberId", memberId);
+                body.set("contactEmail", contactEmail);
+            }
             body.set("title", title);
             body.set("description", description);
             body.set("robloxUrl", robloxUrl);
@@ -202,8 +220,27 @@ export default function SubmitGameForm({
                 body.set("thumbnail", thumbnailFile);
             }
 
+            const headers: HeadersInit = {};
+
+            if (memberMode) {
+                const currentUser = auth.currentUser;
+
+                if (!currentUser) {
+                    throw new Error(
+                        "Your session has expired. Please sign in again."
+                    );
+                }
+
+                const idToken =
+                    await currentUser.getIdToken();
+
+                headers.Authorization =
+                    `Bearer ${idToken}`;
+            }
+
             const response = await fetch("/api/games/submit", {
                 method: "POST",
+                headers,
                 body,
             });
 
@@ -225,14 +262,19 @@ export default function SubmitGameForm({
             });
 
             setSubmitState("success");
+            notify.success(
+                "Your game was submitted for FRDA review."
+            );
             onSuccess?.();
         } catch (error) {
             console.error("Submit game error:", error);
-            setErrorMsg(
+            const message =
                 error instanceof Error
                     ? error.message
-                    : "Could not submit your game. Please try again."
-            );
+                    : "Could not submit your game. Please try again.";
+
+            setErrorMsg(message);
+            notify.error(message);
             setSubmitState("idle");
         }
     }
@@ -265,16 +307,22 @@ export default function SubmitGameForm({
         <form onSubmit={handleSubmit} className="space-y-6">
 
             <p className="text-sm leading-7 text-zinc-400">
-                Game submissions are currently open to accepted FRDA developers aged 18
-                and above. Please use the FRDA Member ID and email address from your
-                approval email. If you are not registered yet, please{" "}
-                <a
-                    href="/apply"
-                    className="font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200"
-                >
-                    apply as a developer first
-                </a>
-                .
+                {memberMode
+                    ? "Submit a Roblox experience for FRDA review. Your member identity is linked automatically through your signed-in account."
+                    : (
+                        <>
+                            Game submissions are currently open to accepted FRDA developers aged 18
+                            and above. Please use the FRDA Member ID and email address from your
+                            approval email. If you are not registered yet, please{" "}
+                            <a
+                                href="/apply"
+                                className="font-medium text-blue-300 underline underline-offset-4 hover:text-blue-200"
+                            >
+                                apply as a developer first
+                            </a>
+                            .
+                        </>
+                    )}
             </p>
             <input
                 type="text"
@@ -296,6 +344,7 @@ export default function SubmitGameForm({
                 </div>
             ) : null}
 
+            {!memberMode ? (
             <div
                 className="border border-zinc-800 bg-zinc-950/35 p-5"
                 style={{ borderRadius: 8 }}
@@ -333,6 +382,8 @@ export default function SubmitGameForm({
                     </div>
                 </div>
             </div>
+
+            ) : null}
 
             <div
                 className="border border-zinc-800 bg-zinc-950/35 p-5"
@@ -484,7 +535,14 @@ export default function SubmitGameForm({
                         className="inline-flex w-full cursor-pointer items-center justify-center border border-blue-400/50 bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_26px_rgba(37,99,235,0.22)] transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
                         style={{ borderRadius: 5 }}
                     >
-                        {submitState === "submitting" ? "Submitting..." : "Submit Game for Review"}
+                        {submitState === "submitting" ? (
+                            <span className="inline-flex items-center gap-2">
+                                <LoaderCircle className="h-4 w-4 animate-spin" />
+                                Submitting...
+                            </span>
+                        ) : (
+                            "Submit Game for Review"
+                        )}
                     </button>
                 </div>
             </div>

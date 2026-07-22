@@ -2,6 +2,10 @@ export type StaffRole = "Admin" | "Moderator" | "Reviewer" | "Staff";
 
 export type AdminSidebarActive =
   | "applications"
+  | "membership_developer_accounts"
+  | "membership_talent_seeker_accounts"
+  | "membership_connection_requests"
+  | "membership_invitations"
   | "staff"
   | "admin_tools"
   | "admin_reassign_applications"
@@ -20,6 +24,12 @@ export type AdminSidebarActive =
 
 export type ApplicationsTabKey = "applications_developers";
 
+export type MembershipTabKey =
+  | "membership_developer_accounts"
+  | "membership_talent_seeker_accounts"
+  | "membership_connection_requests"
+  | "membership_invitations";
+
 export type AdminTabKey = "admin_community_survey";
 
 export type ContentTabKey =
@@ -37,6 +47,7 @@ export type AnalyticsTabKey =
 
 export type SidebarPermissionKey =
   | ApplicationsTabKey
+  | MembershipTabKey
   | AdminTabKey
   | ContentTabKey
   | AnalyticsTabKey;
@@ -78,6 +89,41 @@ export function canViewApplicationsSection(
     staffId,
     permissionMap,
     "applications_developers"
+  );
+}
+
+export function canViewMembershipSection(
+  role: string | null | undefined,
+  staffId: string | null | undefined,
+  permissionMap: SidebarPermissionMap | null | undefined
+): boolean {
+  if (isAdminRole(role)) return true;
+
+  return (
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "membership_developer_accounts"
+    ) ||
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "membership_talent_seeker_accounts"
+    ) ||
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "membership_connection_requests"
+    ) ||
+    canViewSidebarTab(
+      role,
+      staffId,
+      permissionMap,
+      "membership_invitations"
+    )
   );
 }
 
@@ -172,6 +218,58 @@ export function canManageApplications(
     staffId,
     permissionMap,
     "applications_developers"
+  );
+}
+
+export function canManageDeveloperAccounts(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "membership_developer_accounts"
+  );
+}
+
+export function canManageTalentSeekerAccounts(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "membership_talent_seeker_accounts"
+  );
+}
+
+export function canManageConnectionRequests(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "membership_connection_requests"
+  );
+}
+
+export function canManageMembershipInvitations(
+  role: string | null | undefined,
+  staffId?: string | null,
+  permissionMap?: SidebarPermissionMap | null
+): boolean {
+  return canViewSidebarTab(
+    role,
+    staffId,
+    permissionMap,
+    "membership_invitations"
   );
 }
 

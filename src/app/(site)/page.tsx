@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Users, ShieldCheck, Briefcase } from "lucide-react";
 import FeaturedWorkShowcase from "@/components/site/FeaturedWorkShowcase";
 import HomepageAnnouncement from "@/components/site/HomepageAnnouncement";
+import OpenAccountModalButton from "@/components/site/OpenAccountModalButton";
 
 const featuredCreations = [
     {
@@ -97,12 +98,13 @@ export default function HomePage() {
                     </p>
 
                     <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-                        <Link
-                            href="/apply"
-                            className="rounded-[5px] border border-blue-400/30 bg-blue-500 px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-white shadow-[0_0_20px_rgba(37,99,235,0.18)] transition hover:bg-blue-400"
+                        <OpenAccountModalButton
+                            tab="signup"
+                            accountPurpose="developer"
+                            className="cursor-pointer rounded-[5px] border border-blue-400/30 bg-blue-500 px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-white shadow-[0_0_20px_rgba(37,99,235,0.18)] transition hover:bg-blue-400"
                         >
-                            Register as Developer
-                        </Link>
+                            Create a Free Account
+                        </OpenAccountModalButton>
 
                         <Link
                             href="/about"

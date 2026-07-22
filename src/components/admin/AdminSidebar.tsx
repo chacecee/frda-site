@@ -203,7 +203,16 @@ export default function AdminSidebar({
   const [profileError, setProfileError] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
-  const [applicationsOpen, setApplicationsOpen] = useState(active === "applications");
+  const [applicationsOpen, setApplicationsOpen] = useState(
+    active === "applications"
+  );
+
+  const [membershipOpen, setMembershipOpen] = useState(
+    active === "membership_developer_accounts" ||
+    active === "membership_talent_seeker_accounts" ||
+    active === "membership_connection_requests" ||
+    active === "membership_invitations"
+  );
 
   const [contentOpen, setContentOpen] = useState(
     active === "content_featured_games" ||
@@ -245,6 +254,11 @@ export default function AdminSidebar({
   const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [permissionsSaving, setPermissionsSaving] = useState(false);
   const [permissionsError, setPermissionsError] = useState("");
+
+  const [
+    unreadConnectionRequests,
+    setUnreadConnectionRequests,
+  ] = useState(0);
 
   const signedInEmail = normalizeEmail(user?.email || email);
 
@@ -335,8 +349,106 @@ export default function AdminSidebar({
   }, []);
 
   useEffect(() => {
+    if (
+      !user ||
+      !canViewSidebarTab(
+        staffProfile?.role,
+        staffProfile?.id,
+        permissionMap,
+        "membership_connection_requests"
+      )
+    ) {
+      setUnreadConnectionRequests(0);
+      return;
+    }
+
+    const currentUser = user;
+    let cancelled = false;
+
+    async function loadUnreadRequests() {
+      try {
+        const idToken =
+          await currentUser.getIdToken();
+
+        const response = await fetch(
+          "/api/admin/membership/connection-requests",
+          {
+            headers: {
+              Authorization:
+                `Bearer ${idToken}`,
+            },
+            cache: "no-store",
+          },
+        );
+
+        const result =
+          await response
+            .json()
+            .catch(() => null);
+
+        if (
+          response.ok &&
+          result?.ok &&
+          !cancelled
+        ) {
+          setUnreadConnectionRequests(
+            Number(
+              result.unreadCount || 0,
+            ),
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Load connection request badge error:",
+          error,
+        );
+      }
+    }
+
+    function handleViewed() {
+      loadUnreadRequests();
+    }
+
+    loadUnreadRequests();
+
+    const interval =
+      window.setInterval(
+        loadUnreadRequests,
+        60000,
+      );
+
+    window.addEventListener(
+      "frda-admin-connection-request-viewed",
+      handleViewed,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener(
+        "frda-admin-connection-request-viewed",
+        handleViewed,
+      );
+    };
+  }, [
+    user,
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+  ]);
+
+  useEffect(() => {
     if (active === "applications") {
       setApplicationsOpen(true);
+    }
+
+    if (
+      active === "membership_developer_accounts" ||
+      active === "membership_talent_seeker_accounts" ||
+      active === "membership_connection_requests" ||
+      active === "membership_invitations"
+    ) {
+      setMembershipOpen(true);
     }
 
     if (
@@ -428,6 +540,41 @@ export default function AdminSidebar({
     staffProfile?.id,
     permissionMap
   );
+
+  const canSeeMembershipDeveloperAccounts = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "membership_developer_accounts"
+  );
+
+  const canSeeMembershipTalentSeekerAccounts = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "membership_talent_seeker_accounts"
+  );
+
+  const canSeeMembershipConnectionRequests = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "membership_connection_requests"
+  );
+
+  const canSeeMembershipInvitations = canViewSidebarTab(
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+    "membership_invitations"
+  );
+
+  const hasMembershipAccess =
+    isAdmin ||
+    canSeeMembershipDeveloperAccounts ||
+    canSeeMembershipTalentSeekerAccounts ||
+    canSeeMembershipConnectionRequests ||
+    canSeeMembershipInvitations;
 
   const hasContentAccess = canViewContentSection(
     staffProfile?.role,
@@ -689,6 +836,211 @@ export default function AdminSidebar({
               ) : null}
             </>
           ) : null}
+
+          {hasMembershipAccess ? (
+            <>
+              <SidebarSectionToggle
+                label="Membership"
+                icon={<Users size={18} strokeWidth={1.3} />}
+                active={
+                  active === "membership_developer_accounts" ||
+                  active === "membership_talent_seeker_accounts" ||
+                  active === "membership_connection_requests" ||
+                  active === "membership_invitations"
+                }
+                open={membershipOpen}
+                onClick={() =>
+                  setMembershipOpen((previous) => !previous)
+                }
+              />
+
+              {membershipOpen ? (
+                <div className="bg-zinc-950/25">
+                  {canSeeMembershipDeveloperAccounts ? (
+                    <SidebarLink
+                      label="Developer Accounts"
+                      icon={
+                        <Users
+                          size={16}
+                          strokeWidth={1.3}
+                        />
+                      }
+                      active={
+                        active ===
+                        "membership_developer_accounts"
+                      }
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate(
+                          "/admin/membership/developers"
+                        );
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+
+                              openPermissionsModal(
+                                "membership_developer_accounts",
+                                "Membership — Developer Accounts"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+
+                  {canSeeMembershipTalentSeekerAccounts ? (
+                    <SidebarLink
+                      label="Talent Seeker Accounts"
+                      icon={
+                        <Users
+                          size={16}
+                          strokeWidth={1.3}
+                        />
+                      }
+                      active={
+                        active ===
+                        "membership_talent_seeker_accounts"
+                      }
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate(
+                          "/admin/membership/talent-seekers"
+                        );
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+
+                              openPermissionsModal(
+                                "membership_talent_seeker_accounts",
+                                "Membership — Talent Seeker Accounts"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+
+                  {canSeeMembershipConnectionRequests ? (
+                    <SidebarLink
+                      label="Connection Requests"
+                      icon={
+                        <ClipboardList
+                          size={16}
+                          strokeWidth={1.3}
+                        />
+                      }
+                      active={
+                        active ===
+                        "membership_connection_requests"
+                      }
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate(
+                          "/admin/membership/connection-requests"
+                        );
+                      }}
+                      rightSlot={
+                        <div className="flex items-center gap-1">
+                          {unreadConnectionRequests > 0 ? (
+                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-300 px-1 text-[10px] font-bold text-slate-950 shadow-[0_0_12px_rgba(125,211,252,0.7)]">
+                              {unreadConnectionRequests > 99
+                                ? "99+"
+                                : unreadConnectionRequests}
+                            </span>
+                          ) : null}
+
+                          {isAdmin ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+
+                                openPermissionsModal(
+                                  "membership_connection_requests",
+                                  "Membership — Connection Requests"
+                                );
+                              }}
+                              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                              title="Permissions"
+                              aria-label="Permissions"
+                            >
+                              <Settings2 size={14} />
+                            </button>
+                          ) : null}
+                        </div>
+                      }
+                    />
+                  ) : null}
+
+                  {canSeeMembershipInvitations ? (
+                    <SidebarLink
+                      label="Membership Invitations"
+                      icon={
+                        <FileCheck
+                          size={16}
+                          strokeWidth={1.3}
+                        />
+                      }
+                      active={
+                        active === "membership_invitations"
+                      }
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate(
+                          "/admin/membership/invitations"
+                        );
+                      }}
+                      rightSlot={
+                        isAdmin ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+
+                              openPermissionsModal(
+                                "membership_invitations",
+                                "Membership — Invitations"
+                              );
+                            }}
+                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
+                            title="Permissions"
+                            aria-label="Permissions"
+                          >
+                            <Settings2 size={14} />
+                          </button>
+                        ) : null
+                      }
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
 
           <SidebarLink
             label="Staff"

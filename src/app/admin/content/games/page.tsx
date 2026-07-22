@@ -805,17 +805,48 @@ export default function AdminGamesPage() {
                 updatedAt: serverTimestamp(),
             };
 
+            await updateDoc(
+                doc(
+                    db,
+                    "gameDirectory",
+                    editingGame.id
+                ),
+                updatePayload
+            );
+
             if (nextStatus) {
-                updatePayload.status = nextStatus;
-                updatePayload.isHiddenFromPublic = nextStatus !== "published";
+                const idToken =
+                    await user.getIdToken();
 
-                updatePayload.reviewedByUid = user.uid;
-                updatePayload.reviewedByName = displayName;
-                updatePayload.reviewedByEmail = user.email || "";
-                updatePayload.reviewedAt = serverTimestamp();
+                const response = await fetch(
+                    "/api/admin/games/status",
+                    {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                            Authorization:
+                                `Bearer ${idToken}`,
+                        },
+                        body: JSON.stringify({
+                            gameId:
+                                editingGame.id,
+                            nextStatus,
+                        }),
+                    }
+                );
+
+                const result = await response
+                    .json()
+                    .catch(() => null);
+
+                if (!response.ok || !result?.ok) {
+                    throw new Error(
+                        result?.error ||
+                        "The game details were saved, but its review status could not be updated."
+                    );
+                }
             }
-
-            await updateDoc(doc(db, "gameDirectory", editingGame.id), updatePayload);
 
             closeAddModal();
         } catch (error) {
@@ -837,20 +868,43 @@ export default function AdminGamesPage() {
         setUpdatingGameId(game.id);
 
         try {
-            await updateDoc(doc(db, "gameDirectory", game.id), {
-                status: nextStatus,
-                isHiddenFromPublic: nextStatus !== "published" ? true : false,
+            const idToken =
+                await user.getIdToken();
 
-                reviewedByUid: user.uid,
-                reviewedByName: displayName,
-                reviewedByEmail: user.email || "",
-                reviewedAt: serverTimestamp(),
+            const response = await fetch(
+                "/api/admin/games/status",
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                        Authorization:
+                            `Bearer ${idToken}`,
+                    },
+                    body: JSON.stringify({
+                        gameId: game.id,
+                        nextStatus,
+                    }),
+                }
+            );
 
-                updatedAt: serverTimestamp(),
-            });
+            const result = await response
+                .json()
+                .catch(() => null);
+
+            if (!response.ok || !result?.ok) {
+                throw new Error(
+                    result?.error ||
+                    "Could not update this game."
+                );
+            }
         } catch (error) {
             console.error("Error updating game status:", error);
-            alert("Could not update this game.");
+            alert(
+                error instanceof Error
+                    ? error.message
+                    : "Could not update this game."
+            );
         } finally {
             setUpdatingGameId(null);
         }
