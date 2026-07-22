@@ -51,45 +51,80 @@ const RESERVED_SUBDOMAINS = new Set([
   "localhost",
 ]);
 
-function getHostname(request: NextRequest): string {
-  const directHost =
-    request.headers.get("host") || "";
-
-  const forwardedHost =
-    request.headers.get("x-forwarded-host") || "";
-
-  const host =
-    directHost || forwardedHost;
-
-  return host
+function normalizeHostname(
+  value: string,
+): string {
+  return value
     .split(",")[0]
     .trim()
     .split(":")[0]
     .toLowerCase();
 }
 
+function getHostname(
+  request: NextRequest,
+): string {
+  const workerOriginalHost =
+    request.headers.get(
+      "x-frda-original-host",
+    ) || "";
+
+  if (workerOriginalHost) {
+    return normalizeHostname(
+      workerOriginalHost,
+    );
+  }
+
+  const forwardedHost =
+    request.headers.get(
+      "x-forwarded-host",
+    ) || "";
+
+  if (forwardedHost) {
+    return normalizeHostname(
+      forwardedHost,
+    );
+  }
+
+  const directHost =
+    request.headers.get("host") ||
+    "";
+
+  return normalizeHostname(
+    directHost,
+  );
+}
+
 function getDeveloperSubdomain(
-  hostname: string
+  hostname: string,
 ): string {
   if (!hostname) return "";
 
   if (
     hostname === MAIN_DOMAIN ||
-    hostname === `www.${MAIN_DOMAIN}`
+    hostname ===
+      `www.${MAIN_DOMAIN}`
   ) {
     return "";
   }
 
-  if (hostname.endsWith(`.${MAIN_DOMAIN}`)) {
-    const subdomain = hostname.slice(
-      0,
-      -`.${MAIN_DOMAIN}`.length
-    );
+  if (
+    hostname.endsWith(
+      `.${MAIN_DOMAIN}`,
+    )
+  ) {
+    const subdomain =
+      hostname.slice(
+        0,
+        -`.${MAIN_DOMAIN}`.length,
+      );
 
     if (
       !subdomain ||
       subdomain.includes(".") ||
-      RESERVED_SUBDOMAINS.has(subdomain)
+      RESERVED_SUBDOMAINS.has(
+        subdomain,
+      )
     ) {
       return "";
     }
@@ -97,16 +132,23 @@ function getDeveloperSubdomain(
     return subdomain;
   }
 
-  if (hostname.endsWith(".localhost")) {
-    const subdomain = hostname.slice(
-      0,
-      -".localhost".length
-    );
+  if (
+    hostname.endsWith(
+      ".localhost",
+    )
+  ) {
+    const subdomain =
+      hostname.slice(
+        0,
+        -".localhost".length,
+      );
 
     if (
       !subdomain ||
       subdomain.includes(".") ||
-      RESERVED_SUBDOMAINS.has(subdomain)
+      RESERVED_SUBDOMAINS.has(
+        subdomain,
+      )
     ) {
       return "";
     }
@@ -118,37 +160,50 @@ function getDeveloperSubdomain(
 }
 
 export function proxy(
-  request: NextRequest
+  request: NextRequest,
 ) {
-  const hostname = getHostname(request);
-  const pathname = request.nextUrl.pathname;
+  const hostname =
+    getHostname(request);
+
+  const pathname =
+    request.nextUrl.pathname;
 
   if (
-    hostname === `portal.${MAIN_DOMAIN}` &&
+    hostname ===
+      `portal.${MAIN_DOMAIN}` &&
     pathname === "/"
   ) {
-    const url = request.nextUrl.clone();
+    const url =
+      request.nextUrl.clone();
 
-    url.pathname = "/admin/login";
+    url.pathname =
+      "/admin/login";
 
-    return NextResponse.rewrite(url);
+    return NextResponse.rewrite(
+      url,
+    );
   }
 
   const developerSubdomain =
-    getDeveloperSubdomain(hostname);
+    getDeveloperSubdomain(
+      hostname,
+    );
 
   if (
     developerSubdomain &&
     pathname === "/"
   ) {
-    const url = request.nextUrl.clone();
+    const url =
+      request.nextUrl.clone();
 
     url.pathname =
       `/developers/${encodeURIComponent(
-        developerSubdomain
+        developerSubdomain,
       )}`;
 
-    return NextResponse.rewrite(url);
+    return NextResponse.rewrite(
+      url,
+    );
   }
 
   return NextResponse.next();
