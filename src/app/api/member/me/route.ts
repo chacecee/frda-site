@@ -137,6 +137,12 @@ export async function GET(
           listingsPendingReview,
       );
 
+    const analyticsAccess =
+      memberData.analyticsAccess === "pro" ||
+      memberData.analyticsAccess === "disabled"
+        ? memberData.analyticsAccess
+        : "basic";
+
     return NextResponse.json({
       ok: true,
       member: {
@@ -154,6 +160,7 @@ export async function GET(
           member.profileStatus,
 
         avatarUrl,
+        analyticsAccess,
 
         talentSeekerStatus:
           member.talentSeekerStatus,

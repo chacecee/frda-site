@@ -8,6 +8,10 @@ import {
 } from "firebase-admin/firestore";
 
 import { adminDb } from "@/lib/firebaseAdmin";
+import {
+    GAME_GENRE_OPTIONS,
+    type GameDirectoryGenre,
+} from "@/lib/gameDirectory";
 
 export const runtime = "nodejs";
 
@@ -120,6 +124,49 @@ function sanitizePublicYoutubeUrl(
         return `https://www.youtube.com/watch?v=${videoId}`;
     } catch {
         return "";
+    }
+}
+
+function getGenreExperience(
+    value: unknown
+): GameDirectoryGenre[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    const allowedGenres =
+        new Set<GameDirectoryGenre>(
+            GAME_GENRE_OPTIONS.map(
+                (option) =>
+                    option.value
+            )
+        );
+
+    return Array.from(
+        new Set(
+            value.filter(
+                (item): item is GameDirectoryGenre =>
+                    typeof item === "string" &&
+                    allowedGenres.has(
+                        item as GameDirectoryGenre
+                    )
+            )
+        )
+    ).slice(0, 12);
+}
+
+function getDeliveryScopeLabel(
+    value: unknown
+): string {
+    switch (String(value || "")) {
+        case "full_team":
+            return "Full development team";
+        case "solo_full_project":
+            return "Solo full-project developer";
+        case "specialist":
+            return "Specialist";
+        default:
+            return "";
     }
 }
 
@@ -672,6 +719,21 @@ export async function GET(
             }
         }
 
+        const savesSnapshot =
+            await adminDb
+                .collection(
+                    "developerSaves"
+                )
+                .where(
+                    "developerUid",
+                    "==",
+                    document.id
+                )
+                .get();
+
+        const saveCount =
+            savesSnapshot.size;
+
         const skills =
             Array.isArray(
                 profile.skills
@@ -719,6 +781,11 @@ export async function GET(
 
                 skills,
 
+                genreExperience:
+                    getGenreExperience(
+                        profile.genreExperience
+                    ),
+
                 availability:
                     String(
                         profile.availability ||
@@ -728,6 +795,17 @@ export async function GET(
                 availabilityLabel:
                     getAvailabilityLabel(
                         profile.availability
+                    ),
+
+                deliveryScope:
+                    String(
+                        profile.deliveryScope ||
+                        ""
+                    ),
+
+                deliveryScopeLabel:
+                    getDeliveryScopeLabel(
+                        profile.deliveryScope
                     ),
 
                 portfolioUrl:
@@ -768,6 +846,8 @@ export async function GET(
                 isFeatured:
                     profile.isFeatured ===
                     true,
+
+                saveCount,
             },
         });
     } catch (error) {

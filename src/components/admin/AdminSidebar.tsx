@@ -29,6 +29,7 @@ import {
   BarChart3,
   Gamepad2,
   CalendarClock,
+  TriangleAlert,
 } from "lucide-react";
 import { usePresence } from "@/lib/usePresence";
 import {
@@ -45,7 +46,9 @@ import {
 } from "@/lib/adminPermissions";
 
 type AdminSidebarProps = {
-  active: AdminSidebarActive;
+  active:
+    | AdminSidebarActive
+    | "membership_profile_reports";
   sidebarOpen: boolean;
   onCloseSidebar: () => void;
   onNavigate: (path: string) => void;
@@ -211,7 +214,8 @@ export default function AdminSidebar({
     active === "membership_developer_accounts" ||
     active === "membership_talent_seeker_accounts" ||
     active === "membership_connection_requests" ||
-    active === "membership_invitations"
+    active === "membership_invitations" ||
+    active === "membership_profile_reports"
   );
 
   const [contentOpen, setContentOpen] = useState(
@@ -258,6 +262,11 @@ export default function AdminSidebar({
   const [
     unreadConnectionRequests,
     setUnreadConnectionRequests,
+  ] = useState(0);
+
+  const [
+    openProfileReports,
+    setOpenProfileReports,
   ] = useState(0);
 
   const signedInEmail = normalizeEmail(user?.email || email);
@@ -438,6 +447,94 @@ export default function AdminSidebar({
   ]);
 
   useEffect(() => {
+    if (
+      !user ||
+      !canViewSidebarTab(
+        staffProfile?.role,
+        staffProfile?.id,
+        permissionMap,
+        "membership_developer_accounts"
+      )
+    ) {
+      setOpenProfileReports(0);
+      return;
+    }
+
+    const currentUser = user;
+    let cancelled = false;
+
+    async function loadOpenProfileReports() {
+      try {
+        const idToken =
+          await currentUser.getIdToken();
+
+        const response = await fetch(
+          "/api/admin/membership/profile-reports",
+          {
+            headers: {
+              Authorization:
+                `Bearer ${idToken}`,
+            },
+            cache: "no-store",
+          },
+        );
+
+        const result = await response
+          .json()
+          .catch(() => null);
+
+        if (
+          response.ok &&
+          result?.ok &&
+          !cancelled
+        ) {
+          setOpenProfileReports(
+            Number(
+              result.openCount || 0,
+            ),
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Load profile report badge error:",
+          error,
+        );
+      }
+    }
+
+    function handleReportsChanged() {
+      loadOpenProfileReports();
+    }
+
+    loadOpenProfileReports();
+
+    const interval =
+      window.setInterval(
+        loadOpenProfileReports,
+        60000,
+      );
+
+    window.addEventListener(
+      "frda-admin-profile-reports-changed",
+      handleReportsChanged,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener(
+        "frda-admin-profile-reports-changed",
+        handleReportsChanged,
+      );
+    };
+  }, [
+    user,
+    staffProfile?.role,
+    staffProfile?.id,
+    permissionMap,
+  ]);
+
+  useEffect(() => {
     if (active === "applications") {
       setApplicationsOpen(true);
     }
@@ -446,7 +543,8 @@ export default function AdminSidebar({
       active === "membership_developer_accounts" ||
       active === "membership_talent_seeker_accounts" ||
       active === "membership_connection_requests" ||
-      active === "membership_invitations"
+      active === "membership_invitations" ||
+      active === "membership_profile_reports"
     ) {
       setMembershipOpen(true);
     }
@@ -846,7 +944,8 @@ export default function AdminSidebar({
                   active === "membership_developer_accounts" ||
                   active === "membership_talent_seeker_accounts" ||
                   active === "membership_connection_requests" ||
-                  active === "membership_invitations"
+                  active === "membership_invitations" ||
+                  active === "membership_profile_reports"
                 }
                 open={membershipOpen}
                 onClick={() =>
@@ -895,6 +994,40 @@ export default function AdminSidebar({
                             <Settings2 size={14} />
                           </button>
                         ) : null
+                      }
+                    />
+                  ) : null}
+
+                  {canSeeMembershipDeveloperAccounts ? (
+                    <SidebarLink
+                      label="Profile Reports"
+                      icon={
+                        <TriangleAlert
+                          size={16}
+                          strokeWidth={1.3}
+                        />
+                      }
+                      active={
+                        active ===
+                        "membership_profile_reports"
+                      }
+                      className="pl-6"
+                      onClick={() => {
+                        onCloseSidebar();
+                        onNavigate(
+                          "/admin/membership/profile-reports"
+                        );
+                      }}
+                      rightSlot={
+                        <div className="flex items-center gap-1">
+                          {openProfileReports > 0 ? (
+                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-300 px-1 text-[10px] font-bold text-slate-950 shadow-[0_0_12px_rgba(252,211,77,0.55)]">
+                              {openProfileReports > 99
+                                ? "99+"
+                                : openProfileReports}
+                            </span>
+                          ) : null}
+                        </div>
                       }
                     />
                   ) : null}

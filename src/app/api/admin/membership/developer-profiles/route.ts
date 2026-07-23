@@ -28,6 +28,23 @@ function timestampToIso(value: unknown): string | null {
   return null;
 }
 
+function normalizeExperienceTier(value: unknown): string {
+  return value === "aspiring" ||
+    value === "emerging" ||
+    value === "established" ||
+    value === "experienced"
+    ? value
+    : "";
+}
+
+function normalizeDeliveryScope(value: unknown): string {
+  return value === "full_team" ||
+    value === "solo_full_project" ||
+    value === "specialist"
+    ? value
+    : "";
+}
+
 function normalizeAccountPurpose(value: unknown): string {
   return String(value || "").trim().toLowerCase();
 }
@@ -42,10 +59,14 @@ function serializeDeveloperAccount({
   memberId,
   member,
   profile,
+  analytics,
+  bookmarkCount,
 }: {
   memberId: string;
   member: FirebaseFirestore.DocumentData;
   profile: FirebaseFirestore.DocumentData | null;
+  analytics?: FirebaseFirestore.DocumentData | null;
+  bookmarkCount?: number;
 }) {
   return {
     uid: String(member.authUid || profile?.uid || ""),
@@ -105,6 +126,19 @@ function serializeDeveloperAccount({
       profile?.availability || ""
     ),
 
+    experienceTier:
+      normalizeExperienceTier(
+        profile?.experienceTier
+      ),
+
+    experienceTierIsSelfDeclared:
+      profile?.experienceTierIsSelfDeclared === true,
+
+    deliveryScope:
+      normalizeDeliveryScope(
+        profile?.deliveryScope
+      ),
+
     robloxProfileUrl: String(
       profile?.robloxProfileUrl || ""
     ),
@@ -156,6 +190,41 @@ function serializeDeveloperAccount({
     publicationReviewerNote: String(
       profile?.publicationReviewerNote || ""
     ),
+
+    profileViews:
+      typeof analytics?.profileViews === "number"
+        ? analytics.profileViews
+        : 0,
+
+    uniqueProfileViews:
+      typeof analytics?.uniqueProfileViews === "number"
+        ? analytics.uniqueProfileViews
+        : 0,
+
+    bookmarkCount:
+      typeof bookmarkCount === "number"
+        ? bookmarkCount
+        : 0,
+
+    contactClicks:
+      typeof analytics?.contactClicks === "number"
+        ? analytics.contactClicks
+        : 0,
+
+    projectViews:
+      typeof analytics?.projectViews === "number"
+        ? analytics.projectViews
+        : 0,
+
+    projectLinkClicks:
+      typeof analytics?.projectLinkClicks === "number"
+        ? analytics.projectLinkClicks
+        : 0,
+
+    portfolioClicks:
+      typeof analytics?.portfolioClicks === "number"
+        ? analytics.portfolioClicks
+        : 0,
   };
 }
 
@@ -198,11 +267,17 @@ function createProfileSlug({
 }
 
 async function loadDeveloperAccounts() {
-  const [membersSnapshot, profilesSnapshot] =
-    await Promise.all([
-      adminDb.collection("members").get(),
-      adminDb.collection("developerProfiles").get(),
-    ]);
+  const [
+    membersSnapshot,
+    profilesSnapshot,
+    analyticsSnapshot,
+    savesSnapshot,
+  ] = await Promise.all([
+    adminDb.collection("members").get(),
+    adminDb.collection("developerProfiles").get(),
+    adminDb.collection("developerAnalytics").get(),
+    adminDb.collection("developerSaves").get(),
+  ]);
 
   const profileByUid = new Map<
     string,
@@ -212,6 +287,47 @@ async function loadDeveloperAccounts() {
   profilesSnapshot.docs.forEach((document) => {
     profileByUid.set(document.id, document.data());
   });
+
+  const analyticsByUid =
+    new Map<
+      string,
+      FirebaseFirestore.DocumentData
+    >();
+
+  analyticsSnapshot.docs.forEach(
+    (document) => {
+      analyticsByUid.set(
+        document.id,
+        document.data(),
+      );
+    },
+  );
+
+  const bookmarkCountByUid =
+    new Map<string, number>();
+
+  savesSnapshot.docs.forEach(
+    (document) => {
+      const developerUid =
+        String(
+          document.data().developerUid ||
+          "",
+        );
+
+      if (!developerUid) {
+        return;
+      }
+
+      bookmarkCountByUid.set(
+        developerUid,
+        (
+          bookmarkCountByUid.get(
+            developerUid,
+          ) || 0
+        ) + 1,
+      );
+    },
+  );
 
   const accounts = membersSnapshot.docs
     .filter((document) =>
@@ -235,6 +351,14 @@ async function loadDeveloperAccounts() {
         memberId: document.id,
         member,
         profile,
+        analytics:
+          authUid
+            ? analyticsByUid.get(authUid) || null
+            : null,
+        bookmarkCount:
+          authUid
+            ? bookmarkCountByUid.get(authUid) || 0
+            : 0,
       });
     });
 
@@ -627,11 +751,23 @@ export async function PATCH(
       }
     );
 
-    const updatedMemberSnapshot =
-      await memberReference.get();
-
-    const updatedProfileSnapshot =
-      await profileReference.get();
+    const [
+      updatedMemberSnapshot,
+      updatedProfileSnapshot,
+      updatedAnalyticsSnapshot,
+      updatedSavesSnapshot,
+    ] = await Promise.all([
+      memberReference.get(),
+      profileReference.get(),
+      adminDb
+        .collection("developerAnalytics")
+        .doc(uid)
+        .get(),
+      adminDb
+        .collection("developerSaves")
+        .where("developerUid", "==", uid)
+        .get(),
+    ]);
 
     return NextResponse.json({
       ok: true,
@@ -642,6 +778,10 @@ export async function PATCH(
           updatedMemberSnapshot.data() || {},
         profile:
           updatedProfileSnapshot.data() || {},
+        analytics:
+          updatedAnalyticsSnapshot.data() || null,
+        bookmarkCount:
+          updatedSavesSnapshot.size,
       }),
 
       message:

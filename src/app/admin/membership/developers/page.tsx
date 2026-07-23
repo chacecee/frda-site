@@ -8,6 +8,14 @@ import { useAuthUser } from "@/lib/useAuthUser";
 import { setPresenceOffline } from "@/lib/usePresence";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { notify } from "@/components/ToastConfig";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Bookmark,
+  Eye,
+  MessagesSquare,
+} from "lucide-react";
 
 type ProfileStatus =
   | "not_started"
@@ -16,6 +24,18 @@ type ProfileStatus =
   | "changes_requested"
   | "live"
   | "hidden";
+
+type SortKey =
+  | "name"
+  | "views"
+  | "bookmarks"
+  | "contacts"
+  | "updated"
+  | "joined";
+
+type SortDirection =
+  | "asc"
+  | "desc";
 
 type DeveloperAccount = {
   uid: string;
@@ -34,6 +54,9 @@ type DeveloperAccount = {
   avatarUrl: string;
   skills: string[];
   availability: string;
+  experienceTier: string;
+  experienceTierIsSelfDeclared: boolean;
+  deliveryScope: string;
 
   robloxProfileUrl: string;
   portfolioUrl: string;
@@ -52,6 +75,14 @@ type DeveloperAccount = {
   publicationReviewedAt: string | null;
   publicationReviewedByName: string;
   publicationReviewerNote: string;
+
+  profileViews: number;
+  uniqueProfileViews: number;
+  bookmarkCount: number;
+  contactClicks: number;
+  projectViews: number;
+  projectLinkClicks: number;
+  portfolioClicks: number;
 };
 
 function formatDate(
@@ -122,6 +153,25 @@ function getStatusClass(
   }
 }
 
+function getExperienceTierLabel(value: string): string {
+  switch (value) {
+    case "aspiring": return "Aspiring";
+    case "emerging": return "Emerging";
+    case "established": return "Established";
+    case "experienced": return "Experienced";
+    default: return "Not selected";
+  }
+}
+
+function getDeliveryScopeLabel(value: string): string {
+  switch (value) {
+    case "full_team": return "Full Team";
+    case "solo_full_project": return "Solo Full Project";
+    case "specialist": return "Specialist";
+    default: return "Not selected";
+  }
+}
+
 function getAvailabilityLabel(
   value: string
 ): string {
@@ -180,6 +230,18 @@ export default function DeveloperAccountsPage() {
 
   const [statusFilter, setStatusFilter] =
     useState<ProfileStatus | "all">("all");
+
+  const [experienceFilter, setExperienceFilter] =
+    useState("all");
+
+  const [deliveryScopeFilter, setDeliveryScopeFilter] =
+    useState("all");
+
+  const [sortKey, setSortKey] =
+    useState<SortKey>("updated");
+
+  const [sortDirection, setSortDirection] =
+    useState<SortDirection>("desc");
 
   const [selectedDeveloper, setSelectedDeveloper] =
     useState<DeveloperAccount | null>(null);
@@ -299,32 +361,180 @@ export default function DeveloperAccountsPage() {
     const normalizedSearch =
       search.trim().toLowerCase();
 
-    return developers.filter((developer) => {
-      const matchesStatus =
-        statusFilter === "all" ||
-        developer.profileStatus === statusFilter;
+    const filtered =
+      developers.filter((developer) => {
+        const matchesStatus =
+          statusFilter === "all" ||
+          developer.profileStatus === statusFilter;
 
-      if (!matchesStatus) return false;
-      if (!normalizedSearch) return true;
+        const matchesExperience =
+          experienceFilter === "all" ||
+          developer.experienceTier === experienceFilter;
 
-      return [
-        developer.displayName,
-        developer.email,
-        developer.memberId,
-        developer.headline,
-        developer.bio,
-        developer.skills.join(" "),
-        developer.profileStatus,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalizedSearch);
-    });
+        const matchesDeliveryScope =
+          deliveryScopeFilter === "all" ||
+          developer.deliveryScope === deliveryScopeFilter;
+
+        if (
+          !matchesStatus ||
+          !matchesExperience ||
+          !matchesDeliveryScope
+        ) {
+          return false;
+        }
+
+        if (!normalizedSearch) {
+          return true;
+        }
+
+        return [
+          developer.displayName,
+          developer.email,
+          developer.memberId,
+          developer.headline,
+          developer.bio,
+          developer.skills.join(" "),
+          developer.profileStatus,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedSearch);
+      });
+
+    const directionMultiplier =
+      sortDirection === "asc"
+        ? 1
+        : -1;
+
+    return [...filtered].sort(
+      (first, second) => {
+        let comparison = 0;
+
+        if (sortKey === "name") {
+          comparison =
+            (
+              first.displayName ||
+              first.email ||
+              ""
+            ).localeCompare(
+              second.displayName ||
+              second.email ||
+              "",
+              undefined,
+              {
+                sensitivity: "base",
+              },
+            );
+        } else if (sortKey === "views") {
+          comparison =
+            first.uniqueProfileViews -
+            second.uniqueProfileViews;
+        } else if (sortKey === "bookmarks") {
+          comparison =
+            first.bookmarkCount -
+            second.bookmarkCount;
+        } else if (sortKey === "contacts") {
+          comparison =
+            first.contactClicks -
+            second.contactClicks;
+        } else if (sortKey === "joined") {
+          comparison =
+            new Date(
+              first.activatedAt || 0,
+            ).getTime() -
+            new Date(
+              second.activatedAt || 0,
+            ).getTime();
+        } else {
+          comparison =
+            new Date(
+              first.profileUpdatedAt ||
+              first.activatedAt ||
+              0,
+            ).getTime() -
+            new Date(
+              second.profileUpdatedAt ||
+              second.activatedAt ||
+              0,
+            ).getTime();
+        }
+
+        if (comparison === 0) {
+          comparison =
+            first.displayName.localeCompare(
+              second.displayName,
+              undefined,
+              {
+                sensitivity: "base",
+              },
+            );
+        }
+
+        return (
+          comparison *
+          directionMultiplier
+        );
+      },
+    );
   }, [
     developers,
     search,
     statusFilter,
+    experienceFilter,
+    deliveryScopeFilter,
+    sortKey,
+    sortDirection,
   ]);
+
+  function changeSort(
+    nextSortKey: SortKey,
+  ) {
+    if (sortKey === nextSortKey) {
+      setSortDirection(
+        (current) =>
+          current === "asc"
+            ? "desc"
+            : "asc",
+      );
+
+      return;
+    }
+
+    setSortKey(nextSortKey);
+
+    setSortDirection(
+      nextSortKey === "name"
+        ? "asc"
+        : "desc",
+    );
+  }
+
+  function SortIndicator({
+    column,
+  }: {
+    column: SortKey;
+  }) {
+    if (sortKey !== column) {
+      return (
+        <ArrowUpDown
+          size={13}
+          className="text-zinc-600"
+        />
+      );
+    }
+
+    return sortDirection === "asc" ? (
+      <ArrowUp
+        size={13}
+        className="text-sky-300"
+      />
+    ) : (
+      <ArrowDown
+        size={13}
+        className="text-sky-300"
+      />
+    );
+  }
 
   function openDeveloper(
     developer: DeveloperAccount
@@ -590,6 +800,37 @@ export default function DeveloperAccountsPage() {
                 Hidden
               </option>
             </select>
+
+            <select
+              value={experienceFilter}
+              onChange={(event) =>
+                setExperienceFilter(event.target.value)
+              }
+              className="border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
+              style={{ borderRadius: 8, colorScheme: "dark" }}
+            >
+              <option value="all">All experience levels</option>
+              <option value="aspiring">Aspiring</option>
+              <option value="emerging">Emerging</option>
+              <option value="established">Established</option>
+              <option value="experienced">Experienced</option>
+              <option value="">Not selected</option>
+            </select>
+
+            <select
+              value={deliveryScopeFilter}
+              onChange={(event) =>
+                setDeliveryScopeFilter(event.target.value)
+              }
+              className="border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
+              style={{ borderRadius: 8, colorScheme: "dark" }}
+            >
+              <option value="all">All development capacities</option>
+              <option value="full_team">Full Team</option>
+              <option value="solo_full_project">Solo Full Project</option>
+              <option value="specialist">Specialist</option>
+              <option value="">Not selected</option>
+            </select>
           </div>
 
           {pageError ? (
@@ -606,23 +847,101 @@ export default function DeveloperAccountsPage() {
             style={{ borderRadius: 8 }}
           >
             <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[1080px] border-collapse">
+              <table className="w-full min-w-[1210px] border-collapse">
                 <thead className="bg-zinc-950/80">
                   <tr className="border-b border-zinc-800 text-left">
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      Developer
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changeSort("name")
+                        }
+                        className="inline-flex cursor-pointer items-center gap-2 hover:text-zinc-300"
+                      >
+                        Developer
+                        <SortIndicator column="name" />
+                      </button>
                     </th>
 
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
                       Member ID
                     </th>
 
-                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      Headline
+                    <th
+                      className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500"
+                      title="Unique profile views"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changeSort("views")
+                        }
+                        className="mx-auto inline-flex cursor-pointer items-center gap-1.5 hover:text-zinc-300"
+                        aria-label="Sort by unique profile views"
+                      >
+                        <Eye size={15} />
+                        <SortIndicator column="views" />
+                      </button>
+                    </th>
+
+                    <th
+                      className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500"
+                      title="Bookmarks"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changeSort("bookmarks")
+                        }
+                        className="mx-auto inline-flex cursor-pointer items-center gap-1.5 hover:text-zinc-300"
+                        aria-label="Sort by bookmarks"
+                      >
+                        <Bookmark size={15} />
+                        <SortIndicator column="bookmarks" />
+                      </button>
+                    </th>
+
+                    <th
+                      className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-zinc-500"
+                      title="Contact attempts"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changeSort("contacts")
+                        }
+                        className="mx-auto inline-flex cursor-pointer items-center gap-1.5 hover:text-zinc-300"
+                        aria-label="Sort by contact attempts"
+                      >
+                        <MessagesSquare size={15} />
+                        <SortIndicator column="contacts" />
+                      </button>
                     </th>
 
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      Updated
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changeSort("updated")
+                        }
+                        className="inline-flex cursor-pointer items-center gap-2 hover:text-zinc-300"
+                      >
+                        Updated
+                        <SortIndicator column="updated" />
+                      </button>
+                    </th>
+
+                    <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          changeSort("joined")
+                        }
+                        className="inline-flex cursor-pointer items-center gap-2 hover:text-zinc-300"
+                      >
+                        Joined
+                        <SortIndicator column="joined" />
+                      </button>
                     </th>
 
                     <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
@@ -639,7 +958,7 @@ export default function DeveloperAccountsPage() {
                   {loading ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={9}
                         className="px-4 py-8 text-sm text-zinc-400"
                       >
                         Loading developer accounts...
@@ -649,7 +968,7 @@ export default function DeveloperAccountsPage() {
                     0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={9}
                         className="px-4 py-8 text-sm text-zinc-400"
                       >
                         No developer accounts match
@@ -702,14 +1021,30 @@ export default function DeveloperAccountsPage() {
                             {developer.memberId}
                           </td>
 
-                          <td className="max-w-[300px] px-4 py-4 align-top text-sm leading-6 text-zinc-300">
-                            {developer.headline ||
-                              "—"}
+                          <td
+                            className="px-3 py-4 text-center align-top text-sm font-medium text-zinc-200"
+                            title={`${developer.profileViews.toLocaleString()} total profile views`}
+                          >
+                            {developer.uniqueProfileViews.toLocaleString()}
+                          </td>
+
+                          <td className="px-3 py-4 text-center align-top text-sm font-medium text-zinc-200">
+                            {developer.bookmarkCount.toLocaleString()}
+                          </td>
+
+                          <td className="px-3 py-4 text-center align-top text-sm font-medium text-zinc-200">
+                            {developer.contactClicks.toLocaleString()}
                           </td>
 
                           <td className="px-4 py-4 align-top text-sm text-zinc-300">
                             {formatDate(
                               developer.profileUpdatedAt ||
+                              developer.activatedAt
+                            )}
+                          </td>
+
+                          <td className="px-4 py-4 align-top text-sm text-zinc-300">
+                            {formatDate(
                               developer.activatedAt
                             )}
                           </td>
@@ -823,13 +1158,48 @@ export default function DeveloperAccountsPage() {
                         </span>
                       </div>
 
-                      <p className="mt-3 text-sm text-zinc-300">
-                        {developer.headline || "—"}
-                      </p>
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <div className="border border-zinc-800 bg-zinc-950/45 px-2 py-2 text-center">
+                          <Eye
+                            size={14}
+                            className="mx-auto text-zinc-500"
+                          />
+                          <p className="mt-1 text-sm font-semibold text-white">
+                            {developer.uniqueProfileViews.toLocaleString()}
+                          </p>
+                        </div>
 
-                      <p className="mt-2 text-xs text-zinc-500">
-                        {developer.memberId}
-                      </p>
+                        <div className="border border-zinc-800 bg-zinc-950/45 px-2 py-2 text-center">
+                          <Bookmark
+                            size={14}
+                            className="mx-auto text-zinc-500"
+                          />
+                          <p className="mt-1 text-sm font-semibold text-white">
+                            {developer.bookmarkCount.toLocaleString()}
+                          </p>
+                        </div>
+
+                        <div className="border border-zinc-800 bg-zinc-950/45 px-2 py-2 text-center">
+                          <MessagesSquare
+                            size={14}
+                            className="mx-auto text-zinc-500"
+                          />
+                          <p className="mt-1 text-sm font-semibold text-white">
+                            {developer.contactClicks.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
+                        <span>
+                          {developer.memberId}
+                        </span>
+                        <span>
+                          Joined {formatDate(
+                            developer.activatedAt
+                          )}
+                        </span>
+                      </div>
                     </button>
                   )
                 )
@@ -964,6 +1334,57 @@ export default function DeveloperAccountsPage() {
                   style={{ borderRadius: 8 }}
                 >
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
+                    Analytics
+                  </h3>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {[
+                      [
+                        "Unique Views",
+                        selectedDeveloper.uniqueProfileViews,
+                      ],
+                      [
+                        "Total Views",
+                        selectedDeveloper.profileViews,
+                      ],
+                      [
+                        "Bookmarks",
+                        selectedDeveloper.bookmarkCount,
+                      ],
+                      [
+                        "Contact Clicks",
+                        selectedDeveloper.contactClicks,
+                      ],
+                      [
+                        "Work Opens",
+                        selectedDeveloper.projectViews,
+                      ],
+                      [
+                        "Project Links",
+                        selectedDeveloper.projectLinkClicks,
+                      ],
+                    ].map(([label, value]) => (
+                      <div
+                        key={String(label)}
+                        className="border border-zinc-800 bg-zinc-950/55 p-3"
+                        style={{ borderRadius: 7 }}
+                      >
+                        <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                          {label}
+                        </p>
+                        <p className="mt-2 text-xl font-semibold text-white">
+                          {Number(value).toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section
+                  className="border border-zinc-800 bg-zinc-950/35 p-5"
+                  style={{ borderRadius: 8 }}
+                >
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
                     Profile Introduction
                   </h3>
 
@@ -976,6 +1397,35 @@ export default function DeveloperAccountsPage() {
                     {selectedDeveloper.bio ||
                       "No biography has been added."}
                   </p>
+                </section>
+
+                <section
+                  className="border border-zinc-800 bg-zinc-950/35 p-5"
+                  style={{ borderRadius: 8 }}
+                >
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
+                    Opportunity Matching
+                  </h3>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-zinc-500">
+                        Self-declared experience
+                      </p>
+                      <p className="mt-2 font-semibold text-white">
+                        {getExperienceTierLabel(selectedDeveloper.experienceTier)}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-zinc-500">
+                        Development capacity
+                      </p>
+                      <p className="mt-2 font-semibold text-white">
+                        {getDeliveryScopeLabel(selectedDeveloper.deliveryScope)}
+                      </p>
+                    </div>
+                  </div>
                 </section>
 
                 <section

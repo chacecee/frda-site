@@ -41,6 +41,9 @@ export type PublicProjectDetails = {
 
 type ProjectDetailsModalProps = {
     project: PublicProjectDetails | null;
+    onProjectLinkClick?: (
+        project: PublicProjectDetails
+    ) => void;
     onClose: () => void;
 };
 
@@ -85,6 +88,7 @@ function isRobloxGameUrl(
 
 export default function ProjectDetailsModal({
     project,
+    onProjectLinkClick,
     onClose,
 }: ProjectDetailsModalProps) {
     useEffect(() => {
@@ -319,6 +323,11 @@ export default function ProjectDetailsModal({
                             {project.projectUrl ? (
                                 <a
                                     href={project.projectUrl}
+                                    onClick={() =>
+                                        onProjectLinkClick?.(
+                                            project
+                                        )
+                                    }
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="mt-7 inline-flex bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"

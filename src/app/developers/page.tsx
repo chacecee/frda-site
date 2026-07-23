@@ -8,8 +8,21 @@ import {
 } from "react";
 
 import Link from "next/link";
+import {
+    Bookmark,
+    Check,
+    ChevronDown,
+    LoaderCircle,
+} from "lucide-react";
 import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
+import { useAuthUser } from "@/lib/useAuthUser";
+import { notify } from "@/components/ToastConfig";
+import {
+    GAME_GENRE_OPTIONS,
+    getGameGenreLabel,
+    type GameDirectoryGenre,
+} from "@/lib/gameDirectory";
 
 type DirectoryShowcaseImage = {
     id: string;
@@ -26,8 +39,11 @@ type DeveloperDirectoryItem = {
     headline: string;
     bio: string;
     skills: string[];
+    genreExperience: GameDirectoryGenre[];
     availability: string;
     availabilityLabel: string;
+    deliveryScope: string;
+    deliveryScopeLabel: string;
     avatarUrl: string;
 
     showcaseImages: DirectoryShowcaseImage[];
@@ -36,6 +52,7 @@ type DeveloperDirectoryItem = {
 
     isVerified: boolean;
     isFeatured: boolean;
+    saveCount: number;
 };
 
 type DirectoryCardShowcaseProps = {
@@ -270,6 +287,9 @@ function getInitials(value: string): string {
 }
 
 export default function DeveloperDirectoryPage() {
+    const { user, authLoading } =
+        useAuthUser();
+
     const [developers, setDevelopers] =
         useState<DeveloperDirectoryItem[]>([]);
 
@@ -289,6 +309,28 @@ export default function DeveloperDirectoryPage() {
         availabilityFilter,
         setAvailabilityFilter,
     ] = useState("all");
+
+    const [
+        genreFilters,
+        setGenreFilters,
+    ] = useState<GameDirectoryGenre[]>([]);
+
+    const [
+        genreMenuOpen,
+        setGenreMenuOpen,
+    ] = useState(false);
+
+    const genreMenuReference =
+        useRef<HTMLDivElement | null>(null);
+
+    const [savedDeveloperUids, setSavedDeveloperUids] =
+        useState<Set<string>>(new Set());
+
+    const [savingDeveloperUid, setSavingDeveloperUid] =
+        useState<string | null>(null);
+
+    const [saveAccountPromptOpen, setSaveAccountPromptOpen] =
+        useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -342,6 +384,235 @@ export default function DeveloperDirectoryPage() {
             cancelled = true;
         };
     }, []);
+
+    useEffect(() => {
+        if (!user) {
+            setSavedDeveloperUids(new Set());
+            return;
+        }
+
+        const currentUser = user;
+        let cancelled = false;
+
+        async function loadSavedDevelopers() {
+            try {
+                const idToken =
+                    await currentUser.getIdToken();
+
+                const response = await fetch(
+                    "/api/member/saved-developers",
+                    {
+                        headers: {
+                            Authorization:
+                                `Bearer ${idToken}`,
+                        },
+                        cache: "no-store",
+                    },
+                );
+
+                const result = await response
+                    .json()
+                    .catch(() => null);
+
+                if (
+                    response.ok &&
+                    result?.ok &&
+                    !cancelled
+                ) {
+                    const loadedSavedUids =
+                        new Set<string>(
+                            result.savedDeveloperUids ||
+                            [],
+                        );
+
+                    setSavedDeveloperUids(
+                        loadedSavedUids,
+                    );
+                }
+            } catch (error) {
+                console.error(
+                    "Load saved developers error:",
+                    error,
+                );
+            }
+        }
+
+        loadSavedDevelopers();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [user]);
+
+    async function toggleSavedDeveloper(
+        event: React.MouseEvent<HTMLButtonElement>,
+        developer: DeveloperDirectoryItem,
+    ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (authLoading) return;
+
+        if (!user) {
+            setSaveAccountPromptOpen(true);
+            return;
+        }
+
+        if (user.uid === developer.uid) {
+            notify.error(
+                "You cannot save your own developer profile.",
+            );
+            return;
+        }
+
+        if (savingDeveloperUid) return;
+
+        const currentlySaved =
+            savedDeveloperUids.has(
+                developer.uid,
+            );
+
+        setSavingDeveloperUid(
+            developer.uid,
+        );
+
+        setSavedDeveloperUids((current) => {
+            const next = new Set(current);
+
+            if (currentlySaved) {
+                next.delete(developer.uid);
+            } else {
+                next.add(developer.uid);
+            }
+
+            return next;
+        });
+
+        try {
+            const idToken =
+                await user.getIdToken();
+
+            const response = await fetch(
+                "/api/member/saved-developers",
+                {
+                    method:
+                        currentlySaved
+                            ? "DELETE"
+                            : "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                        Authorization:
+                            `Bearer ${idToken}`,
+                    },
+                    body: JSON.stringify({
+                        developerUid:
+                            developer.uid,
+                    }),
+                },
+            );
+
+            const result = await response
+                .json()
+                .catch(() => null);
+
+            if (!response.ok || !result?.ok) {
+                throw new Error(
+                    result?.error ||
+                    "Could not update your bookmarked developers.",
+                );
+            }
+
+            notify.success(
+                currentlySaved
+                    ? "Developer removed from your bookmarks."
+                    : "Developer bookmarked.",
+            );
+        } catch (error) {
+            setSavedDeveloperUids(
+                (current) => {
+                    const next =
+                        new Set(current);
+
+                    if (currentlySaved) {
+                        next.add(developer.uid);
+                    } else {
+                        next.delete(
+                            developer.uid,
+                        );
+                    }
+
+                    return next;
+                },
+            );
+
+            notify.error(
+                error instanceof Error
+                    ? error.message
+                    : "Could not update your bookmarked developers.",
+            );
+        } finally {
+            setSavingDeveloperUid(null);
+        }
+    }
+
+    function openAccountModal(
+        tab: "signup" | "login",
+    ) {
+        setSaveAccountPromptOpen(false);
+
+        window.setTimeout(() => {
+            window.dispatchEvent(
+                new CustomEvent(
+                    "frda:open-account-modal",
+                    {
+                        detail: {
+                            tab,
+                        },
+                    },
+                ),
+            );
+        }, 0);
+    }
+
+    useEffect(() => {
+        function closeGenreMenu(
+            event: MouseEvent,
+        ) {
+            if (
+                genreMenuReference.current &&
+                !genreMenuReference.current.contains(
+                    event.target as Node,
+                )
+            ) {
+                setGenreMenuOpen(false);
+            }
+        }
+
+        document.addEventListener(
+            "mousedown",
+            closeGenreMenu,
+        );
+
+        return () => {
+            document.removeEventListener(
+                "mousedown",
+                closeGenreMenu,
+            );
+        };
+    }, []);
+
+    function toggleGenreFilter(
+        genre: GameDirectoryGenre,
+    ) {
+        setGenreFilters((current) =>
+            current.includes(genre)
+                ? current.filter(
+                    (item) => item !== genre,
+                )
+                : [...current, genre],
+        );
+    }
 
     const availableSkills = useMemo(() => {
         return Array.from(
@@ -433,10 +704,19 @@ export default function DeveloperDirectoryPage() {
                     developer.availability ===
                         availabilityFilter;
 
+                const matchesGenre =
+                    genreFilters.length === 0 ||
+                    genreFilters.some(
+                        (genre) =>
+                            developer.genreExperience
+                                .includes(genre)
+                    );
+
                 return (
                     matchesSearch &&
                     matchesSkill &&
-                    matchesAvailability
+                    matchesAvailability &&
+                    matchesGenre
                 );
             }
         );
@@ -445,6 +725,7 @@ export default function DeveloperDirectoryPage() {
         search,
         skillFilter,
         availabilityFilter,
+        genreFilters,
     ]);
 
     return (
@@ -494,7 +775,7 @@ export default function DeveloperDirectoryPage() {
                     </p>
                 </div>
 
-                <div className="mt-9 flex flex-col gap-3 md:grid md:grid-cols-[minmax(0,1fr)_240px] md:items-center">
+                <div className="mt-9 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_220px] md:items-center">
                     <input
                         type="search"
                         value={search}
@@ -519,7 +800,7 @@ export default function DeveloperDirectoryPage() {
                                 event.target.value
                             )
                         }
-                        className="w-full border border-white/10 bg-[#071225] px-4 py-3 text-sm text-white outline-none focus:border-cyan-400 md:w-[240px]"
+                        className="w-full border border-white/10 bg-[#071225] px-4 py-3 text-sm text-white outline-none focus:border-cyan-400"
                         style={{
                             borderRadius: 7,
                             colorScheme: "dark",
@@ -541,6 +822,127 @@ export default function DeveloperDirectoryPage() {
                             Open to collaborations only
                         </option>
                     </select>
+
+                    <div
+                        ref={genreMenuReference}
+                        className="relative"
+                    >
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setGenreMenuOpen(
+                                    (current) =>
+                                        !current
+                                )
+                            }
+                            className={`flex w-full cursor-pointer items-center justify-between gap-3 border bg-[#071225] px-4 py-3 text-sm outline-none transition ${
+                                genreFilters.length > 0
+                                    ? "border-cyan-300/35 text-white shadow-[0_0_20px_rgba(34,211,238,0.10)]"
+                                    : "border-white/10 text-zinc-400 hover:border-cyan-400/30"
+                            }`}
+                            style={{
+                                borderRadius: 7,
+                            }}
+                            aria-expanded={
+                                genreMenuOpen
+                            }
+                        >
+                            <span className="flex min-w-0 items-center gap-2">
+                                {genreFilters.length > 0 ? (
+                                    <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.9)]" />
+                                ) : null}
+
+                                <span className="truncate">
+                                    {genreFilters.length > 0
+                                        ? `Genre Experience (${genreFilters.length})`
+                                        : "Genre Experience"}
+                                </span>
+                            </span>
+
+                            <ChevronDown
+                                className={`h-4 w-4 shrink-0 transition ${
+                                    genreMenuOpen
+                                        ? "rotate-180"
+                                        : ""
+                                }`}
+                            />
+                        </button>
+
+                        {genreMenuOpen ? (
+                            <div
+                                className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-80 w-full min-w-[240px] overflow-y-auto border border-white/10 bg-[#081426] p-2 shadow-2xl"
+                                style={{
+                                    borderRadius: 8,
+                                }}
+                            >
+                                {GAME_GENRE_OPTIONS.map(
+                                    (genre) => {
+                                        const selected =
+                                            genreFilters.includes(
+                                                genre.value
+                                            );
+
+                                        return (
+                                            <button
+                                                key={
+                                                    genre.value
+                                                }
+                                                type="button"
+                                                onClick={() =>
+                                                    toggleGenreFilter(
+                                                        genre.value
+                                                    )
+                                                }
+                                                className={`flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left text-sm transition ${
+                                                    selected
+                                                        ? "bg-cyan-400/10 text-cyan-100"
+                                                        : "text-zinc-300 hover:bg-white/[0.05] hover:text-white"
+                                                }`}
+                                                style={{
+                                                    borderRadius: 6,
+                                                }}
+                                            >
+                                                <span
+                                                    className={`flex h-4 w-4 shrink-0 items-center justify-center border ${
+                                                        selected
+                                                            ? "border-cyan-300 bg-cyan-400 text-slate-950"
+                                                            : "border-white/20 bg-black/20"
+                                                    }`}
+                                                    style={{
+                                                        borderRadius: 4,
+                                                    }}
+                                                >
+                                                    {selected ? (
+                                                        <Check className="h-3 w-3" />
+                                                    ) : null}
+                                                </span>
+
+                                                <span>
+                                                    {
+                                                        genre.label
+                                                    }
+                                                </span>
+                                            </button>
+                                        );
+                                    }
+                                )}
+
+                                {genreFilters.length > 0 ? (
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setGenreFilters(
+                                                []
+                                            )
+                                        }
+                                        className="mt-2 w-full cursor-pointer border-t border-white/10 px-3 py-2.5 text-left text-xs font-medium text-cyan-300 hover:text-cyan-200"
+                                    >
+                                        Clear genre filters
+                                    </button>
+                                ) : null}
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -644,7 +1046,8 @@ export default function DeveloperDirectoryPage() {
                     {(search ||
                         skillFilter !== "all" ||
                         availabilityFilter !==
-                            "all") ? (
+                            "all" ||
+                        genreFilters.length > 0) ? (
                         <button
                             type="button"
                             onClick={() => {
@@ -653,6 +1056,7 @@ export default function DeveloperDirectoryPage() {
                                 setAvailabilityFilter(
                                     "all"
                                 );
+                                setGenreFilters([]);
                             }}
                             className="cursor-pointer text-sm font-medium text-blue-300 hover:text-blue-200"
                         >
@@ -694,17 +1098,71 @@ export default function DeveloperDirectoryPage() {
                     <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {filteredDevelopers.map(
                             (developer) => (
-                                <Link
+                                <div
                                     key={developer.uid}
-                                    href={`/developers/${encodeURIComponent(
-                                        developer.slug
-                                    )}`}
-                                    className="group overflow-hidden border border-white/10 bg-[#0a172a] shadow-[0_12px_35px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:border-blue-400/35 hover:bg-[#0c1c34] hover:shadow-[0_16px_42px_rgba(0,0,0,0.25),0_0_28px_rgba(37,99,235,0.10)]"
+                                    className="group relative overflow-hidden border border-white/10 bg-[#0a172a] shadow-[0_12px_35px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:border-blue-400/35 hover:bg-[#0c1c34] hover:shadow-[0_16px_42px_rgba(0,0,0,0.25),0_0_28px_rgba(37,99,235,0.10)]"
                                     style={{
                                         borderRadius: 8,
                                     }}
                                 >
-                                    <DirectoryCardShowcase
+                                    <button
+                                        type="button"
+                                        onClick={(event) =>
+                                            toggleSavedDeveloper(
+                                                event,
+                                                developer,
+                                            )
+                                        }
+                                        disabled={
+                                            savingDeveloperUid ===
+                                            developer.uid
+                                        }
+                                        className={`absolute right-3 top-3 z-30 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border backdrop-blur-md transition disabled:cursor-wait ${
+                                            savedDeveloperUids.has(
+                                                developer.uid,
+                                            )
+                                                ? "border-cyan-200/50 bg-cyan-400/85 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.30)]"
+                                                : "border-white/20 bg-black/50 text-white hover:border-cyan-200/50 hover:text-cyan-200"
+                                        }`}
+                                        aria-label={
+                                            savedDeveloperUids.has(
+                                                developer.uid,
+                                            )
+                                                ? "Remove bookmarked developer"
+                                                : "Bookmark developer"
+                                        }
+                                        title={
+                                            savedDeveloperUids.has(
+                                                developer.uid,
+                                            )
+                                                ? "Bookmarked"
+                                                : "Bookmark developer"
+                                        }
+                                    >
+                                        {savingDeveloperUid ===
+                                        developer.uid ? (
+                                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Bookmark
+                                                className="h-4 w-4"
+                                                fill={
+                                                    savedDeveloperUids.has(
+                                                        developer.uid,
+                                                    )
+                                                        ? "currentColor"
+                                                        : "none"
+                                                }
+                                            />
+                                        )}
+                                    </button>
+
+                                    <Link
+                                        href={`/developers/${encodeURIComponent(
+                                            developer.slug
+                                        )}`}
+                                        className="block"
+                                    >
+                                        <DirectoryCardShowcase
                                         images={
                                             developer.showcaseImages ||
                                             []
@@ -768,10 +1226,36 @@ export default function DeveloperDirectoryPage() {
                                             </div>
                                         </div>
 
+                                        {developer.deliveryScopeLabel ? (
+                                            <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.08em] text-cyan-300">
+                                                {developer.deliveryScopeLabel}
+                                            </p>
+                                        ) : null}
+
                                         {developer.bio ? (
                                             <p className="mt-3 line-clamp-2 text-xs leading-5 text-zinc-500">
                                                 {developer.bio}
                                             </p>
+                                        ) : null}
+
+                                        {developer.genreExperience.length > 0 ? (
+                                            <div className="mt-3 flex flex-wrap gap-1.5">
+                                                {developer.genreExperience
+                                                    .slice(0, 3)
+                                                    .map((genre) => (
+                                                        <span
+                                                            key={genre}
+                                                            className="border border-cyan-300/15 bg-cyan-400/[0.06] px-2 py-1 text-[10px] text-cyan-200"
+                                                            style={{
+                                                                borderRadius: 999,
+                                                            }}
+                                                        >
+                                                            {getGameGenreLabel(
+                                                                genre
+                                                            )}
+                                                        </span>
+                                                    ))}
+                                            </div>
                                         ) : null}
 
                                         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -790,7 +1274,8 @@ export default function DeveloperDirectoryPage() {
                                                 ))}
                                         </div>
                                     </div>
-                                </Link>
+                                    </Link>
+                                </div>
                             )
                         )}
                     </div>
@@ -798,6 +1283,63 @@ export default function DeveloperDirectoryPage() {
                 </section>
 
                 <SiteFooter />
+
+                {saveAccountPromptOpen ? (
+                    <div
+                        className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+                        onMouseDown={(event) => {
+                            if (
+                                event.target ===
+                                event.currentTarget
+                            ) {
+                                setSaveAccountPromptOpen(
+                                    false,
+                                );
+                            }
+                        }}
+                    >
+                        <div
+                            className="w-full max-w-md border border-white/10 bg-[#081426] p-6 shadow-2xl"
+                            style={{ borderRadius: 10 }}
+                        >
+                            <h2 className="text-xl font-semibold text-white">
+                                Bookmark developers to your account
+                            </h2>
+
+                            <p className="mt-3 text-sm leading-6 text-zinc-400">
+                                Create a free FRDA account or log in to keep a private shortlist of developers you may want to contact or collaborate with later.
+                            </p>
+
+                            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        openAccountModal(
+                                            "signup",
+                                        )
+                                    }
+                                    className="cursor-pointer bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500"
+                                    style={{ borderRadius: 6 }}
+                                >
+                                    Sign Up
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        openAccountModal(
+                                            "login",
+                                        )
+                                    }
+                                    className="cursor-pointer border border-white/15 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-zinc-200 hover:bg-white/[0.08]"
+                                    style={{ borderRadius: 6 }}
+                                >
+                                    Log In
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
             </div>
         </main>
     );

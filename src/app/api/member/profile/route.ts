@@ -4,6 +4,10 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import { adminDb } from "@/lib/firebaseAdmin";
 import { authorizeMemberRequest } from "@/lib/server/memberAuthorization";
+import {
+  GAME_GENRE_OPTIONS,
+  type GameDirectoryGenre,
+} from "@/lib/gameDirectory";
 
 export const runtime = "nodejs";
 
@@ -12,7 +16,10 @@ type ProfileUpdateBody = {
   headline?: unknown;
   bio?: unknown;
   skills?: unknown;
+  genreExperience?: unknown;
   availability?: unknown;
+  experienceTier?: unknown;
+  deliveryScope?: unknown;
   robloxProfileUrl?: unknown;
   portfolioUrl?: unknown;
   workSamples?: unknown;
@@ -168,6 +175,62 @@ function sanitizeYoutubeUrl(value: unknown): string {
   } catch {
     return "";
   }
+}
+
+function sanitizeExperienceTier(
+  value: unknown,
+): "aspiring" | "emerging" | "established" | "experienced" | "" {
+  return value === "aspiring" ||
+    value === "emerging" ||
+    value === "established" ||
+    value === "experienced"
+    ? value
+    : "";
+}
+
+function sanitizeDeliveryScope(
+  value: unknown,
+): "full_team" | "solo_full_project" | "specialist" | "" {
+  return value === "full_team" ||
+    value === "solo_full_project" ||
+    value === "specialist"
+    ? value
+    : "";
+}
+
+function sanitizeGenreExperience(
+  value: unknown,
+): GameDirectoryGenre[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const allowedGenres =
+    new Set<GameDirectoryGenre>(
+      GAME_GENRE_OPTIONS.map(
+        (option) => option.value,
+      ),
+    );
+
+  const uniqueGenres =
+    new Set<GameDirectoryGenre>();
+
+  value.forEach((item) => {
+    if (
+      typeof item === "string" &&
+      allowedGenres.has(
+        item as GameDirectoryGenre,
+      )
+    ) {
+      uniqueGenres.add(
+        item as GameDirectoryGenre,
+      );
+    }
+  });
+
+  return Array.from(
+    uniqueGenres,
+  ).slice(0, 12);
 }
 
 function sanitizeSkills(value: unknown): string[] {
@@ -528,7 +591,18 @@ function serializeProfile(uid: string, data: FirebaseFirestore.DocumentData) {
         )
       : [],
 
+    genreExperience:
+      sanitizeGenreExperience(
+        data.genreExperience,
+      ),
+
     availability: String(data.availability || ""),
+
+    experienceTier:
+      sanitizeExperienceTier(data.experienceTier),
+
+    deliveryScope:
+      sanitizeDeliveryScope(data.deliveryScope),
 
     robloxProfileUrl: String(data.robloxProfileUrl || ""),
 
@@ -551,6 +625,18 @@ function serializeProfile(uid: string, data: FirebaseFirestore.DocumentData) {
     profileStatus: String(data.profileStatus || "draft"),
 
     isPublished: data.isPublished === true,
+
+    moderationLock:
+      data.moderationLock === true,
+
+    moderationNote:
+      String(data.moderationNote || ""),
+
+    moderationSource:
+      String(data.moderationSource || ""),
+
+    moderationReportId:
+      String(data.moderationReportId || ""),
 
     createdAt: timestampToIso(data.createdAt),
 
@@ -597,7 +683,11 @@ export async function GET(request: NextRequest) {
         headline: "",
         bio: "",
         skills: [],
+        genreExperience: [],
         availability: "",
+        experienceTier: "",
+        experienceTierIsSelfDeclared: true,
+        deliveryScope: "",
         robloxProfileUrl: "",
         portfolioUrl: "",
         workSamples: [],
@@ -610,6 +700,11 @@ export async function GET(request: NextRequest) {
 
         profileStatus: "draft",
         isPublished: false,
+
+        moderationLock: false,
+        moderationNote: "",
+        moderationSource: "",
+        moderationReportId: "",
 
         createdAt: FieldValue.serverTimestamp(),
 
@@ -685,7 +780,18 @@ export async function PATCH(request: NextRequest) {
 
     const availability = sanitizeText(body.availability, 80);
 
+    const experienceTier =
+      sanitizeExperienceTier(body.experienceTier);
+
+    const deliveryScope =
+      sanitizeDeliveryScope(body.deliveryScope);
+
     const skills = sanitizeSkills(body.skills);
+
+    const genreExperience =
+      sanitizeGenreExperience(
+        body.genreExperience,
+      );
 
     const rawRobloxProfileUrl =
       typeof body.robloxProfileUrl === "string"
@@ -713,6 +819,28 @@ export async function PATCH(request: NextRequest) {
         {
           ok: false,
           error: "A display name is required.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!experienceTier) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Choose the experience level that best describes you.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!deliveryScope) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Choose the type of development work you can take on.",
         },
         { status: 400 },
       );
@@ -752,7 +880,11 @@ export async function PATCH(request: NextRequest) {
       ? existingSnapshot.data() || {}
       : {};
 
+    const moderationLocked =
+      existingProfile.moderationLock === true;
+
     const remainsPublished =
+      !moderationLocked &&
       existingProfile.isPublished === true &&
       String(existingProfile.profileStatus || "") === "live";
 
@@ -768,7 +900,19 @@ export async function PATCH(request: NextRequest) {
           headline,
           bio,
           skills,
+          genreExperience,
           availability,
+
+          experienceTier,
+          experienceTierIsSelfDeclared: true,
+          experienceTierUpdatedAt:
+            existingProfile.experienceTier ===
+            experienceTier
+              ? existingProfile.experienceTierUpdatedAt ||
+                FieldValue.serverTimestamp()
+              : FieldValue.serverTimestamp(),
+
+          deliveryScope,
 
           // Kept for FRDA/internal use.
           robloxProfileUrl,
@@ -781,9 +925,17 @@ export async function PATCH(request: NextRequest) {
 
           avatarStoragePath: avatarImage?.storagePath || "",
 
-          profileStatus: remainsPublished ? "live" : "draft",
+          profileStatus:
+            moderationLocked
+              ? "hidden"
+              : remainsPublished
+                ? "live"
+                : "draft",
 
-          isPublished: remainsPublished,
+          isPublished:
+            moderationLocked
+              ? false
+              : remainsPublished,
 
           updatedAt: FieldValue.serverTimestamp(),
 
@@ -797,7 +949,12 @@ export async function PATCH(request: NextRequest) {
         {
           displayName,
 
-          profileStatus: remainsPublished ? "live" : "draft",
+          profileStatus:
+            moderationLocked
+              ? "hidden"
+              : remainsPublished
+                ? "live"
+                : "draft",
 
           updatedAt: FieldValue.serverTimestamp(),
         },

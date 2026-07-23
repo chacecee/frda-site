@@ -32,6 +32,7 @@ type PublicGame = {
     robloxUrl: string;
     creatorName: string;
     creatorType: string;
+    creatorProfileSlug: string;
     genre: GameDirectoryGenre;
     contentMaturity: GameContentMaturity;
     thumbnailUrl: string;
@@ -90,10 +91,20 @@ function GameCard({
     }
 
     return (
-        <button
-            type="button"
+        <article
+            role="button"
+            tabIndex={0}
             onClick={handleOpen}
-            className="group relative block overflow-hidden border border-slate-700/55 bg-slate-950/55 text-left shadow-[0_18px_45px_rgba(0,0,0,0.28)] transition duration-300 hover:-translate-y-1 hover:border-blue-400/50 hover:bg-slate-950/80 hover:shadow-[0_22px_60px_rgba(37,99,235,0.18)]"
+            onKeyDown={(event) => {
+                if (
+                    event.key === "Enter" ||
+                    event.key === " "
+                ) {
+                    event.preventDefault();
+                    handleOpen();
+                }
+            }}
+            className="group relative block cursor-pointer overflow-hidden border border-slate-700/55 bg-slate-950/55 text-left shadow-[0_18px_45px_rgba(0,0,0,0.28)] transition duration-300 hover:-translate-y-1 hover:border-blue-400/50 hover:bg-slate-950/80 hover:shadow-[0_22px_60px_rgba(37,99,235,0.18)] focus:outline-none focus:ring-2 focus:ring-blue-400/60"
             style={{ borderRadius: 10 }}
         >
             <div className="pointer-events-none absolute inset-0 opacity-0 transition duration-300 group-hover:opacity-100">
@@ -138,12 +149,29 @@ function GameCard({
 
                 <p className="mt-2 truncate text-sm text-zinc-500">
                     By{" "}
-                    <span className="text-zinc-300">
-                        {game.creatorName || "Unknown creator"}
-                    </span>
+                    {game.creatorProfileSlug ? (
+                        <a
+                            href={`/developers/${encodeURIComponent(
+                                game.creatorProfileSlug
+                            )}`}
+                            onClick={(event) =>
+                                event.stopPropagation()
+                            }
+                            onKeyDown={(event) =>
+                                event.stopPropagation()
+                            }
+                            className="font-medium text-zinc-300 underline decoration-blue-400/35 underline-offset-3 transition hover:text-blue-200 hover:decoration-blue-300"
+                        >
+                            {game.creatorName || "Unknown creator"}
+                        </a>
+                    ) : (
+                        <span className="text-zinc-300">
+                            {game.creatorName || "Unknown creator"}
+                        </span>
+                    )}
                 </p>
             </div>
-        </button>
+        </article>
     );
 }
 
@@ -223,9 +251,20 @@ function GameDetailsModal({
 
                             <p className="mt-2 text-sm text-zinc-500">
                                 By{" "}
-                                <span className="text-zinc-300">
-                                    {game.creatorName || "Unknown creator"}
-                                </span>
+                                {game.creatorProfileSlug ? (
+                                    <a
+                                        href={`/developers/${encodeURIComponent(
+                                            game.creatorProfileSlug
+                                        )}`}
+                                        className="font-medium text-zinc-300 underline decoration-blue-400/35 underline-offset-3 transition hover:text-blue-200 hover:decoration-blue-300"
+                                    >
+                                        {game.creatorName || "Unknown creator"}
+                                    </a>
+                                ) : (
+                                    <span className="text-zinc-300">
+                                        {game.creatorName || "Unknown creator"}
+                                    </span>
+                                )}
                             </p>
 
                             <p className="mt-5 whitespace-pre-line text-sm leading-7 text-zinc-300">

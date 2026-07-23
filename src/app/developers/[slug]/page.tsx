@@ -15,12 +15,24 @@ import {
 } from "framer-motion";
 
 import {
+    Bookmark,
+    LoaderCircle,
+} from "lucide-react";
+
+import {
     signOut,
 } from "firebase/auth";
 
 import { auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { notify } from "@/components/ToastConfig";
+import {
+    getGameGenreLabel,
+    type GameDirectoryGenre,
+} from "@/lib/gameDirectory";
+import {
+    logAnalyticsEvent,
+} from "@/lib/analytics";
 
 import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
@@ -46,9 +58,13 @@ type PublicDeveloperProfile = {
     bio: string;
 
     skills: string[];
+    genreExperience: GameDirectoryGenre[];
 
     availability: string;
     availabilityLabel: string;
+
+    deliveryScope: string;
+    deliveryScopeLabel: string;
 
     portfolioUrl: string;
     avatarUrl: string;
@@ -64,6 +80,7 @@ type PublicDeveloperProfile = {
 
     isVerified: boolean;
     isFeatured: boolean;
+    saveCount: number;
 };
 
 type ReportReason =
@@ -324,6 +341,18 @@ export default function PublicDeveloperProfilePage() {
         setShowStickyContact,
     ] = useState(false);
 
+    const [isSaved, setIsSaved] =
+        useState(false);
+
+    const [initiallySaved, setInitiallySaved] =
+        useState(false);
+
+    const [savingDeveloper, setSavingDeveloper] =
+        useState(false);
+
+    const [saveAccountPromptOpen, setSaveAccountPromptOpen] =
+        useState(false);
+
     const isOwnProfile =
         Boolean(
             user &&
@@ -454,8 +483,169 @@ export default function PublicDeveloperProfilePage() {
         };
     }, [slug]);
 
+    useEffect(() => {
+        if (!profile) {
+            return;
+        }
+
+        void logAnalyticsEvent({
+            eventName:
+                "developer_profile_view",
+            metadata: {
+                developerUid:
+                    profile.uid,
+                developerSlug:
+                    profile.slug,
+                developerName:
+                    profile.displayName,
+            },
+        });
+    }, [profile]);
+
+    useEffect(() => {
+        if (!user || !profile) {
+            setIsSaved(false);
+            return;
+        }
+
+        const currentUser = user;
+        const developerUid =
+            profile.uid;
+        let cancelled = false;
+
+        async function loadSavedState() {
+            try {
+                const idToken =
+                    await currentUser.getIdToken();
+
+                const response = await fetch(
+                    "/api/member/saved-developers",
+                    {
+                        headers: {
+                            Authorization:
+                                `Bearer ${idToken}`,
+                        },
+                        cache: "no-store",
+                    },
+                );
+
+                const result = await response
+                    .json()
+                    .catch(() => null);
+
+                if (
+                    response.ok &&
+                    result?.ok &&
+                    !cancelled
+                ) {
+                    const saved =
+                        (
+                            result.savedDeveloperUids ||
+                            []
+                        ).includes(
+                            developerUid,
+                        );
+
+                    setIsSaved(saved);
+                    setInitiallySaved(saved);
+                }
+            } catch (error) {
+                console.error(
+                    "Load saved developer state error:",
+                    error,
+                );
+            }
+        }
+
+        loadSavedState();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [user, profile]);
+
+    async function toggleSavedDeveloper() {
+        if (
+            authLoading ||
+            !profile ||
+            savingDeveloper
+        ) {
+            return;
+        }
+
+        if (!user) {
+            setSaveAccountPromptOpen(true);
+            return;
+        }
+
+        if (isOwnProfile) {
+            notify.error(
+                "You cannot save your own developer profile.",
+            );
+            return;
+        }
+
+        const previousState = isSaved;
+
+        setSavingDeveloper(true);
+        setIsSaved(!previousState);
+
+        try {
+            const idToken =
+                await user.getIdToken();
+
+            const response = await fetch(
+                "/api/member/saved-developers",
+                {
+                    method:
+                        previousState
+                            ? "DELETE"
+                            : "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                        Authorization:
+                            `Bearer ${idToken}`,
+                    },
+                    body: JSON.stringify({
+                        developerUid:
+                            profile.uid,
+                    }),
+                },
+            );
+
+            const result = await response
+                .json()
+                .catch(() => null);
+
+            if (!response.ok || !result?.ok) {
+                throw new Error(
+                    result?.error ||
+                    "Could not update your bookmarked developers.",
+                );
+            }
+
+            notify.success(
+                previousState
+                    ? "Developer removed from your bookmarks."
+                    : "Developer bookmarked.",
+            );
+        } catch (error) {
+            setIsSaved(previousState);
+
+            notify.error(
+                error instanceof Error
+                    ? error.message
+                    : "Could not update your bookmarked developers.",
+            );
+        } finally {
+            setSavingDeveloper(false);
+        }
+    }
+
     function openAccountModal(
         tab: "signup" | "login",
+        purpose?: "talent_seeker",
     ) {
         closeContactModal();
 
@@ -485,10 +675,12 @@ export default function PublicDeveloperProfilePage() {
             tab
         );
 
-        targetUrl.searchParams.set(
-            "purpose",
-            "talent_seeker"
-        );
+        if (purpose) {
+            targetUrl.searchParams.set(
+                "purpose",
+                purpose
+            );
+        }
 
         window.location.assign(
             targetUrl.toString()
@@ -496,6 +688,21 @@ export default function PublicDeveloperProfilePage() {
     }
 
     async function openContactModal() {
+        if (profile) {
+            void logAnalyticsEvent({
+                eventName:
+                    "developer_contact_click",
+                metadata: {
+                    developerUid:
+                        profile.uid,
+                    developerSlug:
+                        profile.slug,
+                    developerName:
+                        profile.displayName,
+                },
+            });
+        }
+
         setContactOpen(true);
         setContactError("");
         setContactForm(
@@ -706,6 +913,77 @@ export default function PublicDeveloperProfilePage() {
         } finally {
             setSubmittingContact(false);
         }
+    }
+
+    function openProjectDetails(
+        project: PublicWorkSample
+    ) {
+        if (profile) {
+            void logAnalyticsEvent({
+                eventName:
+                    "developer_project_view",
+                metadata: {
+                    developerUid:
+                        profile.uid,
+                    developerSlug:
+                        profile.slug,
+                    developerName:
+                        profile.displayName,
+                    projectId:
+                        project.id,
+                    projectTitle:
+                        project.title,
+                },
+            });
+        }
+
+        setSelectedProject(
+            project
+        );
+    }
+
+    function trackProjectLink(
+        project: PublicWorkSample
+    ) {
+        if (!profile) {
+            return;
+        }
+
+        void logAnalyticsEvent({
+            eventName:
+                "developer_project_link_click",
+            metadata: {
+                developerUid:
+                    profile.uid,
+                developerSlug:
+                    profile.slug,
+                developerName:
+                    profile.displayName,
+                projectId:
+                    project.id,
+                projectTitle:
+                    project.title,
+            },
+        });
+    }
+
+    function trackPortfolioClick() {
+        if (!profile) {
+            return;
+        }
+
+        void logAnalyticsEvent({
+            eventName:
+                "developer_portfolio_click",
+            metadata: {
+                developerUid:
+                    profile.uid,
+                developerSlug:
+                    profile.slug,
+                developerName:
+                    profile.displayName,
+            },
+        });
     }
 
     function openReportModal() {
@@ -955,6 +1233,12 @@ export default function PublicDeveloperProfilePage() {
                                                         {profile.headline}
                                                     </p>
                                                 ) : null}
+
+                                                {profile.deliveryScopeLabel ? (
+                                                    <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-cyan-300">
+                                                        {profile.deliveryScopeLabel}
+                                                    </p>
+                                                ) : null}
                                             </div>
                                         </div>
 
@@ -993,7 +1277,33 @@ export default function PublicDeveloperProfilePage() {
                                             </div>
                                         ) : null}
 
-                                        <div className="mt-7 flex justify-center sm:justify-start">
+                                        {profile.genreExperience.length > 0 ? (
+                                            <div className="mt-5">
+                                                <p className="text-center text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400 sm:text-left">
+                                                    Genre Experience
+                                                </p>
+
+                                                <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
+                                                    {profile.genreExperience.map(
+                                                        (genre) => (
+                                                            <span
+                                                                key={genre}
+                                                                className="border border-cyan-300/20 bg-cyan-400/[0.08] px-3 py-1.5 text-xs font-medium text-cyan-100"
+                                                                style={{
+                                                                    borderRadius: 999,
+                                                                }}
+                                                            >
+                                                                {getGameGenreLabel(
+                                                                    genre
+                                                                )}
+                                                            </span>
+                                                        )
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : null}
+
+                                        <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row sm:justify-start">
                                             <button
                                                 type="button"
                                                 onClick={
@@ -1038,6 +1348,69 @@ export default function PublicDeveloperProfilePage() {
 
                                                 Contact Developer
                                             </button>
+
+                                            {!isOwnProfile ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={
+                                                        toggleSavedDeveloper
+                                                    }
+                                                    disabled={
+                                                        savingDeveloper
+                                                    }
+                                                    className={`inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 border px-4 py-3.5 text-sm font-semibold transition disabled:cursor-wait ${
+                                                        isSaved
+                                                            ? "border-rose-300/40 bg-rose-500/15 text-rose-100"
+                                                            : "border-white/15 bg-white/[0.04] text-zinc-200 hover:border-rose-300/35 hover:text-rose-200"
+                                                    }`}
+                                                    style={{
+                                                        borderRadius: 5,
+                                                    }}
+                                                    aria-label={
+                                                        isSaved
+                                                            ? "Remove bookmarked developer"
+                                                            : "Bookmark developer"
+                                                    }
+                                                    title={
+                                                        isSaved
+                                                            ? "Bookmarked"
+                                                            : "Bookmark developer"
+                                                    }
+                                                >
+                                                    {savingDeveloper ? (
+                                                        <LoaderCircle className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Bookmark
+                                                            className="h-4 w-4"
+                                                            fill={
+                                                                isSaved
+                                                                    ? "currentColor"
+                                                                    : "none"
+                                                            }
+                                                        />
+                                                    )}
+
+                                                    <span>
+                                                        {Math.max(
+                                                            0,
+                                                            profile.saveCount +
+                                                                (
+                                                                    isSaved
+                                                                        ? (
+                                                                            initiallySaved
+                                                                                ? 0
+                                                                                : 1
+                                                                        )
+                                                                        : (
+                                                                            initiallySaved
+                                                                                ? -1
+                                                                                : 0
+                                                                        )
+                                                                ),
+                                                        )}
+                                                    </span>
+                                                </button>
+                                            ) : null}
                                         </div>
                                     </div>
                                 </div>
@@ -1108,7 +1481,7 @@ export default function PublicDeveloperProfilePage() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() =>
-                                                                    setSelectedProject(
+                                                                    openProjectDetails(
                                                                         item
                                                                     )
                                                                 }
@@ -1179,6 +1552,11 @@ export default function PublicDeveloperProfilePage() {
                                                             {robloxLink ? (
                                                                 <a
                                                                     href={robloxLink}
+                                                                    onClick={() =>
+                                                                        trackProjectLink(
+                                                                            item
+                                                                        )
+                                                                    }
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
                                                                     className="inline-flex shrink-0 items-center justify-center border border-blue-400/25 bg-blue-500/10 px-4 py-2.5 text-sm font-medium text-blue-200 hover:bg-blue-500/20"
@@ -1237,6 +1615,9 @@ export default function PublicDeveloperProfilePage() {
                                             <a
                                                 href={
                                                     profile.portfolioUrl
+                                                }
+                                                onClick={
+                                                    trackPortfolioClick
                                                 }
                                                 target="_blank"
                                                 rel="noopener noreferrer"
@@ -1317,6 +1698,9 @@ export default function PublicDeveloperProfilePage() {
 
             <ProjectDetailsModal
                 project={selectedProject}
+                onProjectLinkClick={
+                    trackProjectLink
+                }
                 onClose={() =>
                     setSelectedProject(null)
                 }
@@ -1386,7 +1770,8 @@ export default function PublicDeveloperProfilePage() {
                                         type="button"
                                         onClick={() =>
                                             openAccountModal(
-                                                "signup"
+                                                "signup",
+                                                "talent_seeker"
                                             )
                                         }
                                         className="cursor-pointer bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
@@ -1399,7 +1784,8 @@ export default function PublicDeveloperProfilePage() {
                                         type="button"
                                         onClick={() =>
                                             openAccountModal(
-                                                "login"
+                                                "login",
+                                                "talent_seeker"
                                             )
                                         }
                                         className="cursor-pointer border border-white/15 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.08] hover:text-white"
@@ -1696,6 +2082,63 @@ export default function PublicDeveloperProfilePage() {
                                 </div>
                             </form>
                         )}
+                    </div>
+                </div>
+            ) : null}
+
+            {saveAccountPromptOpen ? (
+                <div
+                    className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+                    onMouseDown={(event) => {
+                        if (
+                            event.target ===
+                            event.currentTarget
+                        ) {
+                            setSaveAccountPromptOpen(
+                                false
+                            );
+                        }
+                    }}
+                >
+                    <div
+                        className="w-full max-w-md border border-white/10 bg-[#081426] p-6 shadow-2xl"
+                        style={{ borderRadius: 10 }}
+                    >
+                        <h2 className="text-xl font-semibold text-white">
+                            Bookmark this developer
+                        </h2>
+
+                        <p className="mt-3 text-sm leading-6 text-zinc-400">
+                            Create a free FRDA account or log in to keep a private shortlist of developers you may want to contact or collaborate with later.
+                        </p>
+
+                        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    openAccountModal(
+                                        "signup"
+                                    )
+                                }
+                                className="cursor-pointer bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500"
+                                style={{ borderRadius: 6 }}
+                            >
+                                Sign Up
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    openAccountModal(
+                                        "login"
+                                    )
+                                }
+                                className="cursor-pointer border border-white/15 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-zinc-200 hover:bg-white/[0.08]"
+                                style={{ borderRadius: 6 }}
+                            >
+                                Log In
+                            </button>
+                        </div>
                     </div>
                 </div>
             ) : null}

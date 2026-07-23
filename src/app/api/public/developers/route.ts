@@ -6,6 +6,11 @@ import {
     adminDb,
 } from "@/lib/firebaseAdmin";
 
+import {
+    GAME_GENRE_OPTIONS,
+    type GameDirectoryGenre,
+} from "@/lib/gameDirectory";
+
 export const runtime = "nodejs";
 
 function sanitizeUrl(
@@ -28,6 +33,49 @@ function sanitizeUrl(
         return url.toString();
     } catch {
         return "";
+    }
+}
+
+function getGenreExperience(
+    value: unknown
+): GameDirectoryGenre[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    const allowedGenres =
+        new Set<GameDirectoryGenre>(
+            GAME_GENRE_OPTIONS.map(
+                (option) =>
+                    option.value
+            )
+        );
+
+    return Array.from(
+        new Set(
+            value.filter(
+                (item): item is GameDirectoryGenre =>
+                    typeof item === "string" &&
+                    allowedGenres.has(
+                        item as GameDirectoryGenre
+                    )
+            )
+        )
+    ).slice(0, 12);
+}
+
+function getDeliveryScopeLabel(
+    value: unknown
+): string {
+    switch (String(value || "")) {
+        case "full_team":
+            return "Full development team";
+        case "solo_full_project":
+            return "Solo full-project developer";
+        case "specialist":
+            return "Specialist";
+        default:
+            return "";
     }
 }
 
@@ -216,8 +264,11 @@ function getDirectoryShowcase(
 
 export async function GET() {
     try {
-        const snapshot =
-            await adminDb
+        const [
+            snapshot,
+            savesSnapshot,
+        ] = await Promise.all([
+            adminDb
                 .collection(
                     "developerProfiles"
                 )
@@ -226,7 +277,41 @@ export async function GET() {
                     "==",
                     true
                 )
-                .get();
+                .get(),
+
+            adminDb
+                .collection(
+                    "developerSaves"
+                )
+                .get(),
+        ]);
+
+        const saveCountByDeveloper =
+            new Map<string, number>();
+
+        savesSnapshot.docs.forEach(
+            (document) => {
+                const developerUid =
+                    String(
+                        document.data()
+                            .developerUid ||
+                        ""
+                    );
+
+                if (!developerUid) {
+                    return;
+                }
+
+                saveCountByDeveloper.set(
+                    developerUid,
+                    (
+                        saveCountByDeveloper.get(
+                            developerUid
+                        ) || 0
+                    ) + 1
+                );
+            }
+        );
 
         const developers =
             snapshot.docs
@@ -312,6 +397,11 @@ export async function GET() {
 
                         skills,
 
+                        genreExperience:
+                            getGenreExperience(
+                                profile.genreExperience
+                            ),
+
                         availability:
                             String(
                                 profile
@@ -323,6 +413,19 @@ export async function GET() {
                             getAvailabilityLabel(
                                 profile
                                     .availability
+                            ),
+
+                        deliveryScope:
+                            String(
+                                profile
+                                    .deliveryScope ||
+                                ""
+                            ),
+
+                        deliveryScopeLabel:
+                            getDeliveryScopeLabel(
+                                profile
+                                    .deliveryScope
                             ),
 
                         avatarUrl:
@@ -347,6 +450,11 @@ export async function GET() {
                         isFeatured:
                             profile.isFeatured ===
                             true,
+
+                        saveCount:
+                            saveCountByDeveloper.get(
+                                document.id
+                            ) || 0,
                     };
                 })
                 .filter(

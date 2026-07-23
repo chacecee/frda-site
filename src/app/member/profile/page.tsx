@@ -31,6 +31,10 @@ import {
 import { compressDeveloperImage } from "@/lib/client/compressDeveloperImage";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { notify } from "@/components/ToastConfig";
+import {
+  GAME_GENRE_OPTIONS,
+  type GameDirectoryGenre,
+} from "@/lib/gameDirectory";
 
 import Cropper, { type Area, type Point } from "react-easy-crop";
 
@@ -93,6 +97,17 @@ type WorkSample = {
 
 
 
+type ExperienceTier =
+  | "aspiring"
+  | "emerging"
+  | "established"
+  | "experienced";
+
+type DeliveryScope =
+  | "full_team"
+  | "solo_full_project"
+  | "specialist";
+
 type DeveloperProfile = {
   uid: string;
   memberId: string;
@@ -101,7 +116,10 @@ type DeveloperProfile = {
   headline: string;
   bio: string;
   skills: string[];
+  genreExperience: GameDirectoryGenre[];
   availability: string;
+  experienceTier: ExperienceTier | "";
+  deliveryScope: DeliveryScope | "";
   robloxProfileUrl: string;
   portfolioUrl: string;
   workSamples: WorkSample[];
@@ -114,6 +132,10 @@ type DeveloperProfile = {
 
   profileStatus: string;
   isPublished: boolean;
+  moderationLock: boolean;
+  moderationNote: string;
+  moderationSource: string;
+  moderationReportId: string;
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -123,7 +145,10 @@ type ProfileForm = {
   headline: string;
   bio: string;
   skillsText: string;
+  genreExperience: GameDirectoryGenre[];
   availability: string;
+  experienceTier: ExperienceTier | "";
+  deliveryScope: DeliveryScope | "";
   robloxProfileUrl: string;
   portfolioUrl: string;
 };
@@ -134,6 +159,10 @@ type PublicationStatus = {
   publishedAt: string | null;
   unpublishedAt: string | null;
   reviewerNote: string;
+  moderationLock: boolean;
+  moderationNote: string;
+  moderationSource: string;
+  moderationReportId: string;
 };
 
 const SKILL_OPTIONS = [
@@ -159,7 +188,10 @@ const EMPTY_FORM: ProfileForm = {
   headline: "",
   bio: "",
   skillsText: "",
+  genreExperience: [],
   availability: "",
+  experienceTier: "",
+  deliveryScope: "",
   robloxProfileUrl: "",
   portfolioUrl: "",
 };
@@ -170,7 +202,13 @@ function profileToForm(profile: DeveloperProfile): ProfileForm {
     headline: profile.headline || "",
     bio: profile.bio || "",
     skillsText: (profile.skills || []).join(", "),
+    genreExperience:
+      Array.isArray(profile.genreExperience)
+        ? profile.genreExperience
+        : [],
     availability: profile.availability || "",
+    experienceTier: profile.experienceTier || "",
+    deliveryScope: profile.deliveryScope || "",
     robloxProfileUrl: profile.robloxProfileUrl || "",
     portfolioUrl: profile.portfolioUrl || "",
   };
@@ -532,6 +570,10 @@ export default function MemberProfilePage() {
     publishedAt: null,
     unpublishedAt: null,
     reviewerNote: "",
+    moderationLock: false,
+    moderationNote: "",
+    moderationSource: "",
+    moderationReportId: "",
   });
 
   const [submittingForReview, setSubmittingForReview] = useState(false);
@@ -727,10 +769,50 @@ export default function MemberProfilePage() {
     }));
   }
 
+  function toggleGenreExperience(
+    genre: GameDirectoryGenre,
+  ) {
+    setForm((current) => {
+      const alreadySelected =
+        current.genreExperience.includes(
+          genre,
+        );
+
+      return {
+        ...current,
+        genreExperience:
+          alreadySelected
+            ? current.genreExperience.filter(
+                (item) => item !== genre,
+              )
+            : [
+                ...current.genreExperience,
+                genre,
+              ].slice(0, 12),
+      };
+    });
+  }
+
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!user || saving) return;
+
+    if (!form.experienceTier) {
+      const message =
+        "Choose the experience level that best describes you.";
+      setErrorMessage(message);
+      notify.error(message);
+      return;
+    }
+
+    if (!form.deliveryScope) {
+      const message =
+        "Choose the type of development work you can take on.";
+      setErrorMessage(message);
+      notify.error(message);
+      return;
+    }
 
     setSaving(true);
     setErrorMessage("");
@@ -750,7 +832,10 @@ export default function MemberProfilePage() {
           headline: form.headline.trim(),
           bio: form.bio.trim(),
           skills: parseSkills(form.skillsText),
+          genreExperience: form.genreExperience,
           availability: form.availability,
+          experienceTier: form.experienceTier,
+          deliveryScope: form.deliveryScope,
           robloxProfileUrl: form.robloxProfileUrl.trim(),
           portfolioUrl: form.portfolioUrl.trim(),
 
@@ -805,6 +890,18 @@ export default function MemberProfilePage() {
   async function saveCurrentProfile(): Promise<boolean> {
     if (!user) return false;
 
+    if (!form.experienceTier) {
+      throw new Error(
+        "Choose the experience level that best describes you.",
+      );
+    }
+
+    if (!form.deliveryScope) {
+      throw new Error(
+        "Choose the type of development work you can take on.",
+      );
+    }
+
     const idToken = await user.getIdToken();
 
     const response = await fetch("/api/member/profile", {
@@ -818,7 +915,10 @@ export default function MemberProfilePage() {
         headline: form.headline.trim(),
         bio: form.bio.trim(),
         skills: parseSkills(form.skillsText),
+        genreExperience: form.genreExperience,
         availability: form.availability,
+        experienceTier: form.experienceTier,
+        deliveryScope: form.deliveryScope,
         robloxProfileUrl: form.robloxProfileUrl.trim(),
         portfolioUrl: form.portfolioUrl.trim(),
 
@@ -846,6 +946,18 @@ export default function MemberProfilePage() {
 
   async function updatePublication(action: "publish" | "unpublish") {
     if (!user || submittingForReview || saving) return;
+
+    if (
+      action === "publish" &&
+      publication.moderationLock
+    ) {
+      const message =
+        "Your public profile is currently hidden by FRDA moderation and cannot be republished until the restriction is lifted.";
+
+      setErrorMessage(message);
+      notify.error(message);
+      return;
+    }
 
     setSubmittingForReview(true);
     setErrorMessage("");
@@ -1773,6 +1885,32 @@ export default function MemberProfilePage() {
           </p>
         </div>
 
+        {publication.moderationLock ? (
+          <div
+            className="mb-6 border border-red-400/25 bg-red-500/10 p-4 text-sm leading-6 text-red-100"
+            style={{ borderRadius: 8 }}
+          >
+            <p className="font-semibold">
+              Your public profile is hidden by FRDA moderation.
+            </p>
+
+            <p className="mt-2 text-red-100/80">
+              You may continue editing and saving your profile, but publishing is disabled until FRDA lifts the restriction.
+            </p>
+
+            {publication.moderationNote ? (
+              <div className="mt-3 border-t border-red-300/15 pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-200/75">
+                  Moderator Note
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-red-100">
+                  {publication.moderationNote}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="fixed inset-x-0 bottom-0 z-[80] border-t border-sky-300/20 bg-[#071225]/76 shadow-[0_-14px_42px_rgba(0,0,0,0.42),0_-2px_24px_rgba(56,189,248,0.12),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-5 py-3 md:px-8">
             <p className="hidden text-sm font-semibold text-white sm:block">
@@ -1823,7 +1961,11 @@ export default function MemberProfilePage() {
                 }
                 disabled={
                   saving ||
-                  submittingForReview
+                  submittingForReview ||
+                  (
+                    publication.moderationLock &&
+                    !publication.isPublished
+                  )
                 }
                 className={`inline-flex min-h-10 cursor-pointer items-center gap-2 px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                   publication.isPublished
@@ -1837,7 +1979,9 @@ export default function MemberProfilePage() {
                 ) : null}
                 {publication.isPublished
                   ? "Unpublish"
-                  : "Publish"}
+                  : publication.moderationLock
+                    ? "Publishing Disabled"
+                    : "Publish"}
               </button>
             </div>
           </div>
@@ -2309,7 +2453,7 @@ export default function MemberProfilePage() {
               style={{ borderRadius: 8 }}
             >
               <h2 className="text-lg font-semibold text-white">
-                Skills and Availability
+                Skills and Work Profile
               </h2>
 
               <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
@@ -2351,6 +2495,48 @@ export default function MemberProfilePage() {
                   <p className="mt-3 text-xs leading-5 text-zinc-500">
                     Select every skill that accurately reflects your work.
                   </p>
+
+                  <div className="mt-6">
+                    <label className="mb-3 block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                      Genre Experience
+                    </label>
+
+                    <div className="flex flex-wrap gap-2">
+                      {GAME_GENRE_OPTIONS.map((genre) => {
+                        const selected =
+                          form.genreExperience.includes(
+                            genre.value,
+                          );
+
+                        return (
+                          <button
+                            key={genre.value}
+                            type="button"
+                            onClick={() =>
+                              toggleGenreExperience(
+                                genre.value,
+                              )
+                            }
+                            className={`cursor-pointer border px-3 py-2 text-sm transition ${
+                              selected
+                                ? "border-cyan-300/45 bg-cyan-400/15 text-cyan-100"
+                                : "border-white/10 bg-black/15 text-zinc-400 hover:border-white/20 hover:text-white"
+                            }`}
+                            style={{
+                              borderRadius: 6,
+                            }}
+                            aria-pressed={selected}
+                          >
+                            {genre.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <p className="mt-3 text-xs leading-5 text-zinc-500">
+                      Optional. Select the Roblox genres you have worked with or understand well.
+                    </p>
+                  </div>
                 </div>
 
                 <div>
@@ -2388,6 +2574,121 @@ export default function MemberProfilePage() {
                       Open to collaborations only
                     </option>
                   </select>
+                </div>
+              </div>
+
+
+              <div className="mt-6 grid gap-5 border-t border-white/10 pt-6 lg:grid-cols-2">
+                <div>
+                  <label className="mb-3 block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                    Experience Level <span className="text-red-300">*</span>
+                  </label>
+
+                  <select
+                    value={form.experienceTier}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        experienceTier:
+                          event.target.value as
+                            ExperienceTier | "",
+                      }))
+                    }
+                    required
+                    className="w-full appearance-none border border-white/10 bg-[#071225] px-4 py-3 text-sm text-white outline-none focus:border-blue-400 [color-scheme:dark] [&>option]:bg-[#071225] [&>option]:text-white"
+                    style={{ borderRadius: 6 }}
+                  >
+                    <option value="">Select your level</option>
+                    <option value="aspiring">Aspiring Developer</option>
+                    <option value="emerging">Emerging Developer</option>
+                    <option value="established">Established Developer</option>
+                    <option value="experienced">Experienced Developer</option>
+                  </select>
+
+                  <div className="mt-3 space-y-2 text-xs leading-5 text-zinc-500">
+                    <p><span className="font-semibold text-zinc-300">Aspiring:</span> Still learning and working toward a first substantial project.</p>
+                    <p><span className="font-semibold text-zinc-300">Emerging:</span> Has completed prototypes, small projects, commissions, or team contributions.</p>
+                    <p><span className="font-semibold text-zinc-300">Established:</span> Has released a substantial project or built a consistent body of work.</p>
+                    <p><span className="font-semibold text-zinc-300">Experienced:</span> Has led or significantly contributed to multiple released projects.</p>
+                  </div>
+
+                  <p className="mt-3 text-xs leading-5 text-sky-300/80">
+                    Used internally by FRDA for opportunity matching. This will not appear publicly.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-3 block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                    Development Capacity <span className="text-red-300">*</span>
+                  </label>
+
+                  <div className="space-y-2">
+                    {[
+                      {
+                        value: "full_team",
+                        label: "Full development team",
+                        description:
+                          "I represent a team that can deliver an entire project.",
+                      },
+                      {
+                        value: "solo_full_project",
+                        label: "Solo full-project developer",
+                        description:
+                          "I can independently build and complete an entire project.",
+                      },
+                      {
+                        value: "specialist",
+                        label: "Specialist",
+                        description:
+                          "I focus on one or several specific parts of a project.",
+                      },
+                    ].map((option) => (
+                      <label
+                        key={option.value}
+                        className={`block cursor-pointer border p-3 transition ${
+                          form.deliveryScope === option.value
+                            ? "border-sky-300/40 bg-sky-400/10"
+                            : "border-white/10 bg-black/15 hover:border-white/20"
+                        }`}
+                        style={{ borderRadius: 6 }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="radio"
+                            name="deliveryScope"
+                            value={option.value}
+                            checked={
+                              form.deliveryScope ===
+                              option.value
+                            }
+                            onChange={() =>
+                              setForm((current) => ({
+                                ...current,
+                                deliveryScope:
+                                  option.value as
+                                    DeliveryScope,
+                              }))
+                            }
+                            required
+                            className="mt-1"
+                          />
+
+                          <span>
+                            <span className="block text-sm font-semibold text-white">
+                              {option.label}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-zinc-500">
+                              {option.description}
+                            </span>
+                          </span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  <p className="mt-3 text-xs leading-5 text-zinc-500">
+                    This appears publicly so potential collaborators can understand the kind of work you can take on.
+                  </p>
                 </div>
               </div>
             </section>

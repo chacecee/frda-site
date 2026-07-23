@@ -13,6 +13,8 @@ import {
   Bell,
   CheckCircle2,
   Gamepad2,
+  Bookmark,
+  BarChart3,
   LayoutDashboard,
   LogOut,
   UserRound,
@@ -32,6 +34,8 @@ type MemberPortalHeaderProps = {
   active:
     | "dashboard"
     | "profile"
+    | "analytics"
+    | "saved_developers"
     | "connection_requests"
     | "sent_requests";
   title?: string;
@@ -118,30 +122,33 @@ export default function MemberPortalHeader({
   const { user } = useAuthUser();
 
   const [memberPurpose, setMemberPurpose] =
-    useState<AccountPurpose | null>(() => {
-      if (accountPurpose) {
-        return accountPurpose;
-      }
+    useState<AccountPurpose | null>(
+      accountPurpose || null,
+    );
 
-      if (
-        typeof window !== "undefined"
-      ) {
-        const cachedPurpose =
-          window.sessionStorage.getItem(
-            "frdaMemberAccountPurpose",
-          );
+  useEffect(() => {
+    if (accountPurpose) {
+      setMemberPurpose(
+        accountPurpose,
+      );
+      return;
+    }
 
-        if (
-          cachedPurpose === "developer" ||
-          cachedPurpose === "talent_seeker" ||
-          cachedPurpose === "both"
-        ) {
-          return cachedPurpose;
-        }
-      }
+    const cachedPurpose =
+      window.sessionStorage.getItem(
+        "frdaMemberAccountPurpose",
+      );
 
-      return null;
-    });
+    if (
+      cachedPurpose === "developer" ||
+      cachedPurpose === "talent_seeker" ||
+      cachedPurpose === "both"
+    ) {
+      setMemberPurpose(
+        cachedPurpose,
+      );
+    }
+  }, [accountPurpose]);
 
   const [
     connectionNotifications,
@@ -459,6 +466,20 @@ export default function MemberPortalHeader({
       path: "/member/profile",
       icon: UserRound,
       show: developerAccount,
+    },
+    {
+      key: "analytics",
+      label: "Analytics",
+      path: "/member/analytics",
+      icon: BarChart3,
+      show: developerAccount,
+    },
+    {
+      key: "saved_developers",
+      label: "Bookmarked Developers",
+      path: "/member/saved-developers",
+      icon: Bookmark,
+      show: true,
     },
     {
       key: "connection_requests",

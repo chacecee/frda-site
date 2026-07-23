@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  ArrowLeft,
+  CheckCircle2,
   ChevronDown,
   Eye,
   EyeOff,
@@ -19,7 +21,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
@@ -38,6 +39,11 @@ type AccountPurpose =
 type AccountModalTab =
   | "signup"
   | "login";
+
+type LoginModalView =
+  | "login"
+  | "forgot_password"
+  | "reset_sent";
 
 type OpenAccountModalDetail = {
   tab?: AccountModalTab;
@@ -130,6 +136,9 @@ export default function SiteHeader() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [accountTab, setAccountTab] =
     useState<AccountModalTab>("signup");
+
+  const [loginView, setLoginView] =
+    useState<LoginModalView>("login");
 
   const [loginEmail, setLoginEmail] =
     useState("");
@@ -392,6 +401,7 @@ function openAccountModal(
   setJoinSuccess("");
   setLoginError("");
   setLoginSuccess("");
+  setLoginView("login");
   setJoinOpen(true);
 }
 
@@ -403,6 +413,7 @@ function closeJoinModal() {
   setJoinSuccess("");
   setLoginError("");
   setLoginSuccess("");
+  setLoginView("login");
   setShowJoinPassword(false);
   setShowLoginPassword(false);
 }
@@ -415,6 +426,7 @@ function switchAccountTab(
   setJoinSuccess("");
   setLoginError("");
   setLoginSuccess("");
+  setLoginView("login");
 }
 
 async function submitLoginForm(
@@ -466,13 +478,33 @@ async function submitLoginForm(
   }
 }
 
-async function handleForgotPassword() {
+function openForgotPassword() {
+  setLoginView(
+    "forgot_password",
+  );
+
+  setLoginError("");
+  setLoginSuccess("");
+  setLoginPassword("");
+}
+
+function returnToLogin() {
+  setLoginView("login");
+  setLoginError("");
+  setLoginSuccess("");
+}
+
+async function handleForgotPassword(
+  event: React.FormEvent<HTMLFormElement>
+) {
+  event.preventDefault();
+
   const normalizedEmail =
     loginEmail.trim();
 
   if (!normalizedEmail) {
     setLoginError(
-      "Enter your email address first, then select Forgot password."
+      "Enter the email address connected to your FRDA account."
     );
     return;
   }
@@ -482,13 +514,37 @@ async function handleForgotPassword() {
   setLoginSuccess("");
 
   try {
-    await sendPasswordResetEmail(
-      auth,
-      normalizedEmail
+    const response = await fetch(
+      "/api/membership/password-reset",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          email: normalizedEmail,
+        }),
+      },
     );
 
-    setLoginSuccess(
-      "A password reset email has been sent if an account exists for that address."
+    const result =
+      await response
+        .json()
+        .catch(() => null);
+
+    if (
+      !response.ok ||
+      !result?.ok
+    ) {
+      throw new Error(
+        result?.error ||
+        "The password reset email could not be sent.",
+      );
+    }
+
+    setLoginView(
+      "reset_sent",
     );
   } catch (error) {
     console.error(
@@ -497,7 +553,7 @@ async function handleForgotPassword() {
     );
 
     setLoginError(
-      "The password reset email could not be sent."
+      "The password reset email could not be sent. Please try again."
     );
   } finally {
     setResettingPassword(false);
@@ -1046,35 +1102,56 @@ async function submitJoinForm(
                 className="my-auto w-full max-w-xl border border-sky-300/20 bg-[#081328]/95 shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_0_36px_rgba(37,99,235,0.24),0_0_80px_rgba(14,165,233,0.12),0_24px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl"
                 style={{ borderRadius: 10 }}
               >
-                <div className="flex items-start justify-between gap-4 px-6 pt-5">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-400/10 text-sky-300">
-                      <UsersRound className="h-5 w-5" />
-                    </div>
-
-                    <div className="min-w-0">
-                      <h2 className="text-2xl font-semibold text-white">
-                        FRDA Member Account
-                      </h2>
-
-                      <p className="mt-2 text-sm leading-6 text-zinc-400">
-                        Our membership is open to Roblox game developers and people looking to work with them.
-                      </p>
-                    </div>
+                {accountTab === "login" &&
+                loginView !== "login" ? (
+                  <div className="flex justify-end px-6 pt-5">
+                    <button
+                      type="button"
+                      onClick={closeJoinModal}
+                      disabled={
+                        joining ||
+                        loggingIn ||
+                        resettingPassword
+                      }
+                      className="cursor-pointer text-2xl text-zinc-400 hover:text-white disabled:opacity-50"
+                      aria-label="Close"
+                    >
+                      ×
+                    </button>
                   </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-4 px-6 pt-5">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-400/10 text-sky-300">
+                        <UsersRound className="h-5 w-5" />
+                      </div>
 
-                  <button
-                    type="button"
-                    onClick={closeJoinModal}
-                    disabled={joining || loggingIn}
-                    className="cursor-pointer text-2xl text-zinc-400 hover:text-white disabled:opacity-50"
-                    aria-label="Close"
-                  >
-                    ×
-                  </button>
-                </div>
+                      <div className="min-w-0">
+                        <h2 className="text-2xl font-semibold text-white">
+                          FRDA Member Account
+                        </h2>
 
-                <div className="mt-5 grid grid-cols-2 border-b border-white/10 px-6">
+                        <p className="mt-2 text-sm leading-6 text-zinc-400">
+                          Our membership is open to Roblox game developers and people looking to work with them.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={closeJoinModal}
+                      disabled={joining || loggingIn}
+                      className="cursor-pointer text-2xl text-zinc-400 hover:text-white disabled:opacity-50"
+                      aria-label="Close"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+
+                {accountTab === "login" &&
+                loginView !== "login" ? null : (
+                  <div className="mt-5 grid grid-cols-2 border-b border-white/10 px-6">
                   <button
                     type="button"
                     onClick={() =>
@@ -1110,7 +1187,8 @@ async function submitJoinForm(
                       <span className="absolute inset-x-0 bottom-0 h-0.5 bg-sky-300" />
                     ) : null}
                   </button>
-                </div>
+                  </div>
+                )}
 
                 {accountTab === "signup" && joinSuccess ? (
                   <div className="p-6">
@@ -1360,7 +1438,7 @@ async function submitJoinForm(
                       </button>
                     </div>
                   </form>
-                ) : (
+                ) : loginView === "login" ? (
                   <form
                     onSubmit={submitLoginForm}
                     className="p-6"
@@ -1383,6 +1461,7 @@ async function submitJoinForm(
                           borderRadius: 5,
                         }}
                         placeholder="member@example.com"
+                        autoComplete="email"
                         required
                       />
                     </div>
@@ -1395,13 +1474,12 @@ async function submitJoinForm(
 
                         <button
                           type="button"
-                          onClick={handleForgotPassword}
-                          disabled={resettingPassword}
-                          className="cursor-pointer text-xs font-medium text-sky-300 hover:text-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={
+                            openForgotPassword
+                          }
+                          className="cursor-pointer text-xs font-medium text-sky-300 hover:text-sky-200"
                         >
-                          {resettingPassword
-                            ? "Sending..."
-                            : "Forgot password?"}
+                          Forgot password?
                         </button>
                       </div>
 
@@ -1422,6 +1500,7 @@ async function submitJoinForm(
                           style={{
                             borderRadius: 5,
                           }}
+                          autoComplete="current-password"
                           required
                         />
 
@@ -1489,6 +1568,130 @@ async function submitJoinForm(
                       )}
                     </button>
                   </form>
+                ) : loginView === "forgot_password" ? (
+                  <form
+                    onSubmit={
+                      handleForgotPassword
+                    }
+                    className="p-6"
+                  >
+                    <button
+                      type="button"
+                      onClick={
+                        returnToLogin
+                      }
+                      className="mb-6 inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-400 transition hover:text-white"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                      Back to Log In
+                    </button>
+
+                    <div className="mb-5">
+                      <h3 className="text-xl font-semibold text-white">
+                        Reset Your Password
+                      </h3>
+
+                      <p className="mt-2 text-sm leading-6 text-zinc-400">
+                        Enter the email address connected to your FRDA account.
+                      </p>
+                    </div>
+
+                    <input
+                      type="email"
+                      value={loginEmail}
+                      onChange={(event) =>
+                        setLoginEmail(
+                          event.target.value
+                        )
+                      }
+                      className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-sky-400"
+                      style={{
+                        borderRadius: 5,
+                      }}
+                      placeholder="Email Address"
+                      aria-label="Email Address"
+                      autoComplete="email"
+                      autoFocus
+                      required
+                    />
+
+                    {loginError ? (
+                      <div
+                        className="mt-5 border border-red-500/25 bg-red-500/10 p-4 text-sm leading-6 text-red-200"
+                        style={{
+                          borderRadius: 8,
+                        }}
+                      >
+                        {loginError}
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="submit"
+                      disabled={
+                        resettingPassword
+                      }
+                      className="mt-7 w-full cursor-pointer bg-blue-600 px-5 py-3.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      style={{
+                        borderRadius: 5,
+                      }}
+                    >
+                      {resettingPassword ? (
+                        <span className="inline-flex items-center gap-2">
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                          Sending...
+                        </span>
+                      ) : (
+                        "Reset Password"
+                      )}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="p-6">
+                    <button
+                      type="button"
+                      onClick={
+                        returnToLogin
+                      }
+                      className="mb-6 inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-zinc-400 transition hover:text-white"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                      Back to Log In
+                    </button>
+
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300">
+                      <CheckCircle2 className="h-6 w-6" />
+                    </div>
+
+                    <h3 className="mt-5 text-xl font-semibold text-white">
+                      Check Your Email
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-7 text-zinc-300">
+                      If an FRDA account exists for{" "}
+                      <span className="font-semibold text-white">
+                        {loginEmail.trim()}
+                      </span>
+                      , a password-reset email has been sent.
+                    </p>
+
+                    <p className="mt-3 text-xs leading-5 text-zinc-500">
+                      Check your inbox and spam folder. The reset link may take a few minutes to arrive.
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={
+                        returnToLogin
+                      }
+                      className="mt-7 w-full cursor-pointer bg-blue-600 px-5 py-3.5 text-sm font-semibold text-white hover:bg-blue-500"
+                      style={{
+                        borderRadius: 5,
+                      }}
+                    >
+                      Back to Log In
+                    </button>
+                  </div>
                 )}
               </div>
             </motion.div>
