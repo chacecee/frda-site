@@ -14,33 +14,64 @@ function timestampToIso(value: unknown): string | null {
       typeof value === "object" &&
       value !== null &&
       "toDate" in value &&
-      typeof (value as { toDate?: unknown }).toDate ===
-        "function"
+      typeof (value as { toDate?: unknown }).toDate === "function"
     )
   ) {
-    return (value as { toDate: () => Date })
-      .toDate()
-      .toISOString();
+    return (value as { toDate: () => Date }).toDate().toISOString();
   }
 
   return null;
 }
 
 function getMissingFields(
-  profile: FirebaseFirestore.DocumentData
+  profile: FirebaseFirestore.DocumentData,
 ): string[] {
   const missing: string[] = [];
 
-  if (!String(profile.displayName || "").trim()) missing.push("Display name");
-  if (!String(profile.headline || "").trim()) missing.push("Professional headline");
-  if (!String(profile.bio || "").trim()) missing.push("Bio");
-
-  if (!Array.isArray(profile.skills) || profile.skills.length === 0) {
-    missing.push("At least one skill");
+  if (!String(profile.displayName || "").trim()) {
+    missing.push("display name");
   }
 
-  if (!String(profile.robloxProfileUrl || "").trim()) {
-    missing.push("Roblox profile");
+  if (!Array.isArray(profile.skills) || profile.skills.length === 0) {
+    missing.push("at least one skill");
+  }
+
+  if (!String(profile.experienceTier || "").trim()) {
+    missing.push("experience level");
+  }
+
+  if (!String(profile.deliveryScope || "").trim()) {
+    missing.push("development capacity");
+  }
+
+  if (
+    !Array.isArray(profile.coverShowcaseImages) ||
+    profile.coverShowcaseImages.length === 0
+  ) {
+    missing.push("at least one cover photo");
+  }
+
+  const workSamples = Array.isArray(profile.workSamples)
+    ? profile.workSamples
+    : [];
+
+  const hasValidWorkSample = workSamples.some((item: unknown) => {
+    if (typeof item !== "object" || item === null) return false;
+
+    const work = item as { title?: unknown; role?: unknown };
+
+    return (
+      typeof work.title === "string" &&
+      work.title.trim().length > 0 &&
+      typeof work.role === "string" &&
+      work.role.trim().length > 0
+    );
+  });
+
+  if (!hasValidWorkSample) {
+    missing.push(
+      "at least one featured work item with a title and your role",
+    );
   }
 
   return missing;
@@ -78,7 +109,7 @@ function createProfileSlug({
 }
 
 function serializePublication(
-  profile: FirebaseFirestore.DocumentData
+  profile: FirebaseFirestore.DocumentData,
 ) {
   return {
     status: String(profile.profileStatus || "draft"),
@@ -96,7 +127,6 @@ function serializePublication(
 export async function GET(request: NextRequest) {
   try {
     const authorization = await authorizeMemberRequest(request);
-
     if (!authorization.ok) return authorization.response;
 
     const { member } = authorization;
@@ -110,7 +140,7 @@ export async function GET(request: NextRequest) {
           ok: false,
           error: "This account does not include a developer profile.",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -148,7 +178,7 @@ export async function GET(request: NextRequest) {
         ok: false,
         error: "Could not load your profile publication status.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -156,7 +186,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const authorization = await authorizeMemberRequest(request);
-
     if (!authorization.ok) return authorization.response;
 
     const { member } = authorization;
@@ -170,24 +199,18 @@ export async function POST(request: NextRequest) {
           ok: false,
           error: "This account does not include a developer profile.",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
     const body = (await request.json().catch(() => null)) as
-      | {
-          action?: unknown;
-          confirmedAccuracy?: unknown;
-        }
+      | { action?: unknown; confirmedAccuracy?: unknown }
       | null;
 
     if (!isPublicationAction(body?.action)) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "A valid publication action is required.",
-        },
-        { status: 400 }
+        { ok: false, error: "A valid publication action is required." },
+        { status: 400 },
       );
     }
 
@@ -207,7 +230,7 @@ export async function POST(request: NextRequest) {
             error:
               "You must confirm that your profile information and portfolio claims are accurate.",
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
@@ -216,7 +239,7 @@ export async function POST(request: NextRequest) {
 
         if (!profileSnapshot.exists) {
           throw new Error(
-            "Create and save your developer profile before publishing it."
+            "Create and save your developer profile before publishing it.",
           );
         }
 
@@ -224,7 +247,7 @@ export async function POST(request: NextRequest) {
 
         if (profile.moderationLock === true) {
           throw new Error(
-            "Your public profile is currently hidden by FRDA moderation and cannot be republished until the restriction is lifted."
+            "Your public profile is currently hidden by FRDA moderation and cannot be republished until the restriction is lifted.",
           );
         }
 
@@ -232,7 +255,7 @@ export async function POST(request: NextRequest) {
 
         if (missingFields.length > 0) {
           throw new Error(
-            `Complete these required fields first — ${missingFields.join(", ")}.`
+            `Complete these required fields first: ${missingFields.join(", ")}.`,
           );
         }
 
@@ -250,8 +273,7 @@ export async function POST(request: NextRequest) {
             isPublished: true,
             profileSlug,
             publishedAt:
-              profile.publishedAt ||
-              FieldValue.serverTimestamp(),
+              profile.publishedAt || FieldValue.serverTimestamp(),
             lastPublishedAt: FieldValue.serverTimestamp(),
             publicationRequestedAt: FieldValue.delete(),
             publicationReviewerNote: "",
@@ -259,7 +281,7 @@ export async function POST(request: NextRequest) {
             selfPublicationConfirmedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
           },
-          { merge: true }
+          { merge: true },
         );
 
         transaction.set(
@@ -268,7 +290,7 @@ export async function POST(request: NextRequest) {
             profileStatus: "live",
             updatedAt: FieldValue.serverTimestamp(),
           },
-          { merge: true }
+          { merge: true },
         );
       });
 
@@ -292,7 +314,7 @@ export async function POST(request: NextRequest) {
 
       if (profile.isPublished !== true) {
         throw new Error(
-          "This developer profile is not currently published."
+          "This developer profile is not currently published.",
         );
       }
 
@@ -300,26 +322,22 @@ export async function POST(request: NextRequest) {
         profileReference,
         {
           profileStatus:
-            profile.moderationLock === true
-              ? "hidden"
-              : "draft",
+            profile.moderationLock === true ? "hidden" : "draft",
           isPublished: false,
           unpublishedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
 
       transaction.set(
         memberReference,
         {
           profileStatus:
-            profile.moderationLock === true
-              ? "hidden"
-              : "draft",
+            profile.moderationLock === true ? "hidden" : "draft",
           updatedAt: FieldValue.serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
     });
 
@@ -350,11 +368,8 @@ export async function POST(request: NextRequest) {
             : 500;
 
     return NextResponse.json(
-      {
-        ok: false,
-        error: message,
-      },
-      { status }
+      { ok: false, error: message },
+      { status },
     );
   }
 }

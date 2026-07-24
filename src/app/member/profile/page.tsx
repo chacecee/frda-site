@@ -549,6 +549,46 @@ async function safelyDeleteStorageObject(
 
 
 
+function getPublicationValidationMessage({
+  displayName,
+  skills,
+  experienceTier,
+  deliveryScope,
+  coverShowcaseImages,
+  workSamples,
+}: {
+  displayName: string;
+  skills: string[];
+  experienceTier: ExperienceTier | "";
+  deliveryScope: DeliveryScope | "";
+  coverShowcaseImages: CoverShowcaseImage[];
+  workSamples: WorkSample[];
+}): string {
+  const missing: string[] = [];
+
+  if (!displayName.trim()) missing.push("display name");
+  if (skills.length === 0) missing.push("at least one skill");
+  if (!experienceTier) missing.push("experience level");
+  if (!deliveryScope) missing.push("development capacity");
+  if (coverShowcaseImages.length === 0) {
+    missing.push("at least one cover photo");
+  }
+
+  const hasValidWorkSample = workSamples.some(
+    (item) => item.title.trim() && item.role.trim(),
+  );
+
+  if (!hasValidWorkSample) {
+    missing.push(
+      "at least one featured work item with a title and your role",
+    );
+  }
+
+  return missing.length
+    ? `Complete these required fields first: ${missing.join(", ")}.`
+    : "";
+}
+
 export default function MemberProfilePage() {
   const router = useRouter();
   const { user, authLoading } = useAuthUser();
@@ -959,6 +999,23 @@ export default function MemberProfilePage() {
       return;
     }
 
+    if (action === "publish") {
+      const validationMessage = getPublicationValidationMessage({
+        displayName: form.displayName,
+        skills: parseSkills(form.skillsText),
+        experienceTier: form.experienceTier,
+        deliveryScope: form.deliveryScope,
+        coverShowcaseImages,
+        workSamples,
+      });
+
+      if (validationMessage) {
+        setErrorMessage(validationMessage);
+        notify.error(validationMessage);
+        return;
+      }
+    }
+
     setSubmittingForReview(true);
     setErrorMessage("");
     setSuccessMessage("");
@@ -992,12 +1049,15 @@ export default function MemberProfilePage() {
 
       setPublication(result.publication);
       setSuccessMessage(result.message);
+      notify.success(result.message);
     } catch (error) {
-      setErrorMessage(
+      const message =
         error instanceof Error
           ? error.message
-          : "Could not update your profile publication status.",
-      );
+          : "Could not update your profile publication status.";
+
+      setErrorMessage(message);
+      notify.error(message);
     } finally {
       setSubmittingForReview(false);
     }
@@ -1987,24 +2047,6 @@ export default function MemberProfilePage() {
           </div>
         </div>
 
-        {errorMessage ? (
-          <div
-            className="mb-6 border border-red-500/25 bg-red-500/10 p-4 text-sm leading-6 text-red-200"
-            style={{ borderRadius: 8 }}
-          >
-            {errorMessage}
-          </div>
-        ) : null}
-
-        {successMessage ? (
-          <div
-            className="mb-6 border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-200"
-            style={{ borderRadius: 8 }}
-          >
-            {successMessage}
-          </div>
-        ) : null}
-
         <form id="developer-profile-form" onSubmit={saveProfile}>
           <div className="space-y-6">
             <section
@@ -2326,7 +2368,8 @@ export default function MemberProfilePage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-white">
-                    Cover Photo Showcase
+                    Cover Photo Showcase{" "}
+                    <span className="text-red-300">*</span>
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
                     Upload up to three cover photos for the slideshow at the top
@@ -2702,11 +2745,12 @@ export default function MemberProfilePage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-white">
-                    Featured Work
+                    Featured Work{" "}
+                    <span className="text-red-300">*</span>
                   </h2>
 
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
-                    Add up to six games or projects and describe your actual role.
+                    Add up to six games or projects. At least one item must include a title and your role.
                   </p>
                 </div>
 
