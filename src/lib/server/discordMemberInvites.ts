@@ -8,7 +8,7 @@ import {
 } from "@/lib/firebaseAdmin";
 
 const INVITE_MAX_AGE_SECONDS =
-  60 * 60 * 24 * 30;
+  60 * 60 * 24 * 7;
 
 const INVITE_MAX_USES = 1;
 
