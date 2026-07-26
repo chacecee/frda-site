@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+    onAuthStateChanged,
+    User,
+} from "firebase/auth";
+
+import {
     ExternalLink,
     Gamepad2,
     Search,
@@ -13,6 +18,8 @@ import {
     motion,
 } from "framer-motion";
 import { logAnalyticsEvent } from "@/lib/analytics";
+import MemberSubmitGameModal from "@/components/games/MemberSubmitGameModal";
+import { auth } from "@/lib/firebase";
 import {
     GAME_CONTENT_MATURITY_OPTIONS,
     GAME_GENRE_OPTIONS,
@@ -328,8 +335,26 @@ export default function PublicGamesDirectory() {
     const [activeMaturity, setActiveMaturity] = useState<string>(ALL_MATURITY);
     const [showHighlights, setShowHighlights] = useState(true);
     const [selectedGame, setSelectedGame] = useState<PublicGame | null>(null);
+
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+
     const [submitModalOpen, setSubmitModalOpen] = useState(false);
+    const [memberSubmitModalOpen, setMemberSubmitModalOpen] = useState(false);
+
     const [visibleCount, setVisibleCount] = useState(ITEMS_PER_LOAD);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(
+            auth,
+            (signedInUser) => {
+                setCurrentUser(signedInUser);
+                setAuthLoading(false);
+            },
+        );
+
+        return () => unsubscribe();
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -536,14 +561,27 @@ export default function PublicGamesDirectory() {
                     <div className="mt-4">
                         <button
                             type="button"
+                            disabled={authLoading}
                             onClick={() => {
                                 handleSubmitCtaClick();
+
+                                if (authLoading) {
+                                    return;
+                                }
+
+                                if (currentUser) {
+                                    setMemberSubmitModalOpen(true);
+                                    return;
+                                }
+
                                 setSubmitModalOpen(true);
                             }}
-                            className="flex w-full cursor-pointer items-center justify-center border border-blue-300/35 bg-blue-500/20 px-4 py-3 text-center text-sm font-semibold text-blue-50 shadow-[0_0_24px_rgba(37,99,235,0.12)] transition hover:bg-blue-500/30"
+                            className="flex w-full cursor-pointer items-center justify-center border border-blue-300/35 bg-blue-500/20 px-4 py-3 text-center text-sm font-semibold text-blue-50 shadow-[0_0_24px_rgba(37,99,235,0.12)] transition hover:bg-blue-500/30 disabled:cursor-wait disabled:opacity-60"
                             style={{ borderRadius: 5 }}
                         >
-                            Submit your game
+                            {authLoading
+                                ? "Checking account..."
+                                : "Submit your game"}
                         </button>
 
                         <p className="mt-2 text-xs leading-5 text-zinc-500">
@@ -824,6 +862,17 @@ export default function PublicGamesDirectory() {
                     onClose={() => setSelectedGame(null)}
                 />
             ) : null}
+
+            <MemberSubmitGameModal
+                open={memberSubmitModalOpen}
+                displayName={
+                    currentUser?.displayName?.trim() ||
+                    currentUser?.email?.split("@")[0] ||
+                    "Developer"
+                }
+                onClose={() => setMemberSubmitModalOpen(false)}
+                onSuccess={() => setMemberSubmitModalOpen(false)}
+            />
 
             <AnimatePresence>
                 {submitModalOpen ? (

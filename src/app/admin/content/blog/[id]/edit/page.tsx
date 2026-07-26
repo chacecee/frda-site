@@ -1,34 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { signOut } from "firebase/auth";
 import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  onSnapshot,
-  query,
-  Timestamp,
-  where,
-} from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-import { useAuthUser } from "@/lib/useAuthUser";
+  useEffect,
+  useState,
+} from "react";
+import {
+  useParams,
+  useRouter,
+} from "next/navigation";
+import {
+  signOut,
+} from "firebase/auth";
+import {
+  auth,
+} from "@/lib/firebase";
+import {
+  useAuthUser,
+} from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import BlogPostEditorForm from "@/components/admin/BlogPostEditorForm";
-import { setPresenceOffline } from "@/lib/usePresence";
 import {
-  SidebarPermissionMap,
-  canManageBlog,
-} from "@/lib/adminPermissions";
-
-type StaffProfile = {
-  id: string;
-  emailAddress?: string;
-  role?: string;
-};
+  setPresenceOffline,
+} from "@/lib/usePresence";
 
 type BlogPost = {
   id: string;
@@ -37,235 +30,176 @@ type BlogPost = {
   category?: string;
   author: string;
   publishDate: string;
+  publishTime?: string;
   excerpt: string;
   featuredImageUrl?: string;
   featuredImagePath?: string;
+  featuredImageCaption?: string;
   body: string;
   isPublished: boolean;
   showOnHomepage: boolean;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-  createdByEmail?: string;
-  updatedByEmail?: string;
 };
 
-function normalizeEmail(value?: string | null): string {
-  return value?.trim().toLowerCase() || "";
-}
-
 export default function EditBlogPostPage() {
-  const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const { user, authLoading } = useAuthUser();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const router =
+    useRouter();
 
-  const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
+  const params =
+    useParams<{
+      id: string;
+    }>();
 
-  const [permissionMap, setPermissionMap] = useState<SidebarPermissionMap>({});
-  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const {
+    user,
+    authLoading,
+  } = useAuthUser();
 
-  const [post, setPost] = useState<BlogPost | null>(null);
-  const [loadingPost, setLoadingPost] = useState(true);
+  const [
+    sidebarOpen,
+    setSidebarOpen,
+  ] = useState(false);
 
-  const [pageError, setPageError] = useState("");
+  const [
+    post,
+    setPost,
+  ] = useState<BlogPost | null>(
+    null,
+  );
 
-  const displayName =
-    user?.displayName?.trim() ||
-    (user?.email ? user.email.split("@")[0] : "Unknown User");
+  const [
+    loadingPost,
+    setLoadingPost,
+  ] = useState(true);
 
-  const signedInEmail = normalizeEmail(user?.email);
+  const [
+    pageError,
+    setPageError,
+  ] = useState("");
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace("/admin/login");
+    if (
+      !authLoading &&
+      !user
+    ) {
+      router.replace(
+        "/admin/login",
+      );
     }
-  }, [authLoading, user, router]);
+  }, [
+    authLoading,
+    user,
+    router,
+  ]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function loadRole() {
-      if (!user?.email) {
-        if (!isMounted) return;
-        setStaffProfile(null);
-        setRoleLoading(false);
-        return;
-      }
-
-      setRoleLoading(true);
-
-      try {
-        const exactQuery = query(
-          collection(db, "staff"),
-          where("emailAddress", "==", user.email),
-          limit(1)
-        );
-
-        const exactSnapshot = await getDocs(exactQuery);
-
-        if (!exactSnapshot.empty) {
-          const docSnap = exactSnapshot.docs[0];
-          if (!isMounted) return;
-
-          setStaffProfile({
-            id: docSnap.id,
-            ...(docSnap.data() as Omit<StaffProfile, "id">),
-          });
-          setRoleLoading(false);
-          return;
-        }
-
-        const lowerQuery = query(
-          collection(db, "staff"),
-          where("emailAddress", "==", signedInEmail),
-          limit(1)
-        );
-
-        const lowerSnapshot = await getDocs(lowerQuery);
-
-        if (!lowerSnapshot.empty) {
-          const docSnap = lowerSnapshot.docs[0];
-          if (!isMounted) return;
-
-          setStaffProfile({
-            id: docSnap.id,
-            ...(docSnap.data() as Omit<StaffProfile, "id">),
-          });
-          setRoleLoading(false);
-          return;
-        }
-
-        const allStaffSnapshot = await getDocs(collection(db, "staff"));
-        const match = allStaffSnapshot.docs.find((docSnap) => {
-          const data = docSnap.data() as { emailAddress?: string; role?: string };
-          return normalizeEmail(data.emailAddress) === signedInEmail;
-        });
-
-        if (!isMounted) return;
-
-        if (!match) {
-          setStaffProfile(null);
-          setRoleLoading(false);
-          return;
-        }
-
-        setStaffProfile({
-          id: match.id,
-          ...(match.data() as Omit<StaffProfile, "id">),
-        });
-        setRoleLoading(false);
-      } catch (error) {
-        console.error("Error checking blog access:", error);
-        if (!isMounted) return;
-        setPageError("Could not verify your permissions.");
-        setRoleLoading(false);
-      }
+    if (
+      !user ||
+      !params?.id
+    ) {
+      return;
     }
 
-    loadRole();
+    const currentUser = user;
+    let cancelled = false;
 
-    return () => {
-      isMounted = false;
-    };
-  }, [user?.email, signedInEmail]);
-
-  useEffect(() => {
-    const permissionsRef = doc(db, "adminUiPermissions", "sidebar");
-
-    const unsubscribe = onSnapshot(
-      permissionsRef,
-      (snapshot) => {
-        if (!snapshot.exists()) {
-          setPermissionMap({});
-          setPermissionsLoading(false);
-          return;
-        }
-
-        setPermissionMap(snapshot.data() as SidebarPermissionMap);
-        setPermissionsLoading(false);
-      },
-      (error) => {
-        console.error("Error loading blog permissions:", error);
-        setPageError("Could not verify your page permissions.");
-        setPermissionMap({});
-        setPermissionsLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
-
-  const hasAccess = useMemo(() => {
-    return canManageBlog(
-      staffProfile?.role,
-      staffProfile?.id,
-      permissionMap
-    );
-  }, [staffProfile?.role, staffProfile?.id, permissionMap]);
-
-  useEffect(() => {
     async function loadPost() {
-      if (!params?.id || !hasAccess) {
-        setLoadingPost(false);
-        return;
-      }
-
       setLoadingPost(true);
       setPageError("");
 
       try {
-        const docRef = doc(db, "blogPosts", params.id);
-        const snapshot = await getDoc(docRef);
+        const idToken =
+          await currentUser
+            .getIdToken();
 
-        if (!snapshot.exists()) {
-          setPageError("That blog post could not be found.");
-          setPost(null);
-          setLoadingPost(false);
-          return;
+        const response =
+          await fetch(
+            `/api/admin/blog?id=${encodeURIComponent(
+              params.id,
+            )}`,
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${idToken}`,
+              },
+              cache: "no-store",
+            },
+          );
+
+        const result =
+          await response
+            .json()
+            .catch(() => null);
+
+        if (
+          !response.ok ||
+          !result?.ok
+        ) {
+          throw new Error(
+            result?.error ||
+            "Could not load this blog post.",
+          );
         }
 
-        setPost({
-          id: snapshot.id,
-          ...(snapshot.data() as Omit<BlogPost, "id">),
-        });
-        setLoadingPost(false);
+        if (!cancelled) {
+          setPost(
+            result.post,
+          );
+        }
       } catch (error) {
-        console.error("Error loading blog post:", error);
-        setPageError("Could not load this blog post.");
-        setLoadingPost(false);
+        if (!cancelled) {
+          setPageError(
+            error instanceof Error
+              ? error.message
+              : "Could not load this blog post.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingPost(false);
+        }
       }
     }
 
     loadPost();
-  }, [params?.id, hasAccess]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    user,
+    params?.id,
+  ]);
 
   async function handleSignOut() {
     try {
-      await setPresenceOffline(user?.email);
+      await setPresenceOffline(
+        user?.uid,
+        user?.email,
+      );
+
       await signOut(auth);
-      router.replace("/admin/login");
+
+      router.replace(
+        "/admin/login",
+      );
     } catch (error) {
-      console.error("Sign out error:", error);
+      console.error(
+        "Sign out error:",
+        error,
+      );
     }
   }
 
-  if (authLoading || !user || roleLoading || permissionsLoading || loadingPost) {
+  if (
+    authLoading ||
+    !user ||
+    loadingPost
+  ) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white">
         <div className="mx-auto max-w-7xl px-6 py-10">
-          <p className="text-sm text-zinc-400">Loading editor...</p>
-        </div>
-      </main>
-    );
-  }
-
-  if (!hasAccess) {
-    return (
-      <main className="min-h-screen bg-zinc-950 text-white">
-        <div className="mx-auto max-w-3xl px-6 py-10">
-          <p className="text-sm text-red-400">
-            You do not have permission to edit blog posts.
+          <p className="text-sm text-zinc-400">
+            Loading editor...
           </p>
         </div>
       </main>
@@ -277,49 +211,49 @@ export default function EditBlogPostPage() {
       <main className="min-h-screen bg-zinc-950 text-white">
         <div className="mx-auto max-w-3xl px-6 py-10">
           <p className="text-sm text-red-400">
-            {pageError || "That blog post could not be found."}
+            {pageError ||
+              "That blog post could not be found."}
           </p>
         </div>
       </main>
     );
   }
 
+  const displayName =
+    user.displayName?.trim() ||
+    user.email?.split("@")[0] ||
+    "Unknown User";
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <div className="grid min-h-screen lg:grid-cols-[250px_minmax(0,1fr)]">
         <AdminSidebar
           active="content_blog"
-          sidebarOpen={sidebarOpen}
-          onCloseSidebar={() => setSidebarOpen(false)}
-          onNavigate={(path) => router.push(path)}
-          onSignOut={handleSignOut}
-          displayName={displayName}
+          sidebarOpen={
+            sidebarOpen
+          }
+          onCloseSidebar={() =>
+            setSidebarOpen(false)
+          }
+          onNavigate={(path) =>
+            router.push(path)
+          }
+          onSignOut={
+            handleSignOut
+          }
+          displayName={
+            displayName
+          }
           email={user.email}
         />
 
         <section className="bg-zinc-900/75 px-5 py-5 md:px-10 md:py-8 xl:px-14">
-          <div className="mb-5 flex items-center gap-3 lg:hidden">
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="bg-zinc-900 px-3 py-2 text-sm text-white"
-              style={{ borderRadius: 5 }}
-            >
-              ☰
-            </button>
-            <p className="text-2xl font-semibold leading-none text-white">
-              Edit Blog Post
-            </p>
-          </div>
-
-          {pageError ? (
-            <p className="mb-6 text-sm text-red-400">{pageError}</p>
-          ) : null}
-
           <BlogPostEditorForm
             mode="edit"
             initialPost={post}
-            currentUserEmail={user.email || ""}
+            currentUserEmail={
+              user.email || ""
+            }
           />
         </section>
       </div>

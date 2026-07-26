@@ -3,20 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  Timestamp,
-  updateDoc,
-} from "firebase/firestore";
 import { onValue, ref } from "firebase/database";
-import { auth, db, rtdb } from "@/lib/firebase";
+import { auth, rtdb } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { setPresenceOffline } from "@/lib/usePresence";
@@ -33,10 +21,10 @@ type StaffMember = {
   emailAddress: string;
   role: StaffRole;
   status: StaffStatus;
-  dateInvited?: Timestamp | null;
-  dateJoined?: Timestamp | null;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
+  dateInvited?: string | null;
+  dateJoined?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 type PresenceEntry = {
@@ -47,10 +35,11 @@ type PresenceEntry = {
 
 const ROLE_OPTIONS: StaffRole[] = ["Admin", "Moderator", "Reviewer", "Staff"];
 
-function formatDateTime(value?: Timestamp | null): string {
+function formatDateTime(value?: string | null): string {
   if (!value) return "—";
 
-  const date = value.toDate();
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
 
   const datePart = new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -65,10 +54,6 @@ function formatDateTime(value?: Timestamp | null): string {
   }).format(date);
 
   return `${datePart} (${timePart})`;
-}
-
-function normalizePresenceKey(value?: string | null): string {
-  return value?.trim().toLowerCase().replaceAll(".", ",") || "";
 }
 
 function getStatusBadgeClass(status: StaffStatus) {
@@ -147,33 +132,66 @@ export default function StaffPage() {
     }
   }, [authLoading, user, router]);
 
-  useEffect(() => {
+  async function loadStaff() {
     if (!user) return;
 
     setLoadingStaff(true);
     setErrorMsg("");
 
-    const q = query(collection(db, "staff"), orderBy("createdAt", "desc"));
+    try {
+      const idToken =
+        await user.getIdToken();
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const rows: StaffMember[] = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() as Omit<StaffMember, "id">),
-        }));
+      const response = await fetch(
+        "/api/admin/staff",
+        {
+          headers: {
+            Authorization:
+              `Bearer ${idToken}`,
+          },
+          cache: "no-store",
+        },
+      );
 
-        setStaffList(rows);
-        setLoadingStaff(false);
-      },
-      (error) => {
-        console.error("Error loading staff:", error);
-        setErrorMsg("Could not load staff records.");
-        setLoadingStaff(false);
+      const result =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        !response.ok ||
+        !result?.ok
+      ) {
+        throw new Error(
+          result?.error ||
+          "Could not load staff records.",
+        );
       }
-    );
 
-    return () => unsubscribe();
+      setStaffList(
+        Array.isArray(result.staff)
+          ? result.staff
+          : [],
+      );
+    } catch (error) {
+      console.error(
+        "Error loading staff:",
+        error,
+      );
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : "Could not load staff records.",
+      );
+    } finally {
+      setLoadingStaff(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!user) return;
+    loadStaff();
   }, [user]);
 
   useEffect(() => {
@@ -251,7 +269,10 @@ export default function StaffPage() {
 
   async function handleSignOut() {
     try {
-      await setPresenceOffline(user?.email);
+      await setPresenceOffline(
+        user?.uid,
+        user?.email,
+      );
       await signOut(auth);
       router.replace("/admin/login");
     } catch (error) {
@@ -259,136 +280,226 @@ export default function StaffPage() {
     }
   }
 
-  async function sendStaffInvite(
-    emailAddress: string,
-    displayName: string,
-    role: string
+  async function handleSubmit(
+    e: React.FormEvent<HTMLFormElement>
   ) {
-    const response = await fetch("/api/staff/invite", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        emailAddress,
-        displayName,
-        role,
-      }),
-    });
-    const contentType = response.headers.get("content-type") || "";
-
-    if (contentType.includes("application/json")) {
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result?.error || "Failed to send invite email.");
-      }
-
-      return result;
-    }
-
-    const text = await response.text();
-    throw new Error(
-      `Invite route returned ${response.status} ${response.statusText}. ${text.slice(0, 200)}`
-    );
-  }
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!user) return;
 
     if (
       !form.displayName.trim() ||
       !form.discordProfile.trim() ||
       !form.emailAddress.trim()
     ) {
-      notify.error("Please fill out Display Name, Position, and Email Address.");
+      notify.error(
+        "Please fill out Display Name, Position, and Email Address.",
+      );
       return;
     }
 
     setSavingStaff(true);
 
     try {
-      const trimmedDisplayName = form.displayName.trim();
-      const trimmedDiscord = form.discordProfile.trim();
-      const trimmedPosition = form.robloxInput.trim();
-      const trimmedEmail = form.emailAddress.trim();
+      const idToken =
+        await user.getIdToken();
 
-      if (editingStaffId) {
-        await updateDoc(doc(db, "staff", editingStaffId), {
-          displayName: trimmedDisplayName,
-          discordProfile: trimmedDiscord,
-          robloxInput: trimmedPosition,
-          emailAddress: trimmedEmail,
-          role: form.role,
-          updatedAt: serverTimestamp(),
-        });
-
-        closeModal();
-        return;
-      }
-
-      await addDoc(collection(db, "staff"), {
-        displayName: trimmedDisplayName,
-        discordProfile: trimmedDiscord,
-        robloxInput: trimmedPosition,
-        emailAddress: trimmedEmail,
+      const payload = {
+        displayName:
+          form.displayName.trim(),
+        discordProfile:
+          form.discordProfile.trim(),
+        robloxInput:
+          form.robloxInput.trim(),
+        emailAddress:
+          form.emailAddress
+            .trim()
+            .toLowerCase(),
         role: form.role,
-        status: "Invited",
-        dateInvited: serverTimestamp(),
-        dateJoined: null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      };
 
-      setSendingInvite(true);
+      const response = await fetch(
+        "/api/admin/staff",
+        {
+          method:
+            editingStaffId
+              ? "PATCH"
+              : "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${idToken}`,
+          },
+          body: JSON.stringify(
+            editingStaffId
+              ? {
+                  ...payload,
+                  staffId:
+                    editingStaffId,
+                  action: "update",
+                }
+              : payload,
+          ),
+        },
+      );
 
-      try {
-        await sendStaffInvite(trimmedEmail, trimmedDisplayName, form.role);
-        notify.success(`Staff record saved and invite email sent to ${trimmedEmail}.`);
-      } catch (inviteError) {
-        console.error("Invite email error:", inviteError);
-        notify.error(
-          `Staff record was saved, but the invite email could not be sent to ${trimmedEmail}. You can try again later.`
+      const result =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        !response.ok ||
+        !result?.ok
+      ) {
+        throw new Error(
+          result?.error ||
+          "Could not save this staff member.",
         );
-      } finally {
-        setSendingInvite(false);
       }
 
+      if (!editingStaffId) {
+        notify.success(
+          `Staff record saved and invite email sent to ${payload.emailAddress}.`,
+        );
+      }
+
+      await loadStaff();
       closeModal();
     } catch (error) {
-      console.error("Error saving staff member:", error);
-      notify.error("Could not save this staff member. Please try again.");
+      console.error(
+        "Error saving staff member:",
+        error,
+      );
+
+      notify.error(
+        error instanceof Error
+          ? error.message
+          : "Could not save this staff member. Please try again.",
+      );
     } finally {
       setSavingStaff(false);
+      setSendingInvite(false);
     }
   }
 
   async function confirmRemoveStaff() {
-    if (!pendingRemoveId) return;
+    if (
+      !pendingRemoveId ||
+      !user
+    ) {
+      return;
+    }
 
     try {
-      await updateDoc(doc(db, "staff", pendingRemoveId), {
-        status: "Removed",
-        updatedAt: serverTimestamp(),
-      });
+      const idToken =
+        await user.getIdToken();
+
+      const response = await fetch(
+        "/api/admin/staff",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            staffId:
+              pendingRemoveId,
+            action: "remove",
+          }),
+        },
+      );
+
+      const result =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        !response.ok ||
+        !result?.ok
+      ) {
+        throw new Error(
+          result?.error ||
+          "Could not remove this staff member.",
+        );
+      }
+
       setPendingRemoveId(null);
       closeModal();
+      await loadStaff();
     } catch (error) {
-      console.error("Error removing staff:", error);
-      notify.error("Could not remove this staff member.");
+      console.error(
+        "Error removing staff:",
+        error,
+      );
+
+      notify.error(
+        error instanceof Error
+          ? error.message
+          : "Could not remove this staff member.",
+      );
     }
   }
 
   async function confirmDeleteStaff() {
-    if (!pendingDeleteId) return;
+    if (
+      !pendingDeleteId ||
+      !user
+    ) {
+      return;
+    }
 
     try {
-      await deleteDoc(doc(db, "staff", pendingDeleteId));
+      const idToken =
+        await user.getIdToken();
+
+      const response = await fetch(
+        `/api/admin/staff?staffId=${encodeURIComponent(
+          pendingDeleteId,
+        )}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization:
+              `Bearer ${idToken}`,
+          },
+        },
+      );
+
+      const result =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        !response.ok ||
+        !result?.ok
+      ) {
+        throw new Error(
+          result?.error ||
+          "Could not delete this staff member.",
+        );
+      }
+
       setPendingDeleteId(null);
       closeModal();
+      await loadStaff();
     } catch (error) {
-      console.error("Error deleting staff:", error);
-      notify.error("Could not delete this staff member.");
+      console.error(
+        "Error deleting staff:",
+        error,
+      );
+
+      notify.error(
+        error instanceof Error
+          ? error.message
+          : "Could not delete this staff member.",
+      );
     }
   }
 
@@ -501,7 +612,17 @@ export default function StaffPage() {
                     </tr>
                   ) : (
                     filteredStaff.map((staff) => {
-                      const presence = presenceMap[normalizePresenceKey(staff.emailAddress)];
+                      const presence = Object.values(
+                        presenceMap,
+                      ).find(
+                        (entry) =>
+                          normalizeEmail(
+                            entry.email,
+                          ) ===
+                          normalizeEmail(
+                            staff.emailAddress,
+                          ),
+                      );
                       const isOnline =
                         presence?.state === "online" &&
                         typeof presence?.lastChanged === "number" &&
@@ -583,7 +704,17 @@ export default function StaffPage() {
               </div>
             ) : (
               filteredStaff.map((staff) => {
-                const presence = presenceMap[normalizePresenceKey(staff.emailAddress)];
+                const presence = Object.values(
+                        presenceMap,
+                      ).find(
+                        (entry) =>
+                          normalizeEmail(
+                            entry.email,
+                          ) ===
+                          normalizeEmail(
+                            staff.emailAddress,
+                          ),
+                      );
                 const isOnline =
                   presence?.state === "online" &&
                   typeof presence?.lastChanged === "number" &&

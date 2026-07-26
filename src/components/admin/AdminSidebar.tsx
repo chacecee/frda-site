@@ -1,21 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  collection,
-  doc,
-  getDocs,
-  limit,
-  onSnapshot,
-  query,
-  setDoc,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import {
   ClipboardList,
+  FileCheck,
   Users,
   ShieldUser,
   FolderKanban,
@@ -25,7 +14,6 @@ import {
   Megaphone,
   Newspaper,
   Settings2,
-  FileCheck,
   BarChart3,
   Gamepad2,
   CalendarClock,
@@ -34,11 +22,9 @@ import {
 import { usePresence } from "@/lib/usePresence";
 import {
   AdminSidebarActive,
-  ApplicationsTabKey,
   ContentTabKey,
   SidebarPermissionKey,
   SidebarPermissionMap,
-  canViewApplicationsSection,
   canViewAnalyticsSection,
   canViewContentSection,
   canViewSidebarTab,
@@ -47,8 +33,8 @@ import {
 
 type AdminSidebarProps = {
   active:
-    | AdminSidebarActive
-    | "membership_profile_reports";
+  | AdminSidebarActive
+  | "membership_profile_reports";
   sidebarOpen: boolean;
   onCloseSidebar: () => void;
   onNavigate: (path: string) => void;
@@ -206,9 +192,6 @@ export default function AdminSidebar({
   const [profileError, setProfileError] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
-  const [applicationsOpen, setApplicationsOpen] = useState(
-    active === "applications"
-  );
 
   const [membershipOpen, setMembershipOpen] = useState(
     active === "membership_developer_accounts" ||
@@ -227,7 +210,6 @@ export default function AdminSidebar({
 
   const [adminOpen, setAdminOpen] = useState(
     active === "admin_tools" ||
-    active === "admin_reassign_applications" ||
     active === "admin_staff_meetings" ||
     active === "admin_community_survey" ||
     active === "admin_geekout_opportunity"
@@ -272,90 +254,118 @@ export default function AdminSidebar({
   const signedInEmail = normalizeEmail(user?.email || email);
 
   useEffect(() => {
-    if (!signedInEmail) {
+    if (!user) {
       setStaffProfile(null);
+      setPermissionMap({});
       setProfileLoading(false);
       return;
     }
 
-    setProfileLoading(true);
-    setProfileError("");
+    const currentUser = user;
+    let cancelled = false;
 
-    const q = query(
-      collection(db, "staff"),
-      where("emailAddress", "==", signedInEmail),
-      limit(1)
-    );
+    async function loadSidebarData() {
+      setProfileLoading(true);
+      setProfileError("");
 
-    const unsubscribe = onSnapshot(
-      q,
-      async (snapshot) => {
-        if (!snapshot.empty) {
-          const docSnap = snapshot.docs[0];
-          const data = docSnap.data() as Omit<StaffProfile, "id">;
+      try {
+        const idToken =
+          await currentUser.getIdToken();
 
-          setStaffProfile({
-            id: docSnap.id,
-            ...data,
-          });
-          setProfileLoading(false);
-          return;
+        const activationResponse =
+          await fetch(
+            "/api/admin/activate-staff",
+            {
+              method: "POST",
+              headers: {
+                Authorization:
+                  `Bearer ${idToken}`,
+              },
+              cache: "no-store",
+            },
+          );
+
+        const activationResult =
+          await activationResponse
+            .json()
+            .catch(() => null);
+
+        if (
+          !activationResponse.ok ||
+          !activationResult?.ok
+        ) {
+          throw new Error(
+            activationResult?.error ||
+            "Could not activate your staff access.",
+          );
         }
 
-        try {
-          const allStaffSnapshot = await getDocs(collection(db, "staff"));
-          const match = allStaffSnapshot.docs.find((docSnap) => {
-            const data = docSnap.data() as { emailAddress?: string };
-            return normalizeEmail(data.emailAddress) === signedInEmail;
-          });
+        const response = await fetch(
+          "/api/admin/sidebar",
+          {
+            headers: {
+              Authorization:
+                `Bearer ${idToken}`,
+            },
+            cache: "no-store",
+          },
+        );
 
-          if (!match) {
-            setStaffProfile(null);
-            setProfileLoading(false);
-            return;
-          }
+        const result =
+          await response
+            .json()
+            .catch(() => null);
 
-          setStaffProfile({
-            id: match.id,
-            ...(match.data() as Omit<StaffProfile, "id">),
-          });
-        } catch (error) {
-          console.error("Error loading sidebar profile:", error);
-          setProfileError("Could not load your profile details.");
-        } finally {
-          setProfileLoading(false);
+        if (
+          !response.ok ||
+          !result?.ok
+        ) {
+          throw new Error(
+            result?.error ||
+            "Could not load your staff profile.",
+          );
         }
-      },
-      (error) => {
-        console.error("Error loading sidebar profile:", error);
-        setProfileError("Could not load your profile details.");
-        setProfileLoading(false);
-      }
-    );
 
-    return () => unsubscribe();
-  }, [signedInEmail]);
+        if (!cancelled) {
+          setStaffProfile(
+            result.staff as StaffProfile,
+          );
 
-  useEffect(() => {
-    const permissionsRef = doc(db, "adminUiPermissions", "sidebar");
+          setPermissionMap(
+            (
+              result.permissions ||
+              {}
+            ) as SidebarPermissionMap,
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Error loading sidebar data:",
+          error,
+        );
 
-    const unsubscribe = onSnapshot(
-      permissionsRef,
-      (snapshot) => {
-        if (!snapshot.exists()) {
+        if (!cancelled) {
+          setStaffProfile(null);
           setPermissionMap({});
-          return;
+          setProfileError(
+            error instanceof Error
+              ? error.message
+              : "Could not load your profile details.",
+          );
         }
-
-        setPermissionMap(snapshot.data() as SidebarPermissionMap);
-      },
-      (error) => {
-        console.error("Error loading sidebar permissions:", error);
+      } finally {
+        if (!cancelled) {
+          setProfileLoading(false);
+        }
       }
-    );
+    }
 
-    return () => unsubscribe();
-  }, []);
+    loadSidebarData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (
@@ -535,10 +545,6 @@ export default function AdminSidebar({
   ]);
 
   useEffect(() => {
-    if (active === "applications") {
-      setApplicationsOpen(true);
-    }
-
     if (
       active === "membership_developer_accounts" ||
       active === "membership_talent_seeker_accounts" ||
@@ -560,7 +566,6 @@ export default function AdminSidebar({
 
     if (
       active === "admin_tools" ||
-      active === "admin_reassign_applications" ||
       active === "admin_staff_meetings" ||
       active === "admin_community_survey" ||
       active === "admin_geekout_opportunity"
@@ -589,12 +594,6 @@ export default function AdminSidebar({
 
   const isAdmin = isAdminRole(staffProfile?.role);
 
-  const canSeeApplicationsDevelopers = canViewSidebarTab(
-    staffProfile?.role,
-    staffProfile?.id,
-    permissionMap,
-    "applications_developers"
-  );
 
   const canSeeCommunitySurvey = canViewSidebarTab(
     staffProfile?.role,
@@ -633,11 +632,6 @@ export default function AdminSidebar({
     "content_blog"
   );
 
-  const hasApplicationsAccess = canViewApplicationsSection(
-    staffProfile?.role,
-    staffProfile?.id,
-    permissionMap
-  );
 
   const canSeeMembershipDeveloperAccounts = canViewSidebarTab(
     staffProfile?.role,
@@ -725,6 +719,8 @@ export default function AdminSidebar({
     tabKey: SidebarPermissionKey,
     title: string
   ) {
+    if (!user) return;
+
     setPermissionsLoading(true);
     setPermissionsError("");
     setPermissionModal({
@@ -734,24 +730,78 @@ export default function AdminSidebar({
     });
 
     try {
-      const snapshot = await getDocs(collection(db, "staff"));
-      const rows = snapshot.docs
-        .map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() as Omit<SelectableStaff, "id">),
-        }))
-        .filter((item) => !isAdminRole(item.role))
-        .sort((a, b) =>
-          (a.displayName || a.emailAddress || "").localeCompare(
-            b.displayName || b.emailAddress || ""
-          )
+      const idToken =
+        await user.getIdToken();
+
+      const response = await fetch(
+        "/api/admin/staff",
+        {
+          headers: {
+            Authorization:
+              `Bearer ${idToken}`,
+          },
+          cache: "no-store",
+        },
+      );
+
+      const result =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        !response.ok ||
+        !result?.ok
+      ) {
+        throw new Error(
+          result?.error ||
+          "Could not load staff members.",
+        );
+      }
+
+      const rows = (
+        Array.isArray(result.staff)
+          ? result.staff
+          : []
+      )
+        .filter(
+          (item: SelectableStaff) =>
+            !isAdminRole(
+              item.role,
+            ),
+        )
+        .sort(
+          (
+            a: SelectableStaff,
+            b: SelectableStaff,
+          ) =>
+            (
+              a.displayName ||
+              a.emailAddress ||
+              ""
+            ).localeCompare(
+              b.displayName ||
+              b.emailAddress ||
+              "",
+            ),
         );
 
       setSelectableStaff(rows);
-      setSelectedStaffIds(permissionMap[tabKey] || []);
+      setSelectedStaffIds(
+        permissionMap[tabKey] ||
+        [],
+      );
     } catch (error) {
-      console.error("Error loading selectable staff:", error);
-      setPermissionsError("Could not load staff members.");
+      console.error(
+        "Error loading selectable staff:",
+        error,
+      );
+
+      setPermissionsError(
+        error instanceof Error
+          ? error.message
+          : "Could not load staff members.",
+      );
     } finally {
       setPermissionsLoading(false);
     }
@@ -778,24 +828,74 @@ export default function AdminSidebar({
   }
 
   async function handleSavePermissions() {
-    if (!permissionModal.tabKey) return;
+    if (
+      !permissionModal.tabKey ||
+      !user
+    ) {
+      return;
+    }
 
     setPermissionsSaving(true);
     setPermissionsError("");
 
     try {
-      await setDoc(
-        doc(db, "adminUiPermissions", "sidebar"),
+      const idToken =
+        await user.getIdToken();
+
+      const response = await fetch(
+        "/api/admin/sidebar",
         {
-          [permissionModal.tabKey]: selectedStaffIds,
+          method: "PUT",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            permissionKey:
+              permissionModal.tabKey,
+            staffIds:
+              selectedStaffIds,
+          }),
         },
-        { merge: true }
+      );
+
+      const result =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        !response.ok ||
+        !result?.ok
+      ) {
+        throw new Error(
+          result?.error ||
+          "Could not save permissions.",
+        );
+      }
+
+      setPermissionMap(
+        (current) => ({
+          ...current,
+          [permissionModal.tabKey!]:
+            selectedStaffIds,
+        }),
       );
 
       closePermissionsModal();
     } catch (error) {
-      console.error("Error saving tab permissions:", error);
-      setPermissionsError("Could not save permissions.");
+      console.error(
+        "Error saving tab permissions:",
+        error,
+      );
+
+      setPermissionsError(
+        error instanceof Error
+          ? error.message
+          : "Could not save permissions.",
+      );
     } finally {
       setPermissionsSaving(false);
     }
@@ -819,16 +919,22 @@ export default function AdminSidebar({
     setProfileError("");
   }
 
-  async function handleSaveProfile(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSaveProfile(
+    e: React.FormEvent<HTMLFormElement>
+  ) {
     e.preventDefault();
 
-    if (!staffProfile) {
-      setProfileError("No matching staff profile was found for this account.");
+    if (!staffProfile || !user) {
+      setProfileError(
+        "No matching staff profile was found for this account.",
+      );
       return;
     }
 
     if (!form.displayName.trim()) {
-      setProfileError("Display Name is required.");
+      setProfileError(
+        "Display Name is required.",
+      );
       return;
     }
 
@@ -836,16 +942,72 @@ export default function AdminSidebar({
     setProfileError("");
 
     try {
-      await updateDoc(doc(db, "staff", staffProfile.id), {
-        displayName: form.displayName.trim(),
-        discordProfile: form.discordProfile.trim(),
-        robloxInput: form.robloxInput.trim(),
-      });
+      const idToken =
+        await user.getIdToken();
+
+      const response = await fetch(
+        "/api/admin/sidebar",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            displayName:
+              form.displayName.trim(),
+            discordProfile:
+              form.discordProfile.trim(),
+            robloxInput:
+              form.robloxInput.trim(),
+          }),
+        },
+      );
+
+      const result =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        !response.ok ||
+        !result?.ok
+      ) {
+        throw new Error(
+          result?.error ||
+          "Could not save your profile changes.",
+        );
+      }
+
+      setStaffProfile(
+        (current) =>
+          current
+            ? {
+              ...current,
+              displayName:
+                form.displayName.trim(),
+              discordProfile:
+                form.discordProfile.trim(),
+              robloxInput:
+                form.robloxInput.trim(),
+            }
+            : current,
+      );
 
       setProfileModalOpen(false);
     } catch (error) {
-      console.error("Error saving own profile:", error);
-      setProfileError("Could not save your profile changes.");
+      console.error(
+        "Error saving own profile:",
+        error,
+      );
+
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : "Could not save your profile changes.",
+      );
     } finally {
       setSavingProfile(false);
     }
@@ -887,53 +1049,6 @@ export default function AdminSidebar({
         </div>
 
         <nav className="space-y-0">
-          {hasApplicationsAccess ? (
-            <>
-              <SidebarSectionToggle
-                label="Applications"
-                icon={<ClipboardList size={18} strokeWidth={1.3} />}
-                active={active === "applications"}
-                open={applicationsOpen}
-                onClick={() => setApplicationsOpen((prev) => !prev)}
-              />
-
-              {applicationsOpen ? (
-                <div className="bg-zinc-950/25">
-                  {canSeeApplicationsDevelopers ? (
-                    <SidebarLink
-                      label="Developers"
-                      icon={<FileCheck size={16} strokeWidth={1.3} />}
-                      active={active === "applications"}
-                      className="pl-6"
-                      onClick={() => {
-                        onCloseSidebar();
-                        onNavigate("/admin");
-                      }}
-                      rightSlot={
-                        isAdmin ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openPermissionsModal(
-                                "applications_developers",
-                                "Applications — Developers"
-                              );
-                            }}
-                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-800 hover:text-blue-300"
-                            title="Permissions"
-                            aria-label="Permissions"
-                          >
-                            <Settings2 size={14} />
-                          </button>
-                        ) : null
-                      }
-                    />
-                  ) : null}
-                </div>
-              ) : null}
-            </>
-          ) : null}
 
           {hasMembershipAccess ? (
             <>
@@ -1338,7 +1453,6 @@ export default function AdminSidebar({
                 icon={<ShieldUser size={18} strokeWidth={1.3} />}
                 active={
                   active === "admin_tools" ||
-                  active === "admin_reassign_applications" ||
                   active === "admin_staff_meetings" ||
                   active === "admin_community_survey" ||
                   active === "admin_geekout_opportunity"
@@ -1351,19 +1465,6 @@ export default function AdminSidebar({
                 <div className="bg-zinc-950/25">
                   {isAdmin ? (
                     <>
-                      <SidebarLink
-                        label="Reassign Applications"
-                        icon={<ShieldUser size={16} strokeWidth={1.3} />}
-                        active={
-                          active === "admin_tools" ||
-                          active === "admin_reassign_applications"
-                        }
-                        className="pl-6"
-                        onClick={() => {
-                          onCloseSidebar();
-                          onNavigate("/admin/reassign");
-                        }}
-                      />
 
                       <SidebarLink
                         label="Staff Meetings"

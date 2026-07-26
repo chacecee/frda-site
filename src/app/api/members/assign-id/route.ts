@@ -1,65 +1,39 @@
-import { NextRequest, NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/server/adminAuthorization";
-import { ensureMemberForApplication } from "@/lib/server/members";
+import {
+  NextResponse,
+} from "next/server";
 
-export const runtime = "nodejs";
-
-export async function POST(request: NextRequest) {
-  try {
-    const authorization = await authorizeAdminRequest(
-      request,
-      "applications_developers"
-    );
-
-    if (!authorization.ok) {
-      return authorization.response;
-    }
-
-    const body = await request.json().catch(() => null);
-
-    const applicationId =
-      typeof body?.applicationId === "string"
-        ? body.applicationId.trim()
-        : "";
-
-    if (!applicationId) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Missing application ID.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const assignedMember = await ensureMemberForApplication({
-      applicationId,
-      actor: {
-        uid: authorization.staff.uid,
-        email: authorization.staff.emailAddress,
-        staffId: authorization.staff.id,
-        displayName:
-          authorization.staff.displayName ||
-          authorization.staff.emailAddress,
+function retiredResponse() {
+  return NextResponse.json(
+    {
+      ok: false,
+      error:
+        "The legacy developer application system has been retired.",
+    },
+    {
+      status: 410,
+      headers: {
+        "Cache-Control": "no-store",
       },
-    });
+    },
+  );
+}
 
-    return NextResponse.json({
-      ok: true,
-      ...assignedMember,
-    });
-  } catch (error) {
-    console.error("Assign member ID error:", error);
+export async function GET() {
+  return retiredResponse();
+}
 
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Could not assign a member ID.",
-      },
-      { status: 500 }
-    );
-  }
+export async function POST() {
+  return retiredResponse();
+}
+
+export async function PATCH() {
+  return retiredResponse();
+}
+
+export async function PUT() {
+  return retiredResponse();
+}
+
+export async function DELETE() {
+  return retiredResponse();
 }

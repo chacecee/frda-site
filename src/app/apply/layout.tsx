@@ -4,12 +4,20 @@ import SiteHeader from "@/components/site/SiteHeader";
 import PageViewTracker from "@/components/analytics/PageViewTracker";
 
 export const metadata: Metadata = {
-  title: "FRDA Registration",
+  title: "FRDA Developer Directory",
   description:
-    "Apply to become a verified member of the Filipino Roblox Developers Association.",
+    "FRDA's old developer application system has moved to the member portal.",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
-export default function ApplyLayout({ children }: { children: ReactNode }) {
+export default function ApplyLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return (
     <div className="min-h-screen bg-[#04163a]">
       <PageViewTracker />

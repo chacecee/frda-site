@@ -54,9 +54,9 @@ type HeaderMember = {
   displayName: string;
   email: string;
   accountPurpose:
-    | "developer"
-    | "talent_seeker"
-    | "both";
+  | "developer"
+  | "talent_seeker"
+  | "both";
   avatarUrl: string;
 };
 
@@ -242,8 +242,8 @@ export default function SiteHeader() {
         | AccountPurpose
         | undefined =
         requestedPurpose === "developer" ||
-        requestedPurpose === "talent_seeker" ||
-        requestedPurpose === "both"
+          requestedPurpose === "talent_seeker" ||
+          requestedPurpose === "both"
           ? requestedPurpose
           : undefined;
 
@@ -383,251 +383,251 @@ export default function SiteHeader() {
   }, [mobileOpen]);
 
 
-function openAccountModal(
-  tab: AccountModalTab = "signup",
-  accountPurpose?: AccountPurpose,
-) {
-  setMobileOpen(false);
-  setAccountTab(tab);
+  function openAccountModal(
+    tab: AccountModalTab = "signup",
+    accountPurpose?: AccountPurpose,
+  ) {
+    setMobileOpen(false);
+    setAccountTab(tab);
 
-  if (accountPurpose) {
-    setJoinForm((current) => ({
-      ...current,
-      accountPurpose,
-    }));
+    if (accountPurpose) {
+      setJoinForm((current) => ({
+        ...current,
+        accountPurpose,
+      }));
+    }
+
+    setJoinError("");
+    setJoinSuccess("");
+    setLoginError("");
+    setLoginSuccess("");
+    setLoginView("login");
+    setJoinOpen(true);
   }
 
-  setJoinError("");
-  setJoinSuccess("");
-  setLoginError("");
-  setLoginSuccess("");
-  setLoginView("login");
-  setJoinOpen(true);
-}
+  function closeJoinModal() {
+    if (joining || loggingIn) return;
 
-function closeJoinModal() {
-  if (joining || loggingIn) return;
+    setJoinOpen(false);
+    setJoinError("");
+    setJoinSuccess("");
+    setLoginError("");
+    setLoginSuccess("");
+    setLoginView("login");
+    setShowJoinPassword(false);
+    setShowLoginPassword(false);
+  }
 
-  setJoinOpen(false);
-  setJoinError("");
-  setJoinSuccess("");
-  setLoginError("");
-  setLoginSuccess("");
-  setLoginView("login");
-  setShowJoinPassword(false);
-  setShowLoginPassword(false);
-}
+  function switchAccountTab(
+    tab: AccountModalTab
+  ) {
+    setAccountTab(tab);
+    setJoinError("");
+    setJoinSuccess("");
+    setLoginError("");
+    setLoginSuccess("");
+    setLoginView("login");
+  }
 
-function switchAccountTab(
-  tab: AccountModalTab
-) {
-  setAccountTab(tab);
-  setJoinError("");
-  setJoinSuccess("");
-  setLoginError("");
-  setLoginSuccess("");
-  setLoginView("login");
-}
+  async function submitLoginForm(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
 
-async function submitLoginForm(
-  event: React.FormEvent<HTMLFormElement>
-) {
-  event.preventDefault();
+    setLoggingIn(true);
+    setLoginError("");
+    setLoginSuccess("");
 
-  setLoggingIn(true);
-  setLoginError("");
-  setLoginSuccess("");
+    try {
+      const credential =
+        await signInWithEmailAndPassword(
+          auth,
+          loginEmail.trim(),
+          loginPassword
+        );
 
-  try {
-    const credential =
-      await signInWithEmailAndPassword(
-        auth,
-        loginEmail.trim(),
-        loginPassword
+      await credential.user.reload();
+
+      if (!credential.user.emailVerified) {
+        await signOut(auth);
+
+        setLoginError(
+          "Verify your email address before signing in. Check the verification message sent by FRDA."
+        );
+
+        return;
+      }
+
+      setJoinOpen(false);
+      router.push(
+        getPublicHref(
+          "/member/dashboard"
+        )
       );
-
-    await credential.user.reload();
-
-    if (!credential.user.emailVerified) {
-      await signOut(auth);
+    } catch (error) {
+      console.error(
+        "Member login error:",
+        error
+      );
 
       setLoginError(
-        "Verify your email address before signing in. Check the verification message sent by FRDA."
+        "The email or password you entered is incorrect."
       );
+    } finally {
+      setLoggingIn(false);
+    }
+  }
 
+  function openForgotPassword() {
+    setLoginView(
+      "forgot_password",
+    );
+
+    setLoginError("");
+    setLoginSuccess("");
+    setLoginPassword("");
+  }
+
+  function returnToLogin() {
+    setLoginView("login");
+    setLoginError("");
+    setLoginSuccess("");
+  }
+
+  async function handleForgotPassword(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    const normalizedEmail =
+      loginEmail.trim();
+
+    if (!normalizedEmail) {
+      setLoginError(
+        "Enter the email address connected to your FRDA account."
+      );
       return;
     }
 
-    setJoinOpen(false);
-    router.push(
-      getPublicHref(
-        "/member/dashboard"
-      )
-    );
-  } catch (error) {
-    console.error(
-      "Member login error:",
-      error
-    );
+    setResettingPassword(true);
+    setLoginError("");
+    setLoginSuccess("");
 
-    setLoginError(
-      "The email or password you entered is incorrect."
-    );
-  } finally {
-    setLoggingIn(false);
-  }
-}
-
-function openForgotPassword() {
-  setLoginView(
-    "forgot_password",
-  );
-
-  setLoginError("");
-  setLoginSuccess("");
-  setLoginPassword("");
-}
-
-function returnToLogin() {
-  setLoginView("login");
-  setLoginError("");
-  setLoginSuccess("");
-}
-
-async function handleForgotPassword(
-  event: React.FormEvent<HTMLFormElement>
-) {
-  event.preventDefault();
-
-  const normalizedEmail =
-    loginEmail.trim();
-
-  if (!normalizedEmail) {
-    setLoginError(
-      "Enter the email address connected to your FRDA account."
-    );
-    return;
-  }
-
-  setResettingPassword(true);
-  setLoginError("");
-  setLoginSuccess("");
-
-  try {
-    const response = await fetch(
-      "/api/membership/password-reset",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
+    try {
+      const response = await fetch(
+        "/api/membership/password-reset",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            email: normalizedEmail,
+          }),
         },
-        body: JSON.stringify({
-          email: normalizedEmail,
-        }),
-      },
-    );
+      );
 
-    const result =
-      await response
+      const result =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        !response.ok ||
+        !result?.ok
+      ) {
+        throw new Error(
+          result?.error ||
+          "The password reset email could not be sent.",
+        );
+      }
+
+      setLoginView(
+        "reset_sent",
+      );
+    } catch (error) {
+      console.error(
+        "Member password reset error:",
+        error
+      );
+
+      setLoginError(
+        "The password reset email could not be sent. Please try again."
+      );
+    } finally {
+      setResettingPassword(false);
+    }
+  }
+
+  async function submitJoinForm(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    setJoinError("");
+    setJoinSuccess("");
+
+    if (!joinForm.fullName.trim()) {
+      setJoinError("Enter your full name.");
+      return;
+    }
+
+    if (joinForm.password.length < 10) {
+      setJoinError(
+        "Your password must contain at least 10 characters."
+      );
+      return;
+    }
+
+    if (joinForm.password !== joinForm.confirmPassword) {
+      setJoinError("Your passwords do not match.");
+      return;
+    }
+
+    setJoining(true);
+
+    try {
+      const response = await fetch(
+        "/api/membership/register",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            fullName: joinForm.fullName.trim(),
+            email: joinForm.email.trim(),
+            password: joinForm.password,
+            accountPurpose: joinForm.accountPurpose,
+            companyWebsite: joinForm.companyWebsite,
+          }),
+        }
+      );
+
+      const result = await response
         .json()
         .catch(() => null);
 
-    if (
-      !response.ok ||
-      !result?.ok
-    ) {
-      throw new Error(
-        result?.error ||
-        "The password reset email could not be sent.",
-      );
-    }
-
-    setLoginView(
-      "reset_sent",
-    );
-  } catch (error) {
-    console.error(
-      "Member password reset error:",
-      error
-    );
-
-    setLoginError(
-      "The password reset email could not be sent. Please try again."
-    );
-  } finally {
-    setResettingPassword(false);
-  }
-}
-
-async function submitJoinForm(
-  event: React.FormEvent<HTMLFormElement>
-) {
-  event.preventDefault();
-
-  setJoinError("");
-  setJoinSuccess("");
-
-  if (!joinForm.fullName.trim()) {
-    setJoinError("Enter your full name.");
-    return;
-  }
-
-  if (joinForm.password.length < 8) {
-    setJoinError(
-      "Your password must contain at least eight characters."
-    );
-    return;
-  }
-
-  if (joinForm.password !== joinForm.confirmPassword) {
-    setJoinError("Your passwords do not match.");
-    return;
-  }
-
-  setJoining(true);
-
-  try {
-    const response = await fetch(
-      "/api/membership/register",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fullName: joinForm.fullName.trim(),
-          email: joinForm.email.trim(),
-          password: joinForm.password,
-          accountPurpose: joinForm.accountPurpose,
-          companyWebsite: joinForm.companyWebsite,
-        }),
+      if (!response.ok || !result?.ok) {
+        throw new Error(
+          result?.error ||
+          "Could not create your FRDA membership account."
+        );
       }
-    );
 
-    const result = await response
-      .json()
-      .catch(() => null);
-
-    if (!response.ok || !result?.ok) {
-      throw new Error(
-        result?.error ||
-        "Could not create your FRDA membership account."
+      setJoinSuccess(result.message);
+      setJoinForm(EMPTY_JOIN_FORM);
+    } catch (error) {
+      setJoinError(
+        error instanceof Error
+          ? error.message
+          : "Could not create your FRDA membership account."
       );
+    } finally {
+      setJoining(false);
     }
-
-    setJoinSuccess(result.message);
-    setJoinForm(EMPTY_JOIN_FORM);
-  } catch (error) {
-    setJoinError(
-      error instanceof Error
-        ? error.message
-        : "Could not create your FRDA membership account."
-    );
-  } finally {
-    setJoining(false);
   }
-}
 
   useEffect(() => {
     function handleOpenAccountModal(
@@ -640,7 +640,7 @@ async function submitJoinForm(
 
       openAccountModal(
         customEvent.detail?.tab ||
-          "signup",
+        "signup",
         customEvent.detail
           ?.accountPurpose,
       );
@@ -799,11 +799,10 @@ async function submitJoinForm(
                   </span>
 
                   <ChevronDown
-                    className={`h-4 w-4 text-zinc-400 transition ${
-                      accountMenuOpen
+                    className={`h-4 w-4 text-zinc-400 transition ${accountMenuOpen
                         ? "rotate-180"
                         : ""
-                    }`}
+                      }`}
                   />
                 </button>
 
@@ -862,7 +861,7 @@ async function submitJoinForm(
 
                         {headerMember?.accountPurpose ===
                           "talent_seeker" ||
-                        headerMember?.accountPurpose ===
+                          headerMember?.accountPurpose ===
                           "both" ? (
                           <Link
                             href={getPublicHref(
@@ -1103,7 +1102,7 @@ async function submitJoinForm(
                 style={{ borderRadius: 10 }}
               >
                 {accountTab === "login" &&
-                loginView !== "login" ? (
+                  loginView !== "login" ? (
                   <div className="flex justify-end px-6 pt-5">
                     <button
                       type="button"
@@ -1150,43 +1149,41 @@ async function submitJoinForm(
                 )}
 
                 {accountTab === "login" &&
-                loginView !== "login" ? null : (
+                  loginView !== "login" ? null : (
                   <div className="mt-5 grid grid-cols-2 border-b border-white/10 px-6">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      switchAccountTab("signup")
-                    }
-                    className={`relative cursor-pointer px-4 py-3 text-sm font-semibold transition ${
-                      accountTab === "signup"
-                        ? "text-sky-300"
-                        : "text-zinc-500 hover:text-zinc-200"
-                    }`}
-                  >
-                    Sign Up
+                    <button
+                      type="button"
+                      onClick={() =>
+                        switchAccountTab("signup")
+                      }
+                      className={`relative cursor-pointer px-4 py-3 text-sm font-semibold transition ${accountTab === "signup"
+                          ? "text-sky-300"
+                          : "text-zinc-500 hover:text-zinc-200"
+                        }`}
+                    >
+                      Sign Up
 
-                    {accountTab === "signup" ? (
-                      <span className="absolute inset-x-0 bottom-0 h-0.5 bg-sky-300" />
-                    ) : null}
-                  </button>
+                      {accountTab === "signup" ? (
+                        <span className="absolute inset-x-0 bottom-0 h-0.5 bg-sky-300" />
+                      ) : null}
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      switchAccountTab("login")
-                    }
-                    className={`relative cursor-pointer px-4 py-3 text-sm font-semibold transition ${
-                      accountTab === "login"
-                        ? "text-sky-300"
-                        : "text-zinc-500 hover:text-zinc-200"
-                    }`}
-                  >
-                    Log In
+                    <button
+                      type="button"
+                      onClick={() =>
+                        switchAccountTab("login")
+                      }
+                      className={`relative cursor-pointer px-4 py-3 text-sm font-semibold transition ${accountTab === "login"
+                          ? "text-sky-300"
+                          : "text-zinc-500 hover:text-zinc-200"
+                        }`}
+                    >
+                      Log In
 
-                    {accountTab === "login" ? (
-                      <span className="absolute inset-x-0 bottom-0 h-0.5 bg-sky-300" />
-                    ) : null}
-                  </button>
+                      {accountTab === "login" ? (
+                        <span className="absolute inset-x-0 bottom-0 h-0.5 bg-sky-300" />
+                      ) : null}
+                    </button>
                   </div>
                 )}
 
@@ -1273,7 +1270,7 @@ async function submitJoinForm(
                                 password: event.target.value,
                               }))
                             }
-                            minLength={8}
+                            minLength={10}
                             className="w-full border border-white/10 bg-black/20 px-4 py-3 pr-16 text-sm text-white outline-none focus:border-blue-400"
                             style={{ borderRadius: 5 }}
                             required
@@ -1315,7 +1312,7 @@ async function submitJoinForm(
                                 confirmPassword: event.target.value,
                               }))
                             }
-                            minLength={8}
+                            minLength={10}
                             className="w-full border border-white/10 bg-black/20 px-4 py-3 pr-12 text-sm text-white outline-none focus:border-blue-400"
                             style={{ borderRadius: 5 }}
                             required

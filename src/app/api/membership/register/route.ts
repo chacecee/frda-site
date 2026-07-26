@@ -2,9 +2,15 @@ import crypto from "crypto";
 import { readFile } from "fs/promises";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import {
+  FieldValue,
+  Timestamp,
+} from "firebase-admin/firestore";
 import { Resend } from "resend";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import {
+  adminAuth,
+  adminDb,
+} from "@/lib/firebaseAdmin";
 import {
   createSelfRegisteredMember,
   type MemberAccountPurpose,
@@ -12,8 +18,33 @@ import {
 
 export const runtime = "nodejs";
 
-const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
-const MAX_REGISTRATIONS_PER_WINDOW = 5;
+const MAX_REQUEST_BYTES = 16 * 1024;
+
+const IP_WINDOW_MS = 60 * 60 * 1000;
+const MAX_IP_ATTEMPTS = 5;
+
+const EMAIL_WINDOW_MS = 60 * 60 * 1000;
+const MAX_EMAIL_ATTEMPTS = 3;
+
+const MIN_PASSWORD_LENGTH = 10;
+const MAX_PASSWORD_LENGTH = 4096;
+
+const GENERIC_DUPLICATE_MESSAGE =
+  "We could not create this account. Try signing in or resetting your password if you may already have an FRDA account.";
+
+class RateLimitError extends Error {}
+
+function jsonResponse(
+  body: Record<string, unknown>,
+  status = 200,
+) {
+  return NextResponse.json(body, {
+    status,
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  });
+}
 
 function getBaseUrl(): string {
   const configuredUrl =
@@ -33,17 +64,26 @@ function normalizeEmail(value: unknown): string {
 }
 
 function sanitizeName(value: unknown): string {
-  return typeof value === "string"
-    ? value.trim().replace(/\s+/g, " ").slice(0, 120)
-    : "";
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 120);
 }
 
 function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  return (
+    value.length <= 254 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+  );
 }
 
 function isAccountPurpose(
-  value: unknown
+  value: unknown,
 ): value is MemberAccountPurpose {
   return (
     value === "developer" ||
@@ -52,67 +92,110 @@ function isAccountPurpose(
   );
 }
 
-function getClientAddress(request: NextRequest): string {
-  const forwarded = request.headers.get("x-forwarded-for");
+function getClientAddress(
+  request: NextRequest,
+): string {
+  const forwarded =
+    request.headers.get("x-forwarded-for");
 
   if (forwarded) {
-    return forwarded.split(",")[0]?.trim() || "unknown";
+    return (
+      forwarded.split(",")[0]?.trim() ||
+      "unknown"
+    );
   }
 
-  return request.headers.get("x-real-ip")?.trim() || "unknown";
+  return (
+    request.headers
+      .get("x-real-ip")
+      ?.trim() ||
+    "unknown"
+  );
 }
 
-function hashRateLimitKey(value: string): string {
+function hashRateLimitKey(
+  value: string,
+): string {
   return crypto
     .createHash("sha256")
     .update(
-      `${process.env.FIREBASE_ADMIN_PROJECT_ID || "frda"}:${value}`
+      `${process.env.FIREBASE_ADMIN_PROJECT_ID || "frda"}:${value}`,
     )
     .digest("hex");
 }
 
-async function enforceRateLimit(request: NextRequest) {
-  const addressHash = hashRateLimitKey(getClientAddress(request));
+async function enforceSlidingWindow({
+  key,
+  windowMs,
+  maxAttempts,
+}: {
+  key: string;
+  windowMs: number;
+  maxAttempts: number;
+}) {
   const reference = adminDb
-    .collection("membershipRegistrationRateLimits")
-    .doc(addressHash);
-
-  await adminDb.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(reference);
-    const data = snapshot.data() || {};
-    const windowStartedAt = data.windowStartedAt;
-
-    const activeWindow =
-      windowStartedAt instanceof Timestamp &&
-      Date.now() - windowStartedAt.toMillis() < REGISTRATION_WINDOW_MS;
-
-    const attemptCount =
-      activeWindow && typeof data.attemptCount === "number"
-        ? data.attemptCount
-        : 0;
-
-    if (attemptCount >= MAX_REGISTRATIONS_PER_WINDOW) {
-      throw new Error(
-        "Too many account creation attempts were made from this connection. Please try again later."
-      );
-    }
-
-    transaction.set(
-      reference,
-      {
-        windowStartedAt:
-          activeWindow
-            ? windowStartedAt
-            : Timestamp.now(),
-        attemptCount: attemptCount + 1,
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
+    .collection(
+      "membershipRegistrationRateLimits",
+    )
+    .doc(
+      hashRateLimitKey(key),
     );
-  });
+
+  await adminDb.runTransaction(
+    async (transaction) => {
+      const snapshot =
+        await transaction.get(reference);
+
+      const data =
+        snapshot.data() || {};
+
+      const windowStartedAt =
+        data.windowStartedAt;
+
+      const activeWindow =
+        windowStartedAt instanceof
+          Timestamp &&
+        Date.now() -
+          windowStartedAt.toMillis() <
+          windowMs;
+
+      const attemptCount =
+        activeWindow &&
+        typeof data.attemptCount ===
+          "number"
+          ? data.attemptCount
+          : 0;
+
+      if (
+        attemptCount >=
+        maxAttempts
+      ) {
+        throw new RateLimitError(
+          "Too many account creation attempts were made. Please try again later.",
+        );
+      }
+
+      transaction.set(
+        reference,
+        {
+          windowStartedAt:
+            activeWindow
+              ? windowStartedAt
+              : Timestamp.now(),
+          attemptCount:
+            attemptCount + 1,
+          updatedAt:
+            FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    },
+  );
 }
 
-function escapeHtml(value: string): string {
+function escapeHtml(
+  value: string,
+): string {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -130,238 +213,533 @@ async function sendVerificationEmail({
   displayName: string;
   verificationUrl: string;
 }) {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const apiKey =
+    process.env.RESEND_API_KEY?.trim();
 
   if (!apiKey) {
-    throw new Error("Missing RESEND_API_KEY.");
+    throw new Error(
+      "Missing RESEND_API_KEY.",
+    );
   }
 
-  const resend = new Resend(apiKey);
-  const logoPath = path.join(
-    process.cwd(),
-    "public",
-    "frda-logo.png"
-  );
-  const logoBuffer = await readFile(logoPath);
+  const resend =
+    new Resend(apiKey);
 
-  const safeName = escapeHtml(displayName);
-  const safeUrl = escapeHtml(verificationUrl);
+  const logoPath =
+    path.join(
+      process.cwd(),
+      "public",
+      "frda-logo.png",
+    );
 
-  const { error } = await resend.emails.send({
-    from: "FRDA Team <admin@frdaph.org>",
-    to: [email],
-    subject: "Verify your FRDA membership email",
-    replyTo: "admin@frdaph.org",
-    html: `
-      <div style="margin:0;padding:56px 24px 64px;background:#f8fafc;font-family:Arial,sans-serif;color:#1f2937;">
-        <div style="max-width:620px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:40px 32px;box-shadow:0 16px 50px rgba(15,23,42,.08);">
-          <div style="text-align:center;margin-bottom:28px;">
-            <img src="cid:frda-logo" alt="FRDA logo" style="width:72px;height:72px;object-fit:contain;display:block;margin:0 auto;" />
+  const logoBuffer =
+    await readFile(logoPath);
+
+  const safeName =
+    escapeHtml(displayName);
+
+  const safeUrl =
+    escapeHtml(verificationUrl);
+
+  const { error } =
+    await resend.emails.send({
+      from:
+        "FRDA Team <admin@frdaph.org>",
+      to: [email],
+      subject:
+        "Verify your FRDA membership email",
+      replyTo:
+        "admin@frdaph.org",
+      html: `
+        <div style="margin:0;padding:56px 24px 64px;background:#f8fafc;font-family:Arial,sans-serif;color:#1f2937;">
+          <div style="max-width:620px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:40px 32px;box-shadow:0 16px 50px rgba(15,23,42,.08);">
+            <div style="text-align:center;margin-bottom:28px;">
+              <img src="cid:frda-logo" alt="FRDA logo" style="width:72px;height:72px;object-fit:contain;display:block;margin:0 auto;" />
+            </div>
+
+            <h1 style="margin:0 0 18px;font-size:28px;line-height:1.25;color:#111827;">
+              Verify your email address
+            </h1>
+
+            <p style="margin:0 0 18px;font-size:16px;line-height:1.75;color:#374151;">
+              Hi ${safeName},
+            </p>
+
+            <p style="margin:0 0 24px;font-size:16px;line-height:1.75;color:#374151;">
+              Confirm your email address to finish setting up your FRDA membership account.
+            </p>
+
+            <div style="margin:0 0 30px;">
+              <a href="${safeUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:16px;padding:16px 24px;border-radius:10px;">
+                Verify Email
+              </a>
+            </div>
+
+            <p style="margin:0 0 10px;font-size:14px;line-height:1.75;color:#6b7280;">
+              If the button does not work, copy and paste this link into your browser:
+            </p>
+
+            <p style="margin:0;font-size:14px;line-height:1.8;color:#2563eb;word-break:break-word;">
+              <a href="${safeUrl}" style="color:#2563eb;text-decoration:underline;">
+                ${safeUrl}
+              </a>
+            </p>
           </div>
-          <h1 style="margin:0 0 18px;font-size:28px;line-height:1.25;color:#111827;">Verify your email address</h1>
-          <p style="margin:0 0 18px;font-size:16px;line-height:1.75;color:#374151;">Hi ${safeName},</p>
-          <p style="margin:0 0 24px;font-size:16px;line-height:1.75;color:#374151;">
-            Confirm your email address to finish setting up your FRDA membership account.
-          </p>
-          <div style="margin:0 0 30px;">
-            <a href="${safeUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:16px;padding:16px 24px;border-radius:10px;">
-              Verify Email
-            </a>
-          </div>
-          <p style="margin:0 0 10px;font-size:14px;line-height:1.75;color:#6b7280;">
-            If the button does not work, copy and paste this link into your browser:
-          </p>
-          <p style="margin:0;font-size:14px;line-height:1.8;color:#2563eb;word-break:break-word;">
-            <a href="${safeUrl}" style="color:#2563eb;text-decoration:underline;">${safeUrl}</a>
-          </p>
         </div>
-      </div>
-    `,
-    attachments: [
-      {
-        filename: "frda-logo.png",
-        content: logoBuffer.toString("base64"),
-        contentType: "image/png",
-        contentId: "frda-logo",
-      },
-    ],
-  });
+      `,
+      attachments: [
+        {
+          filename: "frda-logo.png",
+          content:
+            logoBuffer.toString(
+              "base64",
+            ),
+          contentType: "image/png",
+          contentId: "frda-logo",
+        },
+      ],
+    });
 
   if (error) {
-    throw new Error("Could not send the verification email.");
+    throw new Error(
+      "Could not send the verification email.",
+    );
   }
 }
 
-export async function POST(request: NextRequest) {
+function getAuthErrorCode(
+  error: unknown,
+): string {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error
+  )
+    ? String(
+        (
+          error as {
+            code?: unknown;
+          }
+        ).code || "",
+      )
+    : "";
+}
+
+export async function POST(
+  request: NextRequest,
+) {
   let createdUid = "";
   let createdMemberId = "";
 
   try {
-    await enforceRateLimit(request);
+    const contentType =
+      request.headers
+        .get("content-type")
+        ?.toLowerCase() || "";
 
-    const body = await request.json().catch(() => null);
+    if (
+      !contentType.includes(
+        "application/json",
+      )
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            "This request format is not supported.",
+        },
+        415,
+      );
+    }
 
-    const fullName = sanitizeName(body?.fullName);
-    const email = normalizeEmail(body?.email);
+    const contentLength =
+      Number(
+        request.headers.get(
+          "content-length",
+        ) || "0",
+      );
+
+    if (
+      Number.isFinite(contentLength) &&
+      contentLength >
+        MAX_REQUEST_BYTES
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            "The registration request is too large.",
+        },
+        413,
+      );
+    }
+
+    await enforceSlidingWindow({
+      key:
+        `ip:${getClientAddress(
+          request,
+        )}`,
+      windowMs:
+        IP_WINDOW_MS,
+      maxAttempts:
+        MAX_IP_ATTEMPTS,
+    });
+
+    const body =
+      await request
+        .json()
+        .catch(() => null);
+
+    if (
+      !body ||
+      typeof body !== "object" ||
+      Array.isArray(body)
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            "The registration request is invalid.",
+        },
+        400,
+      );
+    }
+
+    const fullName =
+      sanitizeName(
+        (
+          body as Record<
+            string,
+            unknown
+          >
+        ).fullName,
+      );
+
+    const email =
+      normalizeEmail(
+        (
+          body as Record<
+            string,
+            unknown
+          >
+        ).email,
+      );
+
+    const passwordValue =
+      (
+        body as Record<
+          string,
+          unknown
+        >
+      ).password;
+
     const password =
-      typeof body?.password === "string"
-        ? body.password
+      typeof passwordValue ===
+      "string"
+        ? passwordValue
         : "";
+
+    const accountPurpose =
+      (
+        body as Record<
+          string,
+          unknown
+        >
+      ).accountPurpose;
+
+    const honeypotValue =
+      (
+        body as Record<
+          string,
+          unknown
+        >
+      ).companyWebsite;
+
     const honeypot =
-      typeof body?.companyWebsite === "string"
-        ? body.companyWebsite.trim()
+      typeof honeypotValue ===
+      "string"
+        ? honeypotValue.trim()
         : "";
 
     if (honeypot) {
-      return NextResponse.json({
+      return jsonResponse({
         ok: true,
         message:
           "Check your email to finish creating your FRDA membership account.",
       });
     }
 
-    if (!fullName) {
-      return NextResponse.json(
-        { ok: false, error: "Your full name is required." },
-        { status: 400 }
-      );
-    }
-
-    if (!email || !isValidEmail(email)) {
-      return NextResponse.json(
-        { ok: false, error: "A valid email address is required." },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 8) {
-      return NextResponse.json(
+    if (
+      fullName.length < 2
+    ) {
+      return jsonResponse(
         {
           ok: false,
           error:
-            "Your password must contain at least eight characters.",
+            "Enter your full name.",
         },
-        { status: 400 }
+        400,
       );
     }
 
-    if (!isAccountPurpose(body?.accountPurpose)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Choose how you plan to use FRDA.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const existingMemberSnapshot = await adminDb
-      .collection("members")
-      .where("normalizedEmail", "==", email)
-      .limit(1)
-      .get();
-
-    if (!existingMemberSnapshot.empty) {
-      return NextResponse.json(
+    if (
+      !email ||
+      !isValidEmail(email)
+    ) {
+      return jsonResponse(
         {
           ok: false,
           error:
-            "An FRDA membership account already exists for this email address.",
+            "Enter a valid email address.",
         },
-        { status: 409 }
+        400,
+      );
+    }
+
+    await enforceSlidingWindow({
+      key:
+        `email:${email}`,
+      windowMs:
+        EMAIL_WINDOW_MS,
+      maxAttempts:
+        MAX_EMAIL_ATTEMPTS,
+    });
+
+    if (
+      password.length <
+      MIN_PASSWORD_LENGTH
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            `Your password must contain at least ${MIN_PASSWORD_LENGTH} characters.`,
+        },
+        400,
+      );
+    }
+
+    if (
+      password.length >
+      MAX_PASSWORD_LENGTH
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            "Your password is too long.",
+        },
+        400,
+      );
+    }
+
+    if (
+      !isAccountPurpose(
+        accountPurpose,
+      )
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            "Choose how you plan to use FRDA.",
+        },
+        400,
+      );
+    }
+
+    const existingMemberSnapshot =
+      await adminDb
+        .collection("members")
+        .where(
+          "normalizedEmail",
+          "==",
+          email,
+        )
+        .limit(1)
+        .get();
+
+    if (
+      !existingMemberSnapshot.empty
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            GENERIC_DUPLICATE_MESSAGE,
+        },
+        409,
       );
     }
 
     try {
-      const existingUser = await adminAuth.getUserByEmail(email);
+      await adminAuth
+        .getUserByEmail(email);
 
-      if (existingUser) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error:
-              "An account already exists for this email address. Try signing in instead.",
-          },
-          { status: 409 }
-        );
-      }
-    } catch (error: unknown) {
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            GENERIC_DUPLICATE_MESSAGE,
+        },
+        409,
+      );
+    } catch (error) {
       const code =
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error
-          ? String((error as { code?: unknown }).code || "")
-          : "";
+        getAuthErrorCode(error);
 
-      if (code !== "auth/user-not-found") {
+      if (
+        code !==
+        "auth/user-not-found"
+      ) {
         throw error;
       }
     }
 
-    const createdUser = await adminAuth.createUser({
-      email,
-      password,
-      displayName: fullName,
-      emailVerified: false,
-      disabled: false,
-    });
+    let createdUser;
 
-    createdUid = createdUser.uid;
+    try {
+      createdUser =
+        await adminAuth
+          .createUser({
+            email,
+            password,
+            displayName:
+              fullName,
+            emailVerified:
+              false,
+            disabled:
+              false,
+          });
+    } catch (error) {
+      const code =
+        getAuthErrorCode(error);
 
-    const member = await createSelfRegisteredMember({
-      email,
-      displayName: fullName,
-      accountPurpose: body.accountPurpose,
-      authUid: createdUid,
-    });
+      if (
+        code ===
+        "auth/email-already-exists"
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            error:
+              GENERIC_DUPLICATE_MESSAGE,
+          },
+          409,
+        );
+      }
 
-    createdMemberId = member.memberId;
+      throw error;
+    }
+
+    createdUid =
+      createdUser.uid;
+
+    const member =
+      await createSelfRegisteredMember({
+        email,
+        displayName:
+          fullName,
+        accountPurpose,
+        authUid:
+          createdUid,
+      });
+
+    createdMemberId =
+      member.memberId;
 
     const verificationUrl =
-      await adminAuth.generateEmailVerificationLink(email, {
-        url: `${getBaseUrl()}/member/login?verified=1`,
-      });
+      await adminAuth
+        .generateEmailVerificationLink(
+          email,
+          {
+            url:
+              `${getBaseUrl()}/member/login?verified=1`,
+          },
+        );
 
     await sendVerificationEmail({
       email,
-      displayName: fullName,
+      displayName:
+        fullName,
       verificationUrl,
     });
 
-    return NextResponse.json({
+    return jsonResponse({
       ok: true,
-      memberId: createdMemberId,
       message:
         "Check your email to verify your address, then sign in to your FRDA member account.",
     });
   } catch (error) {
-    console.error("Public membership registration error:", error);
+    console.error(
+      "Public membership registration error:",
+      error,
+    );
 
     if (createdMemberId) {
       await Promise.allSettled([
-        adminDb.collection("members").doc(createdMemberId).delete(),
-        adminDb.collection("memberIds").doc(createdMemberId).delete(),
+        adminDb
+          .collection("members")
+          .doc(createdMemberId)
+          .delete(),
+
+        adminDb
+          .collection("memberIds")
+          .doc(createdMemberId)
+          .delete(),
       ]);
     }
 
     if (createdUid) {
       await Promise.allSettled([
-        adminDb.collection("developerProfiles").doc(createdUid).delete(),
-        adminAuth.deleteUser(createdUid),
+        adminDb
+          .collection("developerProfiles")
+          .doc(createdUid)
+          .delete(),
+
+        adminAuth
+          .deleteUser(createdUid),
       ]);
     }
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Could not create your FRDA membership account.";
+    if (
+      error instanceof
+      RateLimitError
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            error.message,
+        },
+        429,
+      );
+    }
 
-    return NextResponse.json(
-      { ok: false, error: message },
+    const code =
+      getAuthErrorCode(error);
+
+    if (
+      code ===
+      "auth/email-already-exists"
+    ) {
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            GENERIC_DUPLICATE_MESSAGE,
+        },
+        409,
+      );
+    }
+
+    return jsonResponse(
       {
-        status:
-          message.includes("already exists") ? 409 : 500,
-      }
+        ok: false,
+        error:
+          "Could not create your FRDA membership account. Please try again.",
+      },
+      500,
     );
   }
 }

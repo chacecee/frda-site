@@ -52,9 +52,22 @@ type CoverShowcaseImage = {
   order: 1 | 2 | 3;
 };
 
+type PendingCoverImage = {
+  blob: Blob;
+  previewUrl: string;
+  oldStoragePath: string;
+};
+
 type AvatarImage = {
   url: string;
   storagePath: string;
+  width: number;
+  height: number;
+};
+
+type PendingAvatarImage = {
+  blob: Blob;
+  previewUrl: string;
   width: number;
   height: number;
 };
@@ -272,31 +285,31 @@ function normalizeWorkSamples(value: unknown): WorkSample[] {
       mediaOrder:
         Array.isArray(raw.mediaOrder)
           ? raw.mediaOrder
-              .map((entry) => {
-                const rawEntry =
-                  typeof entry === "object" && entry !== null
-                    ? (entry as Partial<WorkSampleMediaOrderItem>)
-                    : {};
+            .map((entry) => {
+              const rawEntry =
+                typeof entry === "object" && entry !== null
+                  ? (entry as Partial<WorkSampleMediaOrderItem>)
+                  : {};
 
-                if (
-                  (rawEntry.type !== "image" &&
-                    rawEntry.type !== "youtube") ||
-                  typeof rawEntry.id !== "string"
-                ) {
-                  return null;
-                }
+              if (
+                (rawEntry.type !== "image" &&
+                  rawEntry.type !== "youtube") ||
+                typeof rawEntry.id !== "string"
+              ) {
+                return null;
+              }
 
-                return {
-                  type: rawEntry.type,
-                  id: rawEntry.id,
-                };
-              })
-              .filter(
-                (
-                  entry,
-                ): entry is WorkSampleMediaOrderItem =>
-                  entry !== null,
-              )
+              return {
+                type: rawEntry.type,
+                id: rawEntry.id,
+              };
+            })
+            .filter(
+              (
+                entry,
+              ): entry is WorkSampleMediaOrderItem =>
+                entry !== null,
+            )
           : [],
 
       role: typeof raw.role === "string" ? raw.role : "",
@@ -308,9 +321,9 @@ function normalizeWorkSamples(value: unknown): WorkSample[] {
 
       projectType:
         raw.projectType === "owned" ||
-        raw.projectType === "team" ||
-        raw.projectType === "client" ||
-        raw.projectType === "other"
+          raw.projectType === "team" ||
+          raw.projectType === "client" ||
+          raw.projectType === "other"
           ? raw.projectType
           : "other",
 
@@ -318,43 +331,43 @@ function normalizeWorkSamples(value: unknown): WorkSample[] {
 
       images: Array.isArray(raw.images)
         ? raw.images.map((image) => {
-            const rawImage =
-              typeof image === "object" && image !== null
-                ? (image as Partial<WorkSampleImage>)
-                : {};
+          const rawImage =
+            typeof image === "object" && image !== null
+              ? (image as Partial<WorkSampleImage>)
+              : {};
 
-            return {
-              id: typeof rawImage.id === "string" ? rawImage.id : "",
+          return {
+            id: typeof rawImage.id === "string" ? rawImage.id : "",
 
-              url: typeof rawImage.url === "string" ? rawImage.url : "",
+            url: typeof rawImage.url === "string" ? rawImage.url : "",
 
-              storagePath:
-                typeof rawImage.storagePath === "string"
-                  ? rawImage.storagePath
-                  : "",
+            storagePath:
+              typeof rawImage.storagePath === "string"
+                ? rawImage.storagePath
+                : "",
 
-              width: typeof rawImage.width === "number" ? rawImage.width : 1,
+            width: typeof rawImage.width === "number" ? rawImage.width : 1,
 
-              height: typeof rawImage.height === "number" ? rawImage.height : 1,
+            height: typeof rawImage.height === "number" ? rawImage.height : 1,
 
-              showcaseOrder:
-                rawImage.showcaseOrder === 1 ||
+            showcaseOrder:
+              rawImage.showcaseOrder === 1 ||
                 rawImage.showcaseOrder === 2 ||
                 rawImage.showcaseOrder === 3
-                  ? rawImage.showcaseOrder
-                  : null,
+                ? rawImage.showcaseOrder
+                : null,
 
-              showcaseUrl:
-                typeof rawImage.showcaseUrl === "string"
-                  ? rawImage.showcaseUrl
-                  : "",
+            showcaseUrl:
+              typeof rawImage.showcaseUrl === "string"
+                ? rawImage.showcaseUrl
+                : "",
 
-              showcaseStoragePath:
-                typeof rawImage.showcaseStoragePath === "string"
-                  ? rawImage.showcaseStoragePath
-                  : "",
-            };
-          })
+            showcaseStoragePath:
+              typeof rawImage.showcaseStoragePath === "string"
+                ? rawImage.showcaseStoragePath
+                : "",
+          };
+        })
         : [],
 
       thumbnailUrl:
@@ -515,10 +528,10 @@ function isStorageObjectMissing(
     "code" in error &&
     (
       (error as StorageError).code ===
-        "storage/object-not-found" ||
+      "storage/object-not-found" ||
       String(
         (error as { code?: unknown }).code ||
-          "",
+        "",
       ) === "storage/object-not-found"
     )
   );
@@ -655,7 +668,21 @@ export default function MemberProfilePage() {
     CoverShowcaseImage[]
   >([]);
 
+  const [pendingCoverImages, setPendingCoverImages] =
+    useState<Record<string, PendingCoverImage>>({});
+
+  const [
+    coverStoragePathsMarkedForDeletion,
+    setCoverStoragePathsMarkedForDeletion,
+  ] = useState<string[]>([]);
+
   const [avatarImage, setAvatarImage] = useState<AvatarImage | null>(null);
+
+  const [pendingAvatarImage, setPendingAvatarImage] =
+    useState<PendingAvatarImage | null>(null);
+
+  const [avatarMarkedForDeletion, setAvatarMarkedForDeletion] =
+    useState(false);
 
   const [mediaCropTarget, setMediaCropTarget] = useState<{
     kind: "cover" | "avatar" | "project";
@@ -730,7 +757,7 @@ export default function MemberProfilePage() {
         if (!publicationResponse.ok || !publicationResult?.ok) {
           throw new Error(
             publicationResult?.error ||
-              "Could not load your publication status.",
+            "Could not load your publication status.",
           );
         }
 
@@ -755,11 +782,11 @@ export default function MemberProfilePage() {
             profileResult.profile.avatarUrl &&
               profileResult.profile.avatarStoragePath
               ? {
-                  url: profileResult.profile.avatarUrl,
-                  storagePath: profileResult.profile.avatarStoragePath,
-                  width: 512,
-                  height: 512,
-                }
+                url: profileResult.profile.avatarUrl,
+                storagePath: profileResult.profile.avatarStoragePath,
+                width: 512,
+                height: 512,
+              }
               : null,
           );
 
@@ -796,12 +823,12 @@ export default function MemberProfilePage() {
     const nextSkills =
       selectedSkills.includes(skill)
         ? selectedSkills.filter(
-            (item) => item !== skill,
-          )
+          (item) => item !== skill,
+        )
         : [...selectedSkills, skill].slice(
-            0,
-            20,
-          );
+          0,
+          20,
+        );
 
     setForm((current) => ({
       ...current,
@@ -823,14 +850,144 @@ export default function MemberProfilePage() {
         genreExperience:
           alreadySelected
             ? current.genreExperience.filter(
-                (item) => item !== genre,
-              )
+              (item) => item !== genre,
+            )
             : [
-                ...current.genreExperience,
-                genre,
-              ].slice(0, 12),
+              ...current.genreExperience,
+              genre,
+            ].slice(0, 12),
       };
     });
+  }
+
+  async function prepareAvatarForSave(): Promise<{
+    avatarForSave: AvatarImage | null;
+    oldAvatarPathToDelete: string;
+  }> {
+    if (!user) {
+      throw new Error(
+        "You must be signed in to save your profile photo.",
+      );
+    }
+
+    const oldAvatarPath =
+      avatarImage?.storagePath || "";
+
+    if (avatarMarkedForDeletion) {
+      return {
+        avatarForSave: null,
+        oldAvatarPathToDelete: oldAvatarPath,
+      };
+    }
+
+    if (!pendingAvatarImage) {
+      return {
+        avatarForSave: avatarImage,
+        oldAvatarPathToDelete: "",
+      };
+    }
+
+    const storagePath =
+      `developer-avatars/${user.uid}/avatar-${Date.now()}-${crypto.randomUUID()}.webp`;
+
+    const storageReference =
+      ref(storage, storagePath);
+
+    await uploadBytes(
+      storageReference,
+      pendingAvatarImage.blob,
+      {
+        contentType: "image/webp",
+        customMetadata: {
+          ownerUid: user.uid,
+          imagePurpose: "avatar",
+        },
+      },
+    );
+
+    const url =
+      await getDownloadURL(storageReference);
+
+    return {
+      avatarForSave: {
+        url,
+        storagePath,
+        width: pendingAvatarImage.width,
+        height: pendingAvatarImage.height,
+      },
+      oldAvatarPathToDelete: oldAvatarPath,
+    };
+  }
+
+  async function prepareCoversForSave(): Promise<{
+    coversForSave: CoverShowcaseImage[];
+    oldCoverPathsToDelete: string[];
+  }> {
+    if (!user) {
+      throw new Error(
+        "You must be signed in to save cover photos.",
+      );
+    }
+
+    const finalizedCovers: CoverShowcaseImage[] = [];
+
+    const pathsToDelete = new Set(
+      coverStoragePathsMarkedForDeletion,
+    );
+
+    for (const cover of coverShowcaseImages) {
+      const pending =
+        pendingCoverImages[cover.id];
+
+      if (!pending) {
+        finalizedCovers.push(cover);
+        continue;
+      }
+
+      const storagePath =
+        `developer-showcase/${user.uid}/${cover.id}-${Date.now()}-${crypto.randomUUID()}.webp`;
+
+      const storageReference =
+        ref(storage, storagePath);
+
+      await uploadBytes(
+        storageReference,
+        pending.blob,
+        {
+          contentType: "image/webp",
+          customMetadata: {
+            ownerUid: user.uid,
+            imagePurpose: "profile-cover",
+          },
+        },
+      );
+
+      const url =
+        await getDownloadURL(
+          storageReference,
+        );
+
+      finalizedCovers.push({
+        ...cover,
+        url,
+        storagePath,
+      });
+
+      if (
+        pending.oldStoragePath &&
+        pending.oldStoragePath !== storagePath
+      ) {
+        pathsToDelete.add(
+          pending.oldStoragePath,
+        );
+      }
+    }
+
+    return {
+      coversForSave: finalizedCovers,
+      oldCoverPathsToDelete:
+        Array.from(pathsToDelete),
+    };
   }
 
   async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
@@ -859,6 +1016,16 @@ export default function MemberProfilePage() {
     setSuccessMessage("");
 
     try {
+      const {
+        avatarForSave,
+        oldAvatarPathToDelete,
+      } = await prepareAvatarForSave();
+
+      const {
+        coversForSave,
+        oldCoverPathsToDelete,
+      } = await prepareCoversForSave();
+
       const idToken = await user.getIdToken();
 
       const response = await fetch("/api/member/profile", {
@@ -880,8 +1047,8 @@ export default function MemberProfilePage() {
           portfolioUrl: form.portfolioUrl.trim(),
 
           workSamples,
-          coverShowcaseImages,
-          avatarImage,
+          coverShowcaseImages: coversForSave,
+          avatarImage: avatarForSave,
         }),
       });
 
@@ -893,27 +1060,77 @@ export default function MemberProfilePage() {
         );
       }
 
+      if (
+        oldAvatarPathToDelete &&
+        oldAvatarPathToDelete !== avatarForSave?.storagePath
+      ) {
+        await safelyDeleteStorageObject(
+          oldAvatarPathToDelete,
+        );
+      }
+
+      for (const oldCoverPath of oldCoverPathsToDelete) {
+        await safelyDeleteStorageObject(
+          oldCoverPath,
+        );
+      }
+
+      if (pendingAvatarImage?.previewUrl) {
+        URL.revokeObjectURL(
+          pendingAvatarImage.previewUrl,
+        );
+      }
+
+      Object.values(
+        pendingCoverImages,
+      ).forEach((pending) => {
+        URL.revokeObjectURL(
+          pending.previewUrl,
+        );
+      });
+
+      setPendingAvatarImage(null);
+      setAvatarMarkedForDeletion(false);
+      setPendingCoverImages({});
+      setCoverStoragePathsMarkedForDeletion([]);
+
       setProfile(result.profile);
       setForm(profileToForm(result.profile));
 
-      setWorkSamples(normalizeWorkSamples(result.profile.workSamples));
-      setCoverShowcaseImages(
-        normalizeCoverShowcaseImages(result.profile.coverShowcaseImages),
+      setWorkSamples(
+        normalizeWorkSamples(
+          result.profile.workSamples,
+        ),
       );
+
+      setCoverShowcaseImages(
+        normalizeCoverShowcaseImages(
+          result.profile.coverShowcaseImages,
+        ),
+      );
+
       setAvatarImage(
-        result.profile.avatarUrl && result.profile.avatarStoragePath
+        result.profile.avatarUrl &&
+          result.profile.avatarStoragePath
           ? {
               url: result.profile.avatarUrl,
-              storagePath: result.profile.avatarStoragePath,
+              storagePath:
+                result.profile.avatarStoragePath,
               width: 512,
               height: 512,
             }
           : null,
       );
-      setSuccessMessage("Your developer profile draft has been saved.");
+
+      setSuccessMessage(
+        "Your developer profile draft has been saved.",
+      );
       notify.success("Developer profile saved.");
     } catch (error) {
-      console.error("Developer profile save error:", error);
+      console.error(
+        "Developer profile save error:",
+        error,
+      );
 
       const message =
         error instanceof Error
@@ -942,6 +1159,16 @@ export default function MemberProfilePage() {
       );
     }
 
+    const {
+      avatarForSave,
+      oldAvatarPathToDelete,
+    } = await prepareAvatarForSave();
+
+    const {
+      coversForSave,
+      oldCoverPathsToDelete,
+    } = await prepareCoversForSave();
+
     const idToken = await user.getIdToken();
 
     const response = await fetch("/api/member/profile", {
@@ -963,8 +1190,8 @@ export default function MemberProfilePage() {
         portfolioUrl: form.portfolioUrl.trim(),
 
         workSamples,
-        coverShowcaseImages,
-        avatarImage,
+        coverShowcaseImages: coversForSave,
+        avatarImage: avatarForSave,
       }),
     });
 
@@ -976,10 +1203,67 @@ export default function MemberProfilePage() {
       );
     }
 
+    if (
+      oldAvatarPathToDelete &&
+      oldAvatarPathToDelete !== avatarForSave?.storagePath
+    ) {
+      await safelyDeleteStorageObject(
+        oldAvatarPathToDelete,
+      );
+    }
+
+    for (const oldCoverPath of oldCoverPathsToDelete) {
+      await safelyDeleteStorageObject(
+        oldCoverPath,
+      );
+    }
+
+    if (pendingAvatarImage?.previewUrl) {
+      URL.revokeObjectURL(
+        pendingAvatarImage.previewUrl,
+      );
+    }
+
+    Object.values(
+      pendingCoverImages,
+    ).forEach((pending) => {
+      URL.revokeObjectURL(
+        pending.previewUrl,
+      );
+    });
+
+    setPendingAvatarImage(null);
+    setAvatarMarkedForDeletion(false);
+    setPendingCoverImages({});
+    setCoverStoragePathsMarkedForDeletion([]);
+
     setProfile(result.profile);
     setForm(profileToForm(result.profile));
 
-    setWorkSamples(normalizeWorkSamples(result.profile.workSamples));
+    setWorkSamples(
+      normalizeWorkSamples(
+        result.profile.workSamples,
+      ),
+    );
+
+    setCoverShowcaseImages(
+      normalizeCoverShowcaseImages(
+        result.profile.coverShowcaseImages,
+      ),
+    );
+
+    setAvatarImage(
+      result.profile.avatarUrl &&
+        result.profile.avatarStoragePath
+        ? {
+            url: result.profile.avatarUrl,
+            storagePath:
+              result.profile.avatarStoragePath,
+            width: 512,
+            height: 512,
+          }
+        : null,
+    );
 
     return true;
   }
@@ -1094,7 +1378,7 @@ export default function MemberProfilePage() {
     if (
       newlyCreatedWorkSampleId &&
       editingWorkSampleId ===
-        newlyCreatedWorkSampleId
+      newlyCreatedWorkSampleId
     ) {
       const sample = workSamples.find(
         (item) =>
@@ -1132,9 +1416,9 @@ export default function MemberProfilePage() {
       current.map((item) =>
         item.id === id
           ? {
-              ...item,
-              ...updates,
-            }
+            ...item,
+            ...updates,
+          }
           : item,
       ),
     );
@@ -1153,18 +1437,18 @@ export default function MemberProfilePage() {
         const nextMediaOrder =
           value.trim()
             ? getOrderedProjectMedia({
-                ...item,
-                youtubeVideoUrl: value,
-              })
+              ...item,
+              youtubeVideoUrl: value,
+            })
             : getOrderedProjectMedia({
-                ...item,
-                youtubeVideoUrl: "",
-                mediaOrder:
-                  item.mediaOrder.filter(
-                    (entry) =>
-                      entry.type !== "youtube",
-                  ),
-              });
+              ...item,
+              youtubeVideoUrl: "",
+              mediaOrder:
+                item.mediaOrder.filter(
+                  (entry) =>
+                    entry.type !== "youtube",
+                ),
+            });
 
         return {
           ...item,
@@ -1230,14 +1514,14 @@ export default function MemberProfilePage() {
       current.map((item) =>
         item.id === projectId
           ? {
-              ...item,
-              youtubeVideoUrl: "",
-              mediaOrder:
-                item.mediaOrder.filter(
-                  (entry) =>
-                    entry.type !== "youtube",
-                ),
-            }
+            ...item,
+            youtubeVideoUrl: "",
+            mediaOrder:
+              item.mediaOrder.filter(
+                (entry) =>
+                  entry.type !== "youtube",
+              ),
+          }
           : item,
       ),
     );
@@ -1332,25 +1616,24 @@ export default function MemberProfilePage() {
         current.map((item) =>
           item.id === projectId
             ? {
-                ...item,
-                images: [...(item.images || []), ...uploadedImages].slice(0, 5),
-                mediaOrder: [
-                  ...getOrderedProjectMedia(item),
-                  ...uploadedImages.map(
-                    (image) => ({
-                      type: "image" as const,
-                      id: image.id,
-                    }),
-                  ),
-                ],
-              }
+              ...item,
+              images: [...(item.images || []), ...uploadedImages].slice(0, 5),
+              mediaOrder: [
+                ...getOrderedProjectMedia(item),
+                ...uploadedImages.map(
+                  (image) => ({
+                    type: "image" as const,
+                    id: image.id,
+                  }),
+                ),
+              ],
+            }
             : item,
         ),
       );
 
       const message =
-        `${uploadedImages.length} project ${
-          uploadedImages.length === 1 ? "image was" : "images were"
+        `${uploadedImages.length} project ${uploadedImages.length === 1 ? "image was" : "images were"
         } uploaded. Save your profile to keep the changes.`;
 
       setSuccessMessage(message);
@@ -1388,19 +1671,19 @@ export default function MemberProfilePage() {
         current.map((project) =>
           project.id === projectId
             ? {
-                ...project,
-                images: (project.images || []).filter(
-                  (candidate) => candidate.id !== image.id,
+              ...project,
+              images: (project.images || []).filter(
+                (candidate) => candidate.id !== image.id,
+              ),
+              mediaOrder:
+                project.mediaOrder.filter(
+                  (entry) =>
+                    !(
+                      entry.type === "image" &&
+                      entry.id === image.id
+                    ),
                 ),
-                mediaOrder:
-                  project.mediaOrder.filter(
-                    (entry) =>
-                      !(
-                        entry.type === "image" &&
-                        entry.id === image.id
-                      ),
-                  ),
-              }
+            }
             : project,
         ),
       );
@@ -1418,8 +1701,16 @@ export default function MemberProfilePage() {
 
   function openNewCoverCrop(file: File | undefined) {
     if (!file || coverShowcaseImages.length >= 3) return;
+
     if (!file.type.startsWith("image/")) {
       setErrorMessage("Please select an image file.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMessage(
+        "The original image must be smaller than 10 MB.",
+      );
       return;
     }
 
@@ -1465,7 +1756,17 @@ export default function MemberProfilePage() {
 
   function openAvatarCrop(file: File | undefined) {
     if (!file || !file.type.startsWith("image/")) {
-      if (file) setErrorMessage("Please select an image file.");
+      if (file) {
+        setErrorMessage("Please select an image file.");
+      }
+
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMessage(
+        "The original image must be smaller than 10 MB.",
+      );
       return;
     }
 
@@ -1496,7 +1797,12 @@ export default function MemberProfilePage() {
   }
 
   async function saveMediaCrop() {
-    if (!user || !mediaCropTarget || !croppedAreaPixels || savingMediaCrop) {
+    if (
+      !user ||
+      !mediaCropTarget ||
+      !croppedAreaPixels ||
+      savingMediaCrop
+    ) {
       return;
     }
 
@@ -1515,29 +1821,27 @@ export default function MemberProfilePage() {
             targetBytes: 250 * 1024,
           },
         );
-        const storagePath = `developer-avatars/${user.uid}/avatar-${Date.now()}.webp`;
-        const storageReference = ref(storage, storagePath);
 
-        await uploadBytes(storageReference, cropped.blob, {
-          contentType: "image/webp",
-          customMetadata: { ownerUid: user.uid, imagePurpose: "avatar" },
-        });
-        const url = await getDownloadURL(storageReference);
-
-        if (avatarImage?.storagePath) {
-          await safelyDeleteStorageObject(
-            avatarImage.storagePath,
+        if (pendingAvatarImage?.previewUrl) {
+          URL.revokeObjectURL(
+            pendingAvatarImage.previewUrl,
           );
         }
 
-        setAvatarImage({
-          url,
-          storagePath,
+        const previewUrl =
+          URL.createObjectURL(cropped.blob);
+
+        setPendingAvatarImage({
+          blob: cropped.blob,
+          previewUrl,
           width: cropped.width,
           height: cropped.height,
         });
+
+        setAvatarMarkedForDeletion(false);
+
         setSuccessMessage(
-          "Your profile photo was updated. Save your profile to keep the change.",
+          "Your new profile photo is ready. Click Save to apply it.",
         );
       } else if (
         mediaCropTarget.kind === "project"
@@ -1625,65 +1929,114 @@ export default function MemberProfilePage() {
           "The project image crop was updated. Save your profile to keep the change.",
         );
       } else {
-        const existing = mediaCropTarget.existingCover;
-        const order = existing?.order ?? getNextCoverOrder();
+        const existing =
+          mediaCropTarget.existingCover;
+
+        const order =
+          existing?.order ??
+          getNextCoverOrder();
+
         if (!order) {
-          throw new Error("You can upload up to three cover photos.");
-        }
-
-        const cropped = await createProfileCrop(
-          mediaCropTarget.sourceUrl,
-          croppedAreaPixels,
-          {
-            outputWidth: 1600,
-            outputHeight: 900,
-            targetBytes: 600 * 1024,
-          },
-        );
-        const id =
-          existing?.id ??
-          (typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `cover-${Date.now()}`);
-        const storagePath = `developer-showcase/${user.uid}/${id}-${Date.now()}.webp`;
-        const storageReference = ref(storage, storagePath);
-
-        await uploadBytes(storageReference, cropped.blob, {
-          contentType: "image/webp",
-          customMetadata: { ownerUid: user.uid, imagePurpose: "profile-cover" },
-        });
-        const url = await getDownloadURL(storageReference);
-
-        if (existing?.storagePath) {
-          await safelyDeleteStorageObject(
-            existing.storagePath,
+          throw new Error(
+            "You can upload up to three cover photos.",
           );
         }
 
-        const newCover: CoverShowcaseImage = {
+        const cropped =
+          await createProfileCrop(
+            mediaCropTarget.sourceUrl,
+            croppedAreaPixels,
+            {
+              outputWidth: 1600,
+              outputHeight: 900,
+              targetBytes: 600 * 1024,
+            },
+          );
+
+        const id =
+          existing?.id ??
+          (
+            typeof crypto !== "undefined" &&
+            "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `cover-${Date.now()}`
+          );
+
+        const previousPending =
+          pendingCoverImages[id];
+
+        if (previousPending?.previewUrl) {
+          URL.revokeObjectURL(
+            previousPending.previewUrl,
+          );
+        }
+
+        const previewUrl =
+          URL.createObjectURL(
+            cropped.blob,
+          );
+
+        const oldStoragePath =
+          previousPending?.oldStoragePath ||
+          existing?.storagePath ||
+          "";
+
+        setPendingCoverImages(
+          (current) => ({
+            ...current,
+            [id]: {
+              blob: cropped.blob,
+              previewUrl,
+              oldStoragePath,
+            },
+          }),
+        );
+
+        const draftCover: CoverShowcaseImage = {
           id,
-          url,
-          storagePath,
+          url: previewUrl,
+          storagePath:
+            existing?.storagePath || "",
           width: cropped.width,
           height: cropped.height,
           order,
         };
 
-        setCoverShowcaseImages((current) =>
-          existing
-            ? current
-                .map((cover) => (cover.id === existing.id ? newCover : cover))
-                .sort((a, b) => a.order - b.order)
-            : [...current, newCover].sort((a, b) => a.order - b.order),
+        setCoverShowcaseImages(
+          (current) =>
+            existing
+              ? current
+                  .map((cover) =>
+                    cover.id === existing.id
+                      ? draftCover
+                      : cover,
+                  )
+                  .sort(
+                    (first, second) =>
+                      first.order -
+                      second.order,
+                  )
+              : [
+                  ...current,
+                  draftCover,
+                ].sort(
+                  (first, second) =>
+                    first.order -
+                    second.order,
+                ),
         );
+
         setSuccessMessage(
-          "The cover photo was prepared and uploaded. Save your profile to keep the change.",
+          "The cover photo is ready. Click Save to apply it.",
         );
       }
 
       if (mediaCropTarget.revokeSourceUrl) {
-        URL.revokeObjectURL(mediaCropTarget.sourceUrl);
+        URL.revokeObjectURL(
+          mediaCropTarget.sourceUrl,
+        );
       }
+
       setMediaCropTarget(null);
       setCroppedAreaPixels(null);
     } catch (error) {
@@ -1697,31 +2050,75 @@ export default function MemberProfilePage() {
     }
   }
 
-  async function deleteCoverImage(cover: CoverShowcaseImage) {
+  async function deleteCoverImage(
+    cover: CoverShowcaseImage,
+  ) {
     if (deletingCoverId) return;
+
     setDeletingCoverId(cover.id);
     setErrorMessage("");
 
     try {
-      await safelyDeleteStorageObject(
-        cover.storagePath,
+      const pending =
+        pendingCoverImages[cover.id];
+
+      if (pending?.previewUrl) {
+        URL.revokeObjectURL(
+          pending.previewUrl,
+        );
+      }
+
+      setPendingCoverImages(
+        (current) => {
+          const next = {
+            ...current,
+          };
+
+          delete next[cover.id];
+
+          return next;
+        },
       );
-      setCoverShowcaseImages((current) =>
-        current
-          .filter((item) => item.id !== cover.id)
-          .map((item, index) => ({
-            ...item,
-            order: (index + 1) as 1 | 2 | 3,
-          })),
+
+      const oldStoragePath =
+        pending?.oldStoragePath ||
+        cover.storagePath;
+
+      if (oldStoragePath) {
+        setCoverStoragePathsMarkedForDeletion(
+          (current) =>
+            current.includes(
+              oldStoragePath,
+            )
+              ? current
+              : [
+                  ...current,
+                  oldStoragePath,
+                ],
+        );
+      }
+
+      setCoverShowcaseImages(
+        (current) =>
+          current
+            .filter(
+              (item) =>
+                item.id !== cover.id,
+            )
+            .map(
+              (item, index) => ({
+                ...item,
+                order:
+                  (index + 1) as
+                    | 1
+                    | 2
+                    | 3,
+              }),
+            ),
       );
+
       setSuccessMessage(
-        "The cover photo was removed. Save your profile to keep the change.",
-      );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not delete the cover photo.",
+        "The cover photo will be removed when you click Save.",
       );
     } finally {
       setDeletingCoverId(null);
@@ -1748,23 +2145,23 @@ export default function MemberProfilePage() {
   }
 
   async function deleteAvatarImage() {
-    if (!avatarImage || deletingAvatar) return;
+    if (deletingAvatar) return;
+
     setDeletingAvatar(true);
     setErrorMessage("");
 
     try {
-      await safelyDeleteStorageObject(
-        avatarImage.storagePath,
-      );
-      setAvatarImage(null);
+      if (pendingAvatarImage?.previewUrl) {
+        URL.revokeObjectURL(
+          pendingAvatarImage.previewUrl,
+        );
+      }
+
+      setPendingAvatarImage(null);
+      setAvatarMarkedForDeletion(true);
+
       setSuccessMessage(
-        "Your profile photo was removed. Save your profile to keep the change.",
-      );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not delete your profile photo.",
+        "Your profile photo will be removed when you click Save.",
       );
     } finally {
       setDeletingAvatar(false);
@@ -1861,10 +2258,10 @@ export default function MemberProfilePage() {
       setProfile((current) =>
         current
           ? {
-              ...current,
-              customSubdomain: result.customSubdomain,
-              customProfileAddress: result.publicAddress,
-            }
+            ...current,
+            customSubdomain: result.customSubdomain,
+            customProfileAddress: result.publicAddress,
+          }
           : current,
       );
     } catch (error) {
@@ -2027,11 +2424,10 @@ export default function MemberProfilePage() {
                     !publication.isPublished
                   )
                 }
-                className={`inline-flex min-h-10 cursor-pointer items-center gap-2 px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                  publication.isPublished
-                    ? "border border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
-                    : "bg-emerald-600 text-white hover:bg-emerald-500"
-                }`}
+                className={`inline-flex min-h-10 cursor-pointer items-center gap-2 px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${publication.isPublished
+                  ? "border border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                  : "bg-emerald-600 text-white hover:bg-emerald-500"
+                  }`}
                 style={{ borderRadius: 6 }}
               >
                 {submittingForReview ? (
@@ -2060,9 +2456,13 @@ export default function MemberProfilePage() {
               <div className="mt-5 grid gap-6 md:grid-cols-[150px_minmax(0,1fr)] md:items-start">
                 <div className="flex flex-col items-center">
                   <div className="relative">
-                    {avatarImage ? (
+                    {pendingAvatarImage || (avatarImage && !avatarMarkedForDeletion) ? (
                       <img
-                        src={avatarImage.url}
+                        src={
+                          pendingAvatarImage?.previewUrl ||
+                          avatarImage?.url ||
+                          ""
+                        }
                         alt="Profile photo preview"
                         className="h-28 w-28 rounded-full border border-white/10 object-cover"
                       />
@@ -2096,7 +2496,7 @@ export default function MemberProfilePage() {
                     </label>
                   </div>
 
-                  {avatarImage ? (
+                  {pendingAvatarImage || (avatarImage && !avatarMarkedForDeletion) ? (
                     <button
                       type="button"
                       onClick={deleteAvatarImage}
@@ -2208,7 +2608,7 @@ export default function MemberProfilePage() {
               </div>
 
               {profile?.customSubdomain &&
-              !editingSubdomain ? (
+                !editingSubdomain ? (
                 <div
                   className="mt-4 flex flex-col gap-3 border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                   style={{ borderRadius: 7 }}
@@ -2236,11 +2636,10 @@ export default function MemberProfilePage() {
 
                         const targetUrl =
                           isLocalhost
-                            ? `http://${subdomain}.localhost${
-                                window.location.port
-                                  ? `:${window.location.port}`
-                                  : ""
-                              }`
+                            ? `http://${subdomain}.localhost${window.location.port
+                              ? `:${window.location.port}`
+                              : ""
+                            }`
                             : `https://${subdomain}.frdaph.org`;
 
                         window.open(
@@ -2346,11 +2745,10 @@ export default function MemberProfilePage() {
 
                   {subdomainMessage ? (
                     <p
-                      className={`mt-2 text-sm ${
-                        subdomainAvailable
-                          ? "text-emerald-300"
-                          : "text-red-300"
-                      }`}
+                      className={`mt-2 text-sm ${subdomainAvailable
+                        ? "text-emerald-300"
+                        : "text-red-300"
+                        }`}
                     >
                       {subdomainMessage}
                     </p>
@@ -2379,11 +2777,10 @@ export default function MemberProfilePage() {
                 </div>
 
                 <label
-                  className={`cursor-pointer border border-blue-400/25 bg-blue-500/10 px-4 py-2.5 text-sm font-semibold text-blue-200 hover:bg-blue-500/20 ${
-                    coverShowcaseImages.length >= 3
-                      ? "pointer-events-none opacity-50"
-                      : ""
-                  }`}
+                  className={`cursor-pointer border border-blue-400/25 bg-blue-500/10 px-4 py-2.5 text-sm font-semibold text-blue-200 hover:bg-blue-500/20 ${coverShowcaseImages.length >= 3
+                    ? "pointer-events-none opacity-50"
+                    : ""
+                    }`}
                   style={{ borderRadius: 5 }}
                 >
                   Add Cover Photo
@@ -2519,11 +2916,10 @@ export default function MemberProfilePage() {
                           onClick={() =>
                             toggleSkill(skill)
                           }
-                          className={`cursor-pointer border px-3 py-2 text-sm transition ${
-                            selected
-                              ? "border-sky-300/45 bg-sky-400/15 text-sky-100"
-                              : "border-white/10 bg-black/15 text-zinc-400 hover:border-white/20 hover:text-white"
-                          }`}
+                          className={`cursor-pointer border px-3 py-2 text-sm transition ${selected
+                            ? "border-sky-300/45 bg-sky-400/15 text-sky-100"
+                            : "border-white/10 bg-black/15 text-zinc-400 hover:border-white/20 hover:text-white"
+                            }`}
                           style={{
                             borderRadius: 6,
                           }}
@@ -2560,11 +2956,10 @@ export default function MemberProfilePage() {
                                 genre.value,
                               )
                             }
-                            className={`cursor-pointer border px-3 py-2 text-sm transition ${
-                              selected
-                                ? "border-cyan-300/45 bg-cyan-400/15 text-cyan-100"
-                                : "border-white/10 bg-black/15 text-zinc-400 hover:border-white/20 hover:text-white"
-                            }`}
+                            className={`cursor-pointer border px-3 py-2 text-sm transition ${selected
+                              ? "border-cyan-300/45 bg-cyan-400/15 text-cyan-100"
+                              : "border-white/10 bg-black/15 text-zinc-400 hover:border-white/20 hover:text-white"
+                              }`}
                             style={{
                               borderRadius: 6,
                             }}
@@ -2634,7 +3029,7 @@ export default function MemberProfilePage() {
                         ...current,
                         experienceTier:
                           event.target.value as
-                            ExperienceTier | "",
+                          ExperienceTier | "",
                       }))
                     }
                     required
@@ -2688,11 +3083,10 @@ export default function MemberProfilePage() {
                     ].map((option) => (
                       <label
                         key={option.value}
-                        className={`block cursor-pointer border p-3 transition ${
-                          form.deliveryScope === option.value
-                            ? "border-sky-300/40 bg-sky-400/10"
-                            : "border-white/10 bg-black/15 hover:border-white/20"
-                        }`}
+                        className={`block cursor-pointer border p-3 transition ${form.deliveryScope === option.value
+                          ? "border-sky-300/40 bg-sky-400/10"
+                          : "border-white/10 bg-black/15 hover:border-white/20"
+                          }`}
                         style={{ borderRadius: 6 }}
                       >
                         <div className="flex items-start gap-3">
@@ -2709,7 +3103,7 @@ export default function MemberProfilePage() {
                                 ...current,
                                 deliveryScope:
                                   option.value as
-                                    DeliveryScope,
+                                  DeliveryScope,
                               }))
                             }
                             required
@@ -2736,7 +3130,7 @@ export default function MemberProfilePage() {
               </div>
             </section>
 
-            
+
 
             <section
               className="border border-white/10 bg-white/[0.025] p-5 md:p-6"
@@ -2900,7 +3294,7 @@ export default function MemberProfilePage() {
               </div>
             </section>
 
-            
+
 
             <div className="border-t border-white/10 pt-6">
               {publication.reviewerNote ? (
@@ -2947,548 +3341,547 @@ export default function MemberProfilePage() {
 
 
       <AnimatePresence>
-      {editingWorkSampleId ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
-          className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 p-3 sm:p-5"
-          onMouseDown={(event) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
-              closeWorkSampleModal();
-            }
-          }}
-        >
-          {workSamples
-            .filter(
-              (item) =>
-                item.id ===
-                editingWorkSampleId,
-            )
-            .map((item) => (
-              <motion.div
-                key={item.id}
-                initial={{
-                  opacity: 0,
-                  y: 18,
-                  scale: 0.985,
-                }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                  scale: 1,
-                }}
-                exit={{
-                  opacity: 0,
-                  y: 12,
-                  scale: 0.99,
-                }}
-                transition={{
-                  duration: 0.22,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden border border-sky-300/15 bg-[#081426]/98 shadow-[0_0_48px_rgba(37,99,235,0.18),0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl"
-                style={{ borderRadius: 10 }}
-              >
-                <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-sky-300">
-                      Featured Work
-                    </p>
+        {editingWorkSampleId ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 p-3 sm:p-5"
+            onMouseDown={(event) => {
+              if (
+                event.target ===
+                event.currentTarget
+              ) {
+                closeWorkSampleModal();
+              }
+            }}
+          >
+            {workSamples
+              .filter(
+                (item) =>
+                  item.id ===
+                  editingWorkSampleId,
+              )
+              .map((item) => (
+                <motion.div
+                  key={item.id}
+                  initial={{
+                    opacity: 0,
+                    y: 18,
+                    scale: 0.985,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                    scale: 1,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    y: 12,
+                    scale: 0.99,
+                  }}
+                  transition={{
+                    duration: 0.22,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden border border-sky-300/15 bg-[#081426]/98 shadow-[0_0_48px_rgba(37,99,235,0.18),0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+                  style={{ borderRadius: 10 }}
+                >
+                  <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-sky-300">
+                        Featured Work
+                      </p>
 
-                    <h2 className="mt-1 text-xl font-semibold text-white">
-                      {item.title
-                        ? "Edit Work Sample"
-                        : "Add Work Sample"}
-                    </h2>
+                      <h2 className="mt-1 text-xl font-semibold text-white">
+                        {item.title
+                          ? "Edit Work Sample"
+                          : "Add Work Sample"}
+                      </h2>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={closeWorkSampleModal}
+                      className="flex h-9 w-9 cursor-pointer items-center justify-center text-zinc-400 transition hover:text-white"
+                      aria-label="Close work sample editor"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={closeWorkSampleModal}
-                    className="flex h-9 w-9 cursor-pointer items-center justify-center text-zinc-400 transition hover:text-white"
-                    aria-label="Close work sample editor"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                        Project or Game Title
-                      </label>
-
-                      <input
-                        type="text"
-                        value={item.title}
-                        onChange={(event) =>
-                          updateWorkSample(
-                            item.id,
-                            {
-                              title:
-                                event.target.value,
-                            },
-                          )
-                        }
-                        maxLength={120}
-                        placeholder="Example — Overgeared"
-                        className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
-                        style={{ borderRadius: 5 }}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                        Roblox Experience Link
-                      </label>
-
-                      <input
-                        type="url"
-                        value={item.projectUrl}
-                        onChange={(event) =>
-                          updateWorkSample(
-                            item.id,
-                            {
-                              projectUrl:
-                                event.target.value,
-                            },
-                          )
-                        }
-                        placeholder="https://www.roblox.com/games/..."
-                        className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
-                        style={{ borderRadius: 5 }}
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                        YouTube Video
-                      </label>
-
-                      <input
-                        id={`youtube-video-${item.id}`}
-                        type="url"
-                        value={item.youtubeVideoUrl}
-                        onChange={(event) =>
-                          updateYoutubeVideoUrl(
-                            item.id,
-                            event.target.value,
-                          )
-                        }
-                        placeholder="https://www.youtube.com/watch?v=..."
-                        className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
-                        style={{ borderRadius: 5 }}
-                      />
-
-                      <p className="mt-2 text-xs leading-5 text-zinc-500">
-                        Optional. YouTube, Shorts, and youtu.be links are supported.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                        Project Type
-                      </label>
-
-                      <select
-                        value={item.projectType}
-                        onChange={(event) =>
-                          updateWorkSample(
-                            item.id,
-                            {
-                              projectType:
-                                event.target
-                                  .value as WorkSample["projectType"],
-                            },
-                          )
-                        }
-                        className="w-full appearance-none border border-white/10 bg-[#071225] px-4 py-3 text-sm text-white outline-none focus:border-blue-400 [color-scheme:dark] [&>option]:bg-[#071225] [&>option]:text-white"
-                        style={{ borderRadius: 5 }}
-                      >
-                        <option value="owned">
-                          My own project
-                        </option>
-                        <option value="team">
-                          Team project
-                        </option>
-                        <option value="client">
-                          Client work
-                        </option>
-                        <option value="other">
-                          Other
-                        </option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                        Team or Studio
-                      </label>
-
-                      <input
-                        type="text"
-                        value={item.teamName}
-                        onChange={(event) =>
-                          updateWorkSample(
-                            item.id,
-                            {
-                              teamName:
-                                event.target.value,
-                            },
-                          )
-                        }
-                        maxLength={120}
-                        placeholder="Optional"
-                        className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
-                        style={{ borderRadius: 5 }}
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                        Your Role
-                      </label>
-
-                      <input
-                        type="text"
-                        value={item.role}
-                        onChange={(event) =>
-                          updateWorkSample(
-                            item.id,
-                            {
-                              role:
-                                event.target.value,
-                            },
-                          )
-                        }
-                        maxLength={160}
-                        placeholder="Example — Solo developer, lead scripter, UI designer"
-                        className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
-                        style={{ borderRadius: 5 }}
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <div className="mb-2 flex items-center justify-between gap-4">
-                        <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                          What You Contributed
+                  <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                          Project or Game Title
                         </label>
 
-                        <span className="text-xs text-zinc-600">
-                          {item.contribution.length} / 1,200
-                        </span>
+                        <input
+                          type="text"
+                          value={item.title}
+                          onChange={(event) =>
+                            updateWorkSample(
+                              item.id,
+                              {
+                                title:
+                                  event.target.value,
+                              },
+                            )
+                          }
+                          maxLength={120}
+                          placeholder="Example — Overgeared"
+                          className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
+                          style={{ borderRadius: 5 }}
+                        />
                       </div>
 
-                      <textarea
-                        value={item.contribution}
-                        onChange={(event) =>
-                          updateWorkSample(
-                            item.id,
-                            {
-                              contribution:
-                                event.target.value,
-                            },
-                          )
-                        }
-                        rows={4}
-                        maxLength={1200}
-                        placeholder="Describe the parts you personally worked on."
-                        className="w-full resize-y border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
-                        style={{ borderRadius: 5 }}
-                      />
-                    </div>
+                      <div>
+                        <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                          Roblox Experience Link
+                        </label>
 
-                    <div className="md:col-span-2">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                            Project Media
-                          </label>
+                        <input
+                          type="url"
+                          value={item.projectUrl}
+                          onChange={(event) =>
+                            updateWorkSample(
+                              item.id,
+                              {
+                                projectUrl:
+                                  event.target.value,
+                              },
+                            )
+                          }
+                          placeholder="https://www.roblox.com/games/..."
+                          className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
+                          style={{ borderRadius: 5 }}
+                        />
+                      </div>
 
-                          <p className="mt-2 text-xs leading-5 text-zinc-500">
-                            Add up to five images. Dragging is not required; use the arrows to set the public order.
-                          </p>
-                        </div>
+                      <div className="md:col-span-2">
+                        <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                          YouTube Video
+                        </label>
 
-                        <label
-                          className={`inline-flex w-fit cursor-pointer border border-blue-400/25 bg-blue-500/10 px-4 py-2.5 text-sm font-semibold text-blue-200 hover:bg-blue-500/20 ${
-                            (item.images?.length || 0) >= 5 ||
-                            uploadingProjectId === item.id
-                              ? "pointer-events-none opacity-50"
-                              : ""
-                          }`}
+                        <input
+                          id={`youtube-video-${item.id}`}
+                          type="url"
+                          value={item.youtubeVideoUrl}
+                          onChange={(event) =>
+                            updateYoutubeVideoUrl(
+                              item.id,
+                              event.target.value,
+                            )
+                          }
+                          placeholder="https://www.youtube.com/watch?v=..."
+                          className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
+                          style={{ borderRadius: 5 }}
+                        />
+
+                        <p className="mt-2 text-xs leading-5 text-zinc-500">
+                          Optional. YouTube, Shorts, and youtu.be links are supported.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                          Project Type
+                        </label>
+
+                        <select
+                          value={item.projectType}
+                          onChange={(event) =>
+                            updateWorkSample(
+                              item.id,
+                              {
+                                projectType:
+                                  event.target
+                                    .value as WorkSample["projectType"],
+                              },
+                            )
+                          }
+                          className="w-full appearance-none border border-white/10 bg-[#071225] px-4 py-3 text-sm text-white outline-none focus:border-blue-400 [color-scheme:dark] [&>option]:bg-[#071225] [&>option]:text-white"
                           style={{ borderRadius: 5 }}
                         >
-                          {uploadingProjectId === item.id ? (
-                            <span className="inline-flex items-center gap-2">
-                              <LoaderCircle className="h-4 w-4 animate-spin" />
-                              Processing images...
-                            </span>
-                          ) : (
-                            "Upload Images"
-                          )}
-
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            className="hidden"
-                            disabled={
-                              (item.images?.length || 0) >= 5 ||
-                              uploadingProjectId === item.id
-                            }
-                            onChange={(event) => {
-                              uploadProjectImages(
-                                item.id,
-                                event.target.files,
-                              );
-
-                              event.target.value = "";
-                            }}
-                          />
-                        </label>
+                          <option value="owned">
+                            My own project
+                          </option>
+                          <option value="team">
+                            Team project
+                          </option>
+                          <option value="client">
+                            Client work
+                          </option>
+                          <option value="other">
+                            Other
+                          </option>
+                        </select>
                       </div>
 
-                      {getOrderedProjectMedia(item).length > 0 ? (
-                        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                          {getOrderedProjectMedia(item).map(
-                            (
-                              media,
-                              mediaIndex,
-                              orderedMedia,
-                            ) => {
-                              const image =
-                                media.type ===
-                                "image"
-                                  ? item.images.find(
+                      <div>
+                        <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                          Team or Studio
+                        </label>
+
+                        <input
+                          type="text"
+                          value={item.teamName}
+                          onChange={(event) =>
+                            updateWorkSample(
+                              item.id,
+                              {
+                                teamName:
+                                  event.target.value,
+                              },
+                            )
+                          }
+                          maxLength={120}
+                          placeholder="Optional"
+                          className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
+                          style={{ borderRadius: 5 }}
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                          Your Role
+                        </label>
+
+                        <input
+                          type="text"
+                          value={item.role}
+                          onChange={(event) =>
+                            updateWorkSample(
+                              item.id,
+                              {
+                                role:
+                                  event.target.value,
+                              },
+                            )
+                          }
+                          maxLength={160}
+                          placeholder="Example — Solo developer, lead scripter, UI designer"
+                          className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
+                          style={{ borderRadius: 5 }}
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <div className="mb-2 flex items-center justify-between gap-4">
+                          <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                            What You Contributed
+                          </label>
+
+                          <span className="text-xs text-zinc-600">
+                            {item.contribution.length} / 1,200
+                          </span>
+                        </div>
+
+                        <textarea
+                          value={item.contribution}
+                          onChange={(event) =>
+                            updateWorkSample(
+                              item.id,
+                              {
+                                contribution:
+                                  event.target.value,
+                              },
+                            )
+                          }
+                          rows={4}
+                          maxLength={1200}
+                          placeholder="Describe the parts you personally worked on."
+                          className="w-full resize-y border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
+                          style={{ borderRadius: 5 }}
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400">
+                              Project Media
+                            </label>
+
+                            <p className="mt-2 text-xs leading-5 text-zinc-500">
+                              Add up to five images. Dragging is not required; use the arrows to set the public order.
+                            </p>
+                          </div>
+
+                          <label
+                            className={`inline-flex w-fit cursor-pointer border border-blue-400/25 bg-blue-500/10 px-4 py-2.5 text-sm font-semibold text-blue-200 hover:bg-blue-500/20 ${(item.images?.length || 0) >= 5 ||
+                              uploadingProjectId === item.id
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                              }`}
+                            style={{ borderRadius: 5 }}
+                          >
+                            {uploadingProjectId === item.id ? (
+                              <span className="inline-flex items-center gap-2">
+                                <LoaderCircle className="h-4 w-4 animate-spin" />
+                                Processing images...
+                              </span>
+                            ) : (
+                              "Upload Images"
+                            )}
+
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              disabled={
+                                (item.images?.length || 0) >= 5 ||
+                                uploadingProjectId === item.id
+                              }
+                              onChange={(event) => {
+                                uploadProjectImages(
+                                  item.id,
+                                  event.target.files,
+                                );
+
+                                event.target.value = "";
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        {getOrderedProjectMedia(item).length > 0 ? (
+                          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {getOrderedProjectMedia(item).map(
+                              (
+                                media,
+                                mediaIndex,
+                                orderedMedia,
+                              ) => {
+                                const image =
+                                  media.type ===
+                                    "image"
+                                    ? item.images.find(
                                       (candidate) =>
                                         candidate.id ===
                                         media.id,
                                     )
-                                  : null;
+                                    : null;
 
-                              const videoId =
-                                media.type ===
-                                "youtube"
-                                  ? getYouTubeVideoId(
+                                const videoId =
+                                  media.type ===
+                                    "youtube"
+                                    ? getYouTubeVideoId(
                                       item.youtubeVideoUrl,
                                     )
-                                  : "";
+                                    : "";
 
-                              return (
-                                <div
-                                  key={`${media.type}-${media.id}`}
-                                  className="overflow-hidden border border-white/10 bg-black/20"
-                                  style={{
-                                    borderRadius: 8,
-                                  }}
-                                >
-                                  <div className="relative aspect-video bg-black/30">
-                                    {image ? (
-                                      <img
-                                        src={image.url}
-                                        alt=""
-                                        className="h-full w-full object-cover"
-                                      />
-                                    ) : videoId ? (
-                                      <>
+                                return (
+                                  <div
+                                    key={`${media.type}-${media.id}`}
+                                    className="overflow-hidden border border-white/10 bg-black/20"
+                                    style={{
+                                      borderRadius: 8,
+                                    }}
+                                  >
+                                    <div className="relative aspect-video bg-black/30">
+                                      {image ? (
                                         <img
-                                          src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
-                                          alt="YouTube video thumbnail"
+                                          src={image.url}
+                                          alt=""
                                           className="h-full w-full object-cover"
                                         />
+                                      ) : videoId ? (
+                                        <>
+                                          <img
+                                            src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+                                            alt="YouTube video thumbnail"
+                                            className="h-full w-full object-cover"
+                                          />
 
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-xl text-white shadow-xl">
-                                            ▶
-                                          </span>
+                                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-xl text-white shadow-xl">
+                                              ▶
+                                            </span>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div className="flex h-full items-center justify-center text-xs text-zinc-600">
+                                          Video preview unavailable
                                         </div>
-                                      </>
-                                    ) : (
-                                      <div className="flex h-full items-center justify-center text-xs text-zinc-600">
-                                        Video preview unavailable
-                                      </div>
-                                    )}
+                                      )}
 
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        media.type ===
-                                          "image" &&
-                                        image
-                                          ? removeProjectImage(
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          media.type ===
+                                            "image" &&
+                                            image
+                                            ? removeProjectImage(
                                               item.id,
                                               image,
                                             )
-                                          : removeYoutubeVideo(
+                                            : removeYoutubeVideo(
                                               item.id,
                                             )
-                                      }
-                                      disabled={
-                                        media.type ===
-                                          "image" &&
-                                        image
-                                          ? deletingImageId ===
-                                            image.id
-                                          : false
-                                      }
-                                      className="absolute right-2 top-2 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-black/65 text-zinc-200 backdrop-blur-sm transition hover:bg-red-500/75 disabled:opacity-50"
-                                      aria-label="Remove media"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  </div>
-
-                                  <div className="flex items-center justify-center gap-2 p-3">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        moveProjectMedia(
-                                          item.id,
-                                          media.type,
-                                          media.id,
-                                          -1,
-                                        )
-                                      }
-                                      disabled={
-                                        mediaIndex === 0
-                                      }
-                                      className="flex h-9 w-9 cursor-pointer items-center justify-center border border-white/10 bg-white/[0.04] text-lg text-zinc-200 disabled:opacity-25"
-                                      style={{
-                                        borderRadius: 5,
-                                      }}
-                                      aria-label="Move media left"
-                                    >
-                                      ←
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (
+                                        }
+                                        disabled={
                                           media.type ===
                                             "image" &&
-                                          image
-                                        ) {
-                                          openProjectImageCrop(
-                                            item.id,
-                                            image,
-                                          );
-                                        } else {
-                                          document
-                                            .getElementById(
-                                              `youtube-video-${item.id}`,
-                                            )
-                                            ?.focus();
+                                            image
+                                            ? deletingImageId ===
+                                            image.id
+                                            : false
                                         }
-                                      }}
-                                      className="cursor-pointer border border-blue-400/25 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-200"
-                                      style={{
-                                        borderRadius: 5,
-                                      }}
-                                    >
-                                      Edit
-                                    </button>
+                                        className="absolute right-2 top-2 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-black/65 text-zinc-200 backdrop-blur-sm transition hover:bg-red-500/75 disabled:opacity-50"
+                                        aria-label="Remove media"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
 
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        moveProjectMedia(
-                                          item.id,
-                                          media.type,
-                                          media.id,
-                                          1,
-                                        )
-                                      }
-                                      disabled={
-                                        mediaIndex ===
-                                        orderedMedia.length -
+                                    <div className="flex items-center justify-center gap-2 p-3">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          moveProjectMedia(
+                                            item.id,
+                                            media.type,
+                                            media.id,
+                                            -1,
+                                          )
+                                        }
+                                        disabled={
+                                          mediaIndex === 0
+                                        }
+                                        className="flex h-9 w-9 cursor-pointer items-center justify-center border border-white/10 bg-white/[0.04] text-lg text-zinc-200 disabled:opacity-25"
+                                        style={{
+                                          borderRadius: 5,
+                                        }}
+                                        aria-label="Move media left"
+                                      >
+                                        ←
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (
+                                            media.type ===
+                                            "image" &&
+                                            image
+                                          ) {
+                                            openProjectImageCrop(
+                                              item.id,
+                                              image,
+                                            );
+                                          } else {
+                                            document
+                                              .getElementById(
+                                                `youtube-video-${item.id}`,
+                                              )
+                                              ?.focus();
+                                          }
+                                        }}
+                                        className="cursor-pointer border border-blue-400/25 bg-blue-500/10 px-4 py-2 text-sm font-semibold text-blue-200"
+                                        style={{
+                                          borderRadius: 5,
+                                        }}
+                                      >
+                                        Edit
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          moveProjectMedia(
+                                            item.id,
+                                            media.type,
+                                            media.id,
+                                            1,
+                                          )
+                                        }
+                                        disabled={
+                                          mediaIndex ===
+                                          orderedMedia.length -
                                           1
-                                      }
-                                      className="flex h-9 w-9 cursor-pointer items-center justify-center border border-white/10 bg-white/[0.04] text-lg text-zinc-200 disabled:opacity-25"
-                                      style={{
-                                        borderRadius: 5,
-                                      }}
-                                      aria-label="Move media right"
-                                    >
-                                      →
-                                    </button>
+                                        }
+                                        className="flex h-9 w-9 cursor-pointer items-center justify-center border border-white/10 bg-white/[0.04] text-lg text-zinc-200 disabled:opacity-25"
+                                        style={{
+                                          borderRadius: 5,
+                                        }}
+                                        aria-label="Move media right"
+                                      >
+                                        →
+                                      </button>
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            },
-                          )}
-                        </div>
-                      ) : (
-                        <div
-                          className="mt-4 border border-dashed border-white/10 bg-black/10 p-5 text-center"
-                          style={{
-                            borderRadius: 8,
-                          }}
-                        >
-                          <p className="text-sm text-zinc-500">
-                            No project media added.
-                          </p>
-                        </div>
-                      )}
+                                );
+                              },
+                            )}
+                          </div>
+                        ) : (
+                          <div
+                            className="mt-4 border border-dashed border-white/10 bg-black/10 p-5 text-center"
+                            style={{
+                              borderRadius: 8,
+                            }}
+                          >
+                            <p className="text-sm text-zinc-500">
+                              No project media added.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
+
+                    <label className="mt-5 flex cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={
+                          item.isInDevelopment
+                        }
+                        onChange={(event) =>
+                          updateWorkSample(
+                            item.id,
+                            {
+                              isInDevelopment:
+                                event.target.checked,
+                            },
+                          )
+                        }
+                        className="mt-1"
+                      />
+
+                      <span className="text-sm text-zinc-300">
+                        This project is still in development.
+                      </span>
+                    </label>
                   </div>
 
-                  <label className="mt-5 flex cursor-pointer items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={
-                        item.isInDevelopment
+                  <div className="flex items-center justify-between gap-3 border-t border-white/10 px-5 py-4 sm:px-6">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        removeWorkSample(item.id)
                       }
-                      onChange={(event) =>
-                        updateWorkSample(
-                          item.id,
-                          {
-                            isInDevelopment:
-                              event.target.checked,
-                          },
-                        )
-                      }
-                      className="mt-1"
-                    />
+                      className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-red-300 transition hover:text-red-200"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </button>
 
-                    <span className="text-sm text-zinc-300">
-                      This project is still in development.
-                    </span>
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 border-t border-white/10 px-5 py-4 sm:px-6">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      removeWorkSample(item.id)
-                    }
-                    className="inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-red-300 transition hover:text-red-200"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={closeWorkSampleModal}
-                    className="cursor-pointer bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
-                    style={{ borderRadius: 6 }}
-                  >
-                    Done
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-        </motion.div>
-      ) : null}
+                    <button
+                      type="button"
+                      onClick={closeWorkSampleModal}
+                      className="cursor-pointer bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+                      style={{ borderRadius: 6 }}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+          </motion.div>
+        ) : null}
       </AnimatePresence>
 
       {mediaCropTarget ? (

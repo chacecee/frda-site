@@ -11,16 +11,22 @@ import {
 import type { User } from "firebase/auth";
 import { rtdb } from "@/lib/firebase";
 
-function normalizePresenceKey(email?: string | null) {
-  return (email || "").trim().toLowerCase().replaceAll(".", ",");
-}
+export async function setPresenceOffline(
+  uid?: string | null,
+  email?: string | null,
+) {
+  const normalizedUid = uid?.trim() || "";
+  const normalizedEmail =
+    email?.trim().toLowerCase() || "";
 
-export async function setPresenceOffline(email?: string | null) {
-  const normalizedEmail = (email || "").trim().toLowerCase();
-  const key = normalizePresenceKey(normalizedEmail);
-  if (!key || !normalizedEmail) return;
+  if (!normalizedUid || !normalizedEmail) {
+    return;
+  }
 
-  const statusRef = ref(rtdb, `status/${key}`);
+  const statusRef = ref(
+    rtdb,
+    `status/${normalizedUid}`,
+  );
 
   await set(statusRef, {
     state: "offline",
@@ -29,39 +35,59 @@ export async function setPresenceOffline(email?: string | null) {
   });
 }
 
-export function usePresence(user: User | null) {
+export function usePresence(
+  user: User | null,
+) {
   useEffect(() => {
-    if (!user?.email) return;
+    if (!user?.uid || !user.email) {
+      return;
+    }
 
-    const normalizedEmail = user.email.trim().toLowerCase();
-    const key = normalizePresenceKey(normalizedEmail);
-    if (!key) return;
+    const normalizedEmail =
+      user.email.trim().toLowerCase();
 
-    const connectedRef = ref(rtdb, ".info/connected");
-    const statusRef = ref(rtdb, `status/${key}`);
+    const connectedRef = ref(
+      rtdb,
+      ".info/connected",
+    );
 
-    const unsubscribe = onValue(connectedRef, async (snapshot) => {
-      if (snapshot.val() !== true) return;
+    const statusRef = ref(
+      rtdb,
+      `status/${user.uid}`,
+    );
 
-      try {
-        await onDisconnect(statusRef).set({
-          state: "offline",
-          lastChanged: serverTimestamp(),
-          email: normalizedEmail,
-        });
+    const unsubscribe = onValue(
+      connectedRef,
+      async (snapshot) => {
+        if (snapshot.val() !== true) {
+          return;
+        }
 
-        await set(statusRef, {
-          state: "online",
-          lastChanged: serverTimestamp(),
-          email: normalizedEmail,
-        });
-      } catch (error) {
-        console.error("Failed to update presence:", error);
-      }
-    });
+        try {
+          await onDisconnect(
+            statusRef,
+          ).set({
+            state: "offline",
+            lastChanged:
+              serverTimestamp(),
+            email: normalizedEmail,
+          });
 
-    return () => {
-      unsubscribe();
-    };
+          await set(statusRef, {
+            state: "online",
+            lastChanged:
+              serverTimestamp(),
+            email: normalizedEmail,
+          });
+        } catch (error) {
+          console.error(
+            "Failed to update presence:",
+            error,
+          );
+        }
+      },
+    );
+
+    return unsubscribe;
   }, [user]);
 }

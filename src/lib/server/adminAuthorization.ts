@@ -1,5 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+import {
+  adminAuth,
+  adminDb,
+} from "@/lib/firebaseAdmin";
 
 export type AuthorizedStaff = {
   uid: string;
@@ -24,79 +30,143 @@ export type AdminAuthorizationResult =
   | AuthorizationSuccess
   | AuthorizationFailure;
 
-function normalizeEmail(value?: string | null): string {
+function normalizeEmail(
+  value?: string | null,
+): string {
   return value?.trim().toLowerCase() || "";
 }
 
-function normalizeRole(value?: string | null): string {
+function normalizeRole(
+  value?: string | null,
+): string {
   return value?.trim().toLowerCase() || "";
 }
 
-function normalizeStatus(value?: string | null): string {
+function normalizeStatus(
+  value?: string | null,
+): string {
   return value?.trim().toLowerCase() || "";
 }
 
-function getBearerToken(request: NextRequest): string {
-  const authorization = request.headers.get("authorization") || "";
+function getBearerToken(
+  request: NextRequest,
+): string {
+  const authorization =
+    request.headers.get("authorization") || "";
 
-  if (!authorization.toLowerCase().startsWith("bearer ")) {
+  if (
+    !authorization
+      .toLowerCase()
+      .startsWith("bearer ")
+  ) {
     return "";
   }
 
   return authorization.slice(7).trim();
 }
 
-async function findStaffByEmail(
-  uid: string,
-  email: string
-): Promise<AuthorizedStaff | null> {
-  const normalizedEmail = normalizeEmail(email);
+function denied(
+  error: string,
+  status: number,
+): AuthorizationFailure {
+  return {
+    ok: false,
+    response: NextResponse.json(
+      { ok: false, error },
+      {
+        status,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    ),
+  };
+}
 
-  if (!normalizedEmail) {
-    return null;
-  }
+async function findStaff({
+  uid,
+  email,
+}: {
+  uid: string;
+  email: string;
+}): Promise<AuthorizedStaff | null> {
+  const normalizedEmail =
+    normalizeEmail(email);
 
-  const exactSnapshot = await adminDb
+  const uidSnapshot = await adminDb
     .collection("staff")
-    .where("emailAddress", "==", email)
-    .limit(1)
+    .where("authUid", "==", uid)
+    .limit(2)
     .get();
 
-  if (!exactSnapshot.empty) {
-    const staffDocument = exactSnapshot.docs[0];
-    const data = staffDocument.data();
+  let staffDocument =
+    uidSnapshot.size === 1
+      ? uidSnapshot.docs[0]
+      : null;
 
-    return {
-      uid,
-      id: staffDocument.id,
-      emailAddress: String(data.emailAddress || email),
-      displayName: String(data.displayName || ""),
-      role: String(data.role || ""),
-      status: String(data.status || ""),
-    };
+  if (!staffDocument) {
+    const emailSnapshot = await adminDb
+      .collection("staff")
+      .where(
+        "emailAddress",
+        "==",
+        normalizedEmail,
+      )
+      .limit(2)
+      .get();
+
+    if (emailSnapshot.size !== 1) {
+      return null;
+    }
+
+    staffDocument =
+      emailSnapshot.docs[0];
   }
 
-  const allStaffSnapshot = await adminDb.collection("staff").get();
+  const data =
+    staffDocument.data();
 
-  const matchingDocument = allStaffSnapshot.docs.find((document) => {
-    const data = document.data();
+  const staffEmail = normalizeEmail(
+    String(data.emailAddress || ""),
+  );
 
-    return (
-      normalizeEmail(String(data.emailAddress || "")) === normalizedEmail
-    );
-  });
-
-  if (!matchingDocument) {
+  if (
+    !staffEmail ||
+    staffEmail !== normalizedEmail
+  ) {
     return null;
   }
 
-  const data = matchingDocument.data();
+  const storedUid =
+    typeof data.authUid === "string"
+      ? data.authUid.trim()
+      : "";
+
+  if (
+    storedUid &&
+    storedUid !== uid
+  ) {
+    return null;
+  }
+
+  if (!storedUid) {
+    await staffDocument.ref.set(
+      {
+        authUid: uid,
+        normalizedEmail,
+        updatedAt: new Date(),
+      },
+      { merge: true },
+    );
+  }
 
   return {
     uid,
-    id: matchingDocument.id,
-    emailAddress: String(data.emailAddress || email),
-    displayName: String(data.displayName || ""),
+    id: staffDocument.id,
+    emailAddress: staffEmail,
+    displayName: String(
+      data.displayName || "",
+    ),
     role: String(data.role || ""),
     status: String(data.status || ""),
   };
@@ -104,126 +174,141 @@ async function findStaffByEmail(
 
 export async function authorizeAdminRequest(
   request: NextRequest,
-  permissionKey?: string
+  permissionKey?: string,
+  requireAdmin = false,
 ): Promise<AdminAuthorizationResult> {
-  const token = getBearerToken(request);
+  const token =
+    getBearerToken(request);
 
   if (!token) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        {
-          ok: false,
-          error: "Missing authentication token.",
-        },
-        { status: 401 }
-      ),
-    };
+    return denied(
+      "Missing authentication token.",
+      401,
+    );
   }
 
   let decodedToken;
 
   try {
-    decodedToken = await adminAuth.verifyIdToken(token, true);
+    decodedToken =
+      await adminAuth.verifyIdToken(
+        token,
+        true,
+      );
   } catch (error) {
-    console.error("Admin token verification error:", error);
+    console.error(
+      "Admin token verification error:",
+      error,
+    );
 
-    return {
-      ok: false,
-      response: NextResponse.json(
-        {
-          ok: false,
-          error: "Your session is invalid or has expired.",
-        },
-        { status: 401 }
-      ),
-    };
+    return denied(
+      "Your session is invalid or has expired.",
+      401,
+    );
   }
 
-  const email = normalizeEmail(decodedToken.email);
+  if (
+    decodedToken.email_verified !== true
+  ) {
+    return denied(
+      "Verify your email address before accessing the FRDA admin portal.",
+      403,
+    );
+  }
+
+  const email =
+    normalizeEmail(
+      decodedToken.email,
+    );
 
   if (!email) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        {
-          ok: false,
-          error: "This account does not have an email address.",
-        },
-        { status: 403 }
-      ),
-    };
+    return denied(
+      "This account does not have a valid email address.",
+      403,
+    );
   }
 
-  const staff = await findStaffByEmail(decodedToken.uid, email);
+  const staff =
+    await findStaff({
+      uid: decodedToken.uid,
+      email,
+    });
 
   if (!staff) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        {
-          ok: false,
-          error: "No matching FRDA staff profile was found.",
-        },
-        { status: 403 }
-      ),
-    };
+    return denied(
+      "No matching FRDA staff profile was found.",
+      403,
+    );
   }
 
-  if (normalizeStatus(staff.status) !== "active") {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        {
-          ok: false,
-          error: "This staff account is not active.",
-        },
-        { status: 403 }
-      ),
-    };
+  if (
+    normalizeStatus(staff.status) !==
+    "active"
+  ) {
+    return denied(
+      "This staff account is not active.",
+      403,
+    );
   }
 
-  if (normalizeRole(staff.role) === "admin") {
-    return {
-      ok: true,
-      staff,
-    };
+  const isAdmin =
+    normalizeRole(staff.role) ===
+    "admin";
+
+  if (requireAdmin && !isAdmin) {
+    return denied(
+      "This action is restricted to administrators.",
+      403,
+    );
   }
 
-  if (!permissionKey) {
+  if (
+    isAdmin ||
+    !permissionKey
+  ) {
     return {
       ok: true,
       staff,
     };
   }
 
-  const permissionsSnapshot = await adminDb
-    .collection("adminUiPermissions")
-    .doc("sidebar")
-    .get();
+  const permissionsSnapshot =
+    await adminDb
+      .collection(
+        "adminUiPermissions",
+      )
+      .doc("sidebar")
+      .get();
 
-  const permissions = permissionsSnapshot.exists
-    ? permissionsSnapshot.data()
-    : null;
+  const permissions =
+    permissionsSnapshot.exists
+      ? permissionsSnapshot.data()
+      : null;
 
-  const allowedStaffIds = Array.isArray(permissions?.[permissionKey])
-    ? permissions[permissionKey].filter(
-      (value: unknown): value is string =>
-        typeof value === "string"
+  const allowedStaffIds =
+    Array.isArray(
+      permissions?.[permissionKey],
     )
-    : [];
+      ? permissions[
+          permissionKey
+        ].filter(
+          (
+            value: unknown,
+          ): value is string =>
+            typeof value ===
+            "string",
+        )
+      : [];
 
-  if (!allowedStaffIds.includes(staff.id)) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        {
-          ok: false,
-          error: "You do not have permission to perform this action.",
-        },
-        { status: 403 }
-      ),
-    };
+  if (
+    !allowedStaffIds.includes(
+      staff.id,
+    )
+  ) {
+    return denied(
+      "You do not have permission to perform this action.",
+      403,
+    );
   }
 
   return {
