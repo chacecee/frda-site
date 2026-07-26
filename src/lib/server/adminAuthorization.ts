@@ -124,7 +124,7 @@ export async function authorizeAdminRequest(
   let decodedToken;
 
   try {
-    decodedToken = await adminAuth.verifyIdToken(token);
+    decodedToken = await adminAuth.verifyIdToken(token, true);
   } catch (error) {
     console.error("Admin token verification error:", error);
 
@@ -170,13 +170,13 @@ export async function authorizeAdminRequest(
     };
   }
 
-  if (normalizeStatus(staff.status) === "removed") {
+  if (normalizeStatus(staff.status) !== "active") {
     return {
       ok: false,
       response: NextResponse.json(
         {
           ok: false,
-          error: "This staff account has been removed.",
+          error: "This staff account is not active.",
         },
         { status: 403 }
       ),
@@ -208,9 +208,9 @@ export async function authorizeAdminRequest(
 
   const allowedStaffIds = Array.isArray(permissions?.[permissionKey])
     ? permissions[permissionKey].filter(
-        (value: unknown): value is string =>
-          typeof value === "string"
-      )
+      (value: unknown): value is string =>
+        typeof value === "string"
+    )
     : [];
 
   if (!allowedStaffIds.includes(staff.id)) {

@@ -83,6 +83,11 @@ type DeveloperAccount = {
   projectViews: number;
   projectLinkClicks: number;
   portfolioClicks: number;
+
+  developerPremiumStatus: string;
+  developerPremiumGrantType: string;
+  developerPremiumGrantedAt: string | null;
+  hasPremiumAccess: boolean;
 };
 
 function formatDate(
@@ -251,7 +256,7 @@ export default function DeveloperAccountsPage() {
 
   const [processingAction, setProcessingAction] =
     useState<
-      "approve" | "request_changes" | "hide" | null
+      "approve" | "request_changes" | "hide" | "grant_premium" | null
     >(null);
 
   const displayName =
@@ -558,6 +563,7 @@ export default function DeveloperAccountsPage() {
       | "approve"
       | "request_changes"
       | "hide"
+      | "grant_premium"
   ) {
     if (
       !user ||
@@ -1544,6 +1550,21 @@ export default function DeveloperAccountsPage() {
                     ) : null}
                   </section>
                 ) : null}
+
+                <section className="border border-violet-400/20 bg-violet-500/[0.07] p-5" style={{ borderRadius: 8 }}>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-violet-200">Profile Premium</h3>
+                      <p className="mt-2 text-sm leading-6 text-zinc-400">Includes developer analytics and a custom FRDA subdomain.</p>
+                      <p className="mt-2 text-xs text-zinc-500">Status — {selectedDeveloper.developerPremiumStatus === "qualified" ? "Lifetime premium granted" : selectedDeveloper.developerPremiumStatus === "pending_review" ? "Awaiting eligibility review" : selectedDeveloper.hasPremiumAccess ? "Grandfathered access" : "Not eligible"}</p>
+                    </div>
+                    {selectedDeveloper.profileStatus === "live" && selectedDeveloper.developerPremiumStatus !== "qualified" ? (
+                      <button type="button" onClick={() => reviewProfile("grant_premium")} disabled={Boolean(processingAction)} className="cursor-pointer bg-violet-600 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50" style={{ borderRadius: 7 }}>
+                        {processingAction === "grant_premium" ? "Granting..." : "Grant Lifetime Premium"}
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
 
                 <section>
                   <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">

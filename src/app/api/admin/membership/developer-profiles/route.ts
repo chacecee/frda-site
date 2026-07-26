@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { authorizeAdminRequest } from "@/lib/server/adminAuthorization";
+import { DEVELOPER_PREMIUM_LAUNCH_LIMIT } from "@/lib/server/developerPremiumLaunch";
 
 export const runtime = "nodejs";
 
 type ReviewAction =
   | "approve"
   | "request_changes"
-  | "hide";
+  | "hide"
+  | "grant_premium";
 
 function timestampToIso(value: unknown): string | null {
   if (
@@ -225,6 +227,14 @@ function serializeDeveloperAccount({
       typeof analytics?.portfolioClicks === "number"
         ? analytics.portfolioClicks
         : 0,
+
+    developerPremiumStatus: String(member.developerPremiumStatus || "not_eligible"),
+    developerPremiumGrantType: String(member.developerPremiumGrantType || ""),
+    developerPremiumGrantedAt: timestampToIso(member.developerPremiumGrantedAt),
+    hasPremiumAccess:
+      member.developerPremiumStatus === "qualified" ||
+      member.analyticsAccess === "pro" ||
+      Boolean(String(member.customSubdomain || "").trim()),
   };
 }
 
@@ -234,7 +244,8 @@ function isReviewAction(
   return (
     value === "approve" ||
     value === "request_changes" ||
-    value === "hide"
+    value === "hide" ||
+    value === "grant_premium"
   );
 }
 
@@ -557,6 +568,62 @@ export async function PATCH(
             FieldValue.serverTimestamp(),
         };
 
+        if (body.action === "grant_premium") {
+          if (profile.isPublished !== true || currentStatus !== "live") {
+            throw new Error("Only a published profile can receive lifetime premium.");
+          }
+
+          if (memberSnapshot.data()?.developerPremiumStatus === "qualified") {
+            throw new Error("This developer already has lifetime premium.");
+          }
+
+          const premiumSnapshot = await transaction.get(
+            adminDb.collection("developerPremiumLaunchGrants").doc("launch_lifetime"),
+          );
+          const currentCount = typeof premiumSnapshot.data()?.approvedCount === "number"
+            ? premiumSnapshot.data()!.approvedCount
+            : 0;
+
+          if (currentCount >= DEVELOPER_PREMIUM_LAUNCH_LIMIT) {
+            throw new Error("All 30 lifetime premium launch spots have already been awarded.");
+          }
+
+          transaction.set(memberReference, {
+            developerPremiumStatus: "qualified",
+            developerPremiumGrantType: "launch_lifetime",
+            developerPremiumGrantedAt: FieldValue.serverTimestamp(),
+            developerPremiumGrantedByUid: authorization.staff.uid,
+            developerPremiumGrantedByEmail: authorization.staff.emailAddress,
+            analyticsAccess: "pro",
+            customSubdomainAccess: "premium",
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+
+          transaction.set(profileReference, {
+            developerPremiumStatus: "qualified",
+            developerPremiumGrantType: "launch_lifetime",
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+
+          transaction.set(
+            adminDb.collection("developerPremiumLaunchGrants").doc("launch_lifetime"),
+            { approvedCount: currentCount + 1, limit: DEVELOPER_PREMIUM_LAUNCH_LIMIT, updatedAt: FieldValue.serverTimestamp() },
+            { merge: true },
+          );
+
+          transaction.set(adminDb.collection("memberNotifications").doc(), {
+            memberId,
+            type: "developer_premium_qualified",
+            title: "Lifetime premium unlocked",
+            message: "Your developer profile has qualified for lifetime FRDA Profile Premium. Profile analytics and your custom FRDA subdomain are now available at no cost.",
+            href: "/member/dashboard",
+            isRead: false,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          return;
+        }
+
         if (body.action === "approve") {
           if (currentStatus !== "pending_review") {
             throw new Error(
@@ -785,11 +852,13 @@ export async function PATCH(
       }),
 
       message:
-        body.action === "approve"
-          ? "Developer profile approved and published."
-          : body.action === "request_changes"
-            ? "Changes were requested from the developer."
-            : "Developer profile hidden.",
+        body.action === "grant_premium"
+          ? "Lifetime premium was granted to this developer."
+          : body.action === "approve"
+            ? "Developer profile approved and published."
+            : body.action === "request_changes"
+              ? "Changes were requested from the developer."
+              : "Developer profile hidden.",
     });
   } catch (error) {
     console.error(
@@ -804,7 +873,9 @@ export async function PATCH(
 
     const status =
       message.includes("Only profiles") ||
-      message.includes("Only a published")
+      message.includes("Only a published") ||
+      message.includes("already has lifetime") ||
+      message.includes("All 30")
         ? 409
         : message.includes("no longer exists")
           ? 404

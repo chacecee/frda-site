@@ -218,7 +218,7 @@ function getPublicMediaOrder(
         value.forEach((item) => {
             const raw =
                 typeof item === "object" &&
-                item !== null
+                    item !== null
                     ? item as Record<
                         string,
                         unknown
@@ -227,7 +227,7 @@ function getPublicMediaOrder(
 
             const type =
                 raw.type === "image" ||
-                raw.type === "youtube"
+                    raw.type === "youtube"
                     ? raw.type
                     : null;
 
@@ -424,8 +424,7 @@ function getPublicWorkSamples(
             Boolean(
                 item.id &&
                 item.title &&
-                item.role &&
-                item.contribution
+                item.role
             )
         );
 }

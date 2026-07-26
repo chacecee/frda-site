@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { authorizeMemberRequest } from "@/lib/server/memberAuthorization";
+import { DEVELOPER_PREMIUM_LAUNCH_ACTIVE, hasDeveloperPremiumAccess } from "@/lib/server/developerPremiumLaunch";
 
 export const runtime = "nodejs";
 
@@ -110,6 +111,7 @@ function createProfileSlug({
 
 function serializePublication(
   profile: FirebaseFirestore.DocumentData,
+  memberData: FirebaseFirestore.DocumentData = {},
 ) {
   return {
     status: String(profile.profileStatus || "draft"),
@@ -121,6 +123,11 @@ function serializePublication(
     moderationNote: String(profile.moderationNote || ""),
     moderationSource: String(profile.moderationSource || ""),
     moderationReportId: String(profile.moderationReportId || ""),
+    developerPremiumStatus: String(memberData.developerPremiumStatus || "not_eligible"),
+    hasPremiumAccess: hasDeveloperPremiumAccess({
+      ...memberData,
+      customSubdomain: profile.customSubdomain,
+    }),
   };
 }
 
@@ -129,7 +136,7 @@ export async function GET(request: NextRequest) {
     const authorization = await authorizeMemberRequest(request);
     if (!authorization.ok) return authorization.response;
 
-    const { member } = authorization;
+    const { member, memberData } = authorization;
 
     if (
       member.accountPurpose !== "developer" &&
@@ -162,13 +169,15 @@ export async function GET(request: NextRequest) {
           moderationNote: "",
           moderationSource: "",
           moderationReportId: "",
+          developerPremiumStatus: String(memberData.developerPremiumStatus || "not_eligible"),
+          hasPremiumAccess: hasDeveloperPremiumAccess(memberData),
         },
       });
     }
 
     return NextResponse.json({
       ok: true,
-      publication: serializePublication(profileSnapshot.data() || {}),
+      publication: serializePublication(profileSnapshot.data() || {}, memberData),
     });
   } catch (error) {
     console.error("Load profile publication status error:", error);
@@ -188,7 +197,7 @@ export async function POST(request: NextRequest) {
     const authorization = await authorizeMemberRequest(request);
     if (!authorization.ok) return authorization.response;
 
-    const { member } = authorization;
+    const { member, memberData } = authorization;
 
     if (
       member.accountPurpose !== "developer" &&
@@ -284,10 +293,20 @@ export async function POST(request: NextRequest) {
           { merge: true },
         );
 
+        const shouldQueuePremiumReview =
+          DEVELOPER_PREMIUM_LAUNCH_ACTIVE &&
+          !hasDeveloperPremiumAccess({
+            ...memberData,
+            customSubdomain: profile.customSubdomain,
+          });
+
         transaction.set(
           memberReference,
           {
             profileStatus: "live",
+            ...(shouldQueuePremiumReview
+              ? { developerPremiumStatus: "pending_review" }
+              : {}),
             updatedAt: FieldValue.serverTimestamp(),
           },
           { merge: true },
@@ -298,8 +317,10 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         ok: true,
-        publication: serializePublication(updatedSnapshot.data() || {}),
-        message: "Your developer profile is now published.",
+        publication: serializePublication(updatedSnapshot.data() || {}, memberData),
+        message: DEVELOPER_PREMIUM_LAUNCH_ACTIVE
+          ? "Your profile has been published and will be reviewed within three business days to determine whether it qualifies for lifetime free premium."
+          : "Your developer profile is now published.",
       });
     }
 
@@ -345,7 +366,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      publication: serializePublication(updatedSnapshot.data() || {}),
+      publication: serializePublication(updatedSnapshot.data() || {}, memberData),
       message: "Your developer profile has been unpublished.",
     });
   } catch (error) {

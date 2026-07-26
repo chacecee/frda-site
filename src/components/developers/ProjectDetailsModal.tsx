@@ -30,10 +30,10 @@ export type PublicProjectDetails = {
     teamName: string;
 
     projectType:
-        | "owned"
-        | "team"
-        | "client"
-        | "other";
+    | "owned"
+    | "team"
+    | "client"
+    | "other";
 
     isInDevelopment: boolean;
     images: PublicProjectImage[];
@@ -316,9 +316,11 @@ export default function ProjectDetailsModal({
                                 </p>
                             ) : null}
 
-                            <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
-                                {project.contribution}
-                            </p>
+                            {project.contribution ? (
+                                <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
+                                    {project.contribution}
+                                </p>
+                            ) : null}
 
                             {project.projectUrl ? (
                                 <a
