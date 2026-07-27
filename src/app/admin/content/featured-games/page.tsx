@@ -10,28 +10,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
-import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDocs,
-    limit,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp,
-    updateDoc,
-    where,
-    Timestamp,
-} from "firebase/firestore";
-import {
-    deleteObject,
-    getDownloadURL,
-    ref,
-    uploadBytesResumable,
-} from "firebase/storage";
-import { auth, db, storage } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { setPresenceOffline } from "@/lib/usePresence";
@@ -50,8 +29,8 @@ type FeaturedGame = {
     imagePath?: string;
     isPublished: boolean;
     sortOrder: number;
-    createdAt?: Timestamp;
-    updatedAt?: Timestamp;
+    createdAt?: string | null;
+    updatedAt?: string | null;
     createdByEmail?: string;
     updatedByEmail?: string;
 };
@@ -82,9 +61,10 @@ function normalizeEmail(value?: string | null): string {
     return value?.trim().toLowerCase() || "";
 }
 
-function formatDate(timestamp?: Timestamp) {
+function formatDate(timestamp?: string | null) {
     if (!timestamp) return "—";
-    return timestamp.toDate().toLocaleString();
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
 }
 
 function isValidUrl(value: string) {
@@ -102,11 +82,6 @@ export default function FeaturedGamesAdminPage() {
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
-    const [roleLoading, setRoleLoading] = useState(true);
-
-    const [permissionMap, setPermissionMap] = useState<SidebarPermissionMap>({});
-    const [permissionsLoading, setPermissionsLoading] = useState(true);
 
     const [games, setGames] = useState<FeaturedGame[]>([]);
     const [loadingGames, setLoadingGames] = useState(true);
@@ -133,7 +108,6 @@ export default function FeaturedGamesAdminPage() {
         user?.displayName?.trim() ||
         (user?.email ? user.email.split("@")[0] : "Unknown User");
 
-    const signedInEmail = normalizeEmail(user?.email);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -158,161 +132,13 @@ export default function FeaturedGamesAdminPage() {
         };
     }, [selectedImageFile]);
 
-    useEffect(() => {
-        let isMounted = true;
-
-        async function loadRole() {
-            if (!user?.email) {
-                if (!isMounted) return;
-                setStaffProfile(null);
-                setRoleLoading(false);
-                return;
-            }
-
-            setRoleLoading(true);
-            setPageError("");
-
-            try {
-                const exactQuery = query(
-                    collection(db, "staff"),
-                    where("emailAddress", "==", user.email),
-                    limit(1)
-                );
-
-                const exactSnapshot = await getDocs(exactQuery);
-
-                if (!exactSnapshot.empty) {
-                    const docSnap = exactSnapshot.docs[0];
-                    if (!isMounted) return;
-
-                    setStaffProfile({
-                        id: docSnap.id,
-                        ...(docSnap.data() as Omit<StaffProfile, "id">),
-                    });
-                    setRoleLoading(false);
-                    return;
-                }
-
-                const lowerQuery = query(
-                    collection(db, "staff"),
-                    where("emailAddress", "==", signedInEmail),
-                    limit(1)
-                );
-
-                const lowerSnapshot = await getDocs(lowerQuery);
-
-                if (!lowerSnapshot.empty) {
-                    const docSnap = lowerSnapshot.docs[0];
-                    if (!isMounted) return;
-
-                    setStaffProfile({
-                        id: docSnap.id,
-                        ...(docSnap.data() as Omit<StaffProfile, "id">),
-                    });
-                    setRoleLoading(false);
-                    return;
-                }
-
-                const allStaffSnapshot = await getDocs(collection(db, "staff"));
-                const match = allStaffSnapshot.docs.find((docSnap) => {
-                    const data = docSnap.data() as { emailAddress?: string; role?: string };
-                    return normalizeEmail(data.emailAddress) === signedInEmail;
-                });
-
-                if (!isMounted) return;
-
-                if (!match) {
-                    setStaffProfile(null);
-                    setRoleLoading(false);
-                    return;
-                }
-
-                setStaffProfile({
-                    id: match.id,
-                    ...(match.data() as Omit<StaffProfile, "id">),
-                });
-                setRoleLoading(false);
-            } catch (error) {
-                console.error("Error checking featured games access:", error);
-                if (!isMounted) return;
-                setPageError("Could not verify your permissions.");
-                setRoleLoading(false);
-            }
-        }
-
-        loadRole();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [user?.email, signedInEmail]);
-
-    useEffect(() => {
-        const permissionsRef = doc(db, "adminUiPermissions", "sidebar");
-
-        const unsubscribe = onSnapshot(
-            permissionsRef,
-            (snapshot) => {
-                if (!snapshot.exists()) {
-                    setPermissionMap({});
-                    setPermissionsLoading(false);
-                    return;
-                }
-
-                setPermissionMap(snapshot.data() as SidebarPermissionMap);
-                setPermissionsLoading(false);
-            },
-            (error) => {
-                console.error("Error loading featured games permissions:", error);
-                setPageError("Could not verify your page permissions.");
-                setPermissionMap({});
-                setPermissionsLoading(false);
-            }
-        );
-
-        return () => unsubscribe();
-    }, []);
-
-    const hasAccess = useMemo(() => {
-        return canManageFeaturedGames(
-            staffProfile?.role,
-            staffProfile?.id,
-            permissionMap
-        );
-    }, [staffProfile?.role, staffProfile?.id, permissionMap]);
-
-    useEffect(() => {
-        if (!user || !hasAccess) {
-            setGames([]);
-            setLoadingGames(false);
-            return;
-        }
-
-        setLoadingGames(true);
-        setPageError("");
-
-        const q = query(collection(db, "featuredGames"), orderBy("sortOrder", "asc"));
-
-        const unsubscribe = onSnapshot(
-            q,
-            (snapshot) => {
-                const rows: FeaturedGame[] = snapshot.docs.map((docSnap) => ({
-                    id: docSnap.id,
-                    ...(docSnap.data() as Omit<FeaturedGame, "id">),
-                }));
-
-                setGames(rows);
-                setLoadingGames(false);
-            },
-            (error) => {
-                console.error("Error loading featured games:", error);
-                setPageError("Could not load featured games.");
-                setLoadingGames(false);
-            }
-        );
-
-        return () => unsubscribe();
-    }, [user, hasAccess]);
+    async function loadGames() {
+        if (!user) return;
+        setLoadingGames(true); setPageError("");
+        try { const idToken = await user.getIdToken(); const response = await fetch("/api/admin/featured-games", { headers:{Authorization:`Bearer ${idToken}`}, cache:"no-store" }); const result = await response.json().catch(()=>null); if(!response.ok||!result?.ok) throw new Error(result?.error||"Could not load featured games."); setGames(Array.isArray(result.games)?result.games:[]); }
+        catch(error){ setPageError(error instanceof Error?error.message:"Could not load featured games."); } finally { setLoadingGames(false); }
+    }
+    useEffect(()=>{ if(user) loadGames(); },[user]);
 
     function openCreateModal() {
         setEditingGame(null);
@@ -356,7 +182,7 @@ export default function FeaturedGamesAdminPage() {
 
     async function handleSignOut() {
         try {
-            await setPresenceOffline(user?.email);
+            await setPresenceOffline(user?.uid, user?.email);
             await signOut(auth);
             router.replace("/admin/login");
         } catch (error) {
@@ -364,235 +190,26 @@ export default function FeaturedGamesAdminPage() {
         }
     }
 
-    async function uploadFeaturedGameImage(file: File) {
-        const extension = file.name.split(".").pop() || "jpg";
-        const safeBase = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-        const imagePath = `featured-games/${safeBase}.${extension}`;
-        const storageRef = ref(storage, imagePath);
-
-        return await new Promise<{ imagePath: string; imageUrl: string }>(
-            (resolve, reject) => {
-                const uploadTask = uploadBytesResumable(storageRef, file);
-
-                uploadTask.on(
-                    "state_changed",
-                    (snapshot) => {
-                        const progress =
-                            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        setUploadProgress(progress);
-                    },
-                    (error) => {
-                        reject(error);
-                    },
-                    async () => {
-                        try {
-                            const imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
-                            resolve({
-                                imagePath,
-                                imageUrl,
-                            });
-                        } catch (error) {
-                            reject(error);
-                        }
-                    }
-                );
-            }
-        );
-    }
-
     async function handleSaveGame(e: React.FormEvent<HTMLFormElement>) {
-        e.preventDefault();
-
-        if (!user?.email) return;
-
-        const projectTitle = form.projectTitle.trim();
-        const creatorName = form.creatorName.trim();
-        const projectDescription = form.projectDescription.trim();
-        const projectLink = form.projectLink.trim();
-
-        if (!projectTitle) {
-            setFormError("Project Title is required.");
-            return;
-        }
-
-        if (!creatorName) {
-            setFormError("Creator Name is required.");
-            return;
-        }
-
-        if (!projectDescription) {
-            setFormError("Project Description is required.");
-            return;
-        }
-
-        if (!projectLink) {
-            setFormError("Project Link is required.");
-            return;
-        }
-
-        if (!isValidUrl(projectLink)) {
-            setFormError("Project Link must be a valid full URL.");
-            return;
-        }
-
-        if (!editingGame && !selectedImageFile) {
-            setFormError("Please upload an image for this featured game.");
-            return;
-        }
-
-        setSaving(true);
-        setFormError("");
-        setUploadProgress(0);
-
-        try {
-            let imageUrl = editingGame?.imageUrl || "";
-            let imagePath = editingGame?.imagePath || "";
-
-            if (selectedImageFile) {
-                const uploaded = await uploadFeaturedGameImage(selectedImageFile);
-                imageUrl = uploaded.imageUrl;
-                imagePath = uploaded.imagePath;
-
-                if (editingGame?.imagePath) {
-                    try {
-                        await deleteObject(ref(storage, editingGame.imagePath));
-                    } catch (error) {
-                        console.warn("Old featured game image could not be deleted:", error);
-                    }
-                }
-            }
-
-            if (editingGame) {
-                await updateDoc(doc(db, "featuredGames", editingGame.id), {
-                    projectTitle,
-                    creatorName,
-                    projectDescription,
-                    projectLink,
-                    imageUrl,
-                    imagePath,
-                    isPublished: form.isPublished,
-                    updatedAt: serverTimestamp(),
-                    updatedByEmail: user.email,
-                });
-            } else {
-                const nextSortOrder =
-                    games.length > 0
-                        ? Math.max(...games.map((item) => item.sortOrder || 0)) + 1
-                        : 1;
-
-                await addDoc(collection(db, "featuredGames"), {
-                    projectTitle,
-                    creatorName,
-                    projectDescription,
-                    projectLink,
-                    imageUrl,
-                    imagePath,
-                    isPublished: form.isPublished,
-                    sortOrder: nextSortOrder,
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                    createdByEmail: user.email,
-                    updatedByEmail: user.email,
-                });
-            }
-
-            closeModal();
-        } catch (error) {
-            console.error("Error saving featured game:", error);
-            setFormError("Could not save this featured game. Please try again.");
-        } finally {
-            setSaving(false);
-            setUploadProgress(0);
-        }
+        e.preventDefault(); if(!user) return;
+        const projectTitle=form.projectTitle.trim(),creatorName=form.creatorName.trim(),projectDescription=form.projectDescription.trim(),projectLink=form.projectLink.trim();
+        if(!projectTitle||!creatorName||!projectDescription||!projectLink){setFormError("Complete all required fields.");return;} if(!isValidUrl(projectLink)){setFormError("Project Link must be a valid full URL.");return;} if(!editingGame&&!selectedImageFile){setFormError("Please upload an image for this featured game.");return;}
+        setSaving(true);setFormError("");
+        try{const idToken=await user.getIdToken();const data=new FormData();if(editingGame)data.set("id",editingGame.id);data.set("projectTitle",projectTitle);data.set("creatorName",creatorName);data.set("projectDescription",projectDescription);data.set("projectLink",projectLink);data.set("isPublished",String(form.isPublished));if(selectedImageFile)data.set("image",selectedImageFile);const response=await fetch("/api/admin/featured-games",{method:"POST",headers:{Authorization:`Bearer ${idToken}`},body:data});const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Could not save this featured game.");closeModal();await loadGames();}
+        catch(error){setFormError(error instanceof Error?error.message:"Could not save this featured game.");}finally{setSaving(false);setUploadProgress(0);}
     }
 
-    async function togglePublished(game: FeaturedGame) {
-        try {
-            await updateDoc(doc(db, "featuredGames", game.id), {
-                isPublished: !game.isPublished,
-                updatedAt: serverTimestamp(),
-                updatedByEmail: user?.email || "",
-            });
-        } catch (error) {
-            console.error("Error toggling featured game visibility:", error);
-            setPageError("Could not update publish status.");
-        }
-    }
+    async function togglePublished(game: FeaturedGame) { if(!user)return; try{const idToken=await user.getIdToken();const response=await fetch("/api/admin/featured-games",{method:"PATCH",headers:{"Content-Type":"application/json",Authorization:`Bearer ${idToken}`},body:JSON.stringify({id:game.id,action:"toggle_published"})});const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Could not update publish status.");await loadGames();}catch(error){setPageError(error instanceof Error?error.message:"Could not update publish status.");}}
 
-    async function moveGame(game: FeaturedGame, direction: "up" | "down") {
-        const currentIndex = games.findIndex((item) => item.id === game.id);
-        if (currentIndex === -1) return;
+    async function moveGame(game: FeaturedGame, direction: "up" | "down") { if(!user)return;setReorderingId(game.id);try{const idToken=await user.getIdToken();const response=await fetch("/api/admin/featured-games",{method:"PATCH",headers:{"Content-Type":"application/json",Authorization:`Bearer ${idToken}`},body:JSON.stringify({id:game.id,action:"reorder",direction})});const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Could not reorder featured games.");await loadGames();}catch(error){setPageError(error instanceof Error?error.message:"Could not reorder featured games.");}finally{setReorderingId(null);}}
 
-        const swapIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-        if (swapIndex < 0 || swapIndex >= games.length) return;
+    async function confirmDeleteGame(){if(!deleteTarget||!user)return;setDeletingId(deleteTarget.id);try{const idToken=await user.getIdToken();const response=await fetch(`/api/admin/featured-games?id=${encodeURIComponent(deleteTarget.id)}`,{method:"DELETE",headers:{Authorization:`Bearer ${idToken}`}});const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Could not delete this featured game.");setDeleteTarget(null);await loadGames();}catch(error){setPageError(error instanceof Error?error.message:"Could not delete this featured game.");}finally{setDeletingId(null);}}
 
-        const targetGame = games[swapIndex];
-
-        setReorderingId(game.id);
-
-        try {
-            await Promise.all([
-                updateDoc(doc(db, "featuredGames", game.id), {
-                    sortOrder: targetGame.sortOrder,
-                    updatedAt: serverTimestamp(),
-                    updatedByEmail: user?.email || "",
-                }),
-                updateDoc(doc(db, "featuredGames", targetGame.id), {
-                    sortOrder: game.sortOrder,
-                    updatedAt: serverTimestamp(),
-                    updatedByEmail: user?.email || "",
-                }),
-            ]);
-        } catch (error) {
-            console.error("Error reordering featured games:", error);
-            setPageError("Could not reorder featured games.");
-        } finally {
-            setReorderingId(null);
-        }
-    }
-
-    async function confirmDeleteGame() {
-        if (!deleteTarget) return;
-
-        setDeletingId(deleteTarget.id);
-        setPageError("");
-
-        try {
-            if (deleteTarget.imagePath) {
-                try {
-                    await deleteObject(ref(storage, deleteTarget.imagePath));
-                } catch (error) {
-                    console.warn("Featured game image could not be deleted:", error);
-                }
-            }
-
-            await deleteDoc(doc(db, "featuredGames", deleteTarget.id));
-            setDeleteTarget(null);
-        } catch (error) {
-            console.error("Error deleting featured game:", error);
-            setPageError("Could not delete this featured game.");
-        } finally {
-            setDeletingId(null);
-        }
-    }
-
-    if (authLoading || !user || roleLoading || permissionsLoading) {
+    if (authLoading || !user) {
         return (
             <main className="min-h-screen bg-zinc-950 text-white">
                 <div className="grid min-h-screen lg:grid-cols-[290px_minmax(0,1fr)]">
                     <p className="text-sm text-zinc-400">Loading dashboard...</p>
-                </div>
-            </main>
-        );
-    }
-
-    if (!hasAccess) {
-        return (
-            <main className="min-h-screen bg-zinc-950 text-white">
-                <div className="mx-auto max-w-3xl px-6 py-10">
-                    <p className="text-sm text-red-400">
-                        You do not have permission to access Featured Games.
-                    </p>
                 </div>
             </main>
         );

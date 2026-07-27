@@ -4,18 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import {
-    collection,
-    doc,
-    getDocs,
-    limit,
-    onSnapshot,
-    query,
-    serverTimestamp,
-    Timestamp,
-    updateDoc,
-    where,
-} from "firebase/firestore";
-import {
     ArrowLeft,
     CalendarClock,
     CheckCircle2,
@@ -24,7 +12,7 @@ import {
     Trophy,
     Users,
 } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { setPresenceOffline } from "@/lib/usePresence";
@@ -57,19 +45,23 @@ type MeetingPoll = {
     invitedMembers?: MeetingInvitedMember[];
     status?: "open" | "finalized" | "cancelled";
     finalSlotId?: string | null;
-    createdAt?: Timestamp;
-    updatedAt?: Timestamp;
-    deadline?: Timestamp;
+    createdAt?: string | null;
+    updatedAt?: string | null;
+    deadline?: string | null;
 };
 
 function normalizeEmail(value?: string | null): string {
     return value?.trim().toLowerCase() || "";
 }
 
-function formatTimestamp(timestamp?: Timestamp) {
+function formatTimestamp(timestamp?: string | null) {
     if (!timestamp) return "—";
 
-    return timestamp.toDate().toLocaleString("en-US", {
+    const date = new Date(timestamp);
+
+    if (Number.isNaN(date.getTime())) return "—";
+
+    return date.toLocaleString("en-US", {
         month: "long",
         day: "numeric",
         year: "numeric",
@@ -136,8 +128,6 @@ export default function MeetingPollDetailsPage() {
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
-    const [roleLoading, setRoleLoading] = useState(true);
 
     const [poll, setPoll] = useState<MeetingPoll | null>(null);
     const [responses, setResponses] = useState<MeetingPollResponse[]>([]);
@@ -153,7 +143,6 @@ export default function MeetingPollDetailsPage() {
         user?.displayName?.trim() ||
         (user?.email ? user.email.split("@")[0] : "Unknown User");
 
-    const signedInEmail = normalizeEmail(user?.email);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -161,104 +150,8 @@ export default function MeetingPollDetailsPage() {
         }
     }, [authLoading, user, router]);
 
-    useEffect(() => {
-        let isMounted = true;
-
-        async function loadRole() {
-            if (!user?.email) {
-                if (!isMounted) return;
-                setStaffProfile(null);
-                setRoleLoading(false);
-                return;
-            }
-
-            setRoleLoading(true);
-            setPageError("");
-
-            try {
-                const exactQuery = query(
-                    collection(db, "staff"),
-                    where("emailAddress", "==", user.email),
-                    limit(1)
-                );
-
-                const exactSnapshot = await getDocs(exactQuery);
-
-                if (!exactSnapshot.empty) {
-                    const docSnap = exactSnapshot.docs[0];
-                    if (!isMounted) return;
-
-                    setStaffProfile({
-                        id: docSnap.id,
-                        ...(docSnap.data() as Omit<StaffProfile, "id">),
-                    });
-                    setRoleLoading(false);
-                    return;
-                }
-
-                const lowerQuery = query(
-                    collection(db, "staff"),
-                    where("emailAddress", "==", signedInEmail),
-                    limit(1)
-                );
-
-                const lowerSnapshot = await getDocs(lowerQuery);
-
-                if (!lowerSnapshot.empty) {
-                    const docSnap = lowerSnapshot.docs[0];
-                    if (!isMounted) return;
-
-                    setStaffProfile({
-                        id: docSnap.id,
-                        ...(docSnap.data() as Omit<StaffProfile, "id">),
-                    });
-                    setRoleLoading(false);
-                    return;
-                }
-
-                const allStaffSnapshot = await getDocs(collection(db, "staff"));
-                const match = allStaffSnapshot.docs.find((docSnap) => {
-                    const data = docSnap.data() as {
-                        emailAddress?: string;
-                        role?: string;
-                    };
-                    return normalizeEmail(data.emailAddress) === signedInEmail;
-                });
-
-                if (!isMounted) return;
-
-                if (!match) {
-                    setStaffProfile(null);
-                    setRoleLoading(false);
-                    return;
-                }
-
-                setStaffProfile({
-                    id: match.id,
-                    ...(match.data() as Omit<StaffProfile, "id">),
-                });
-                setRoleLoading(false);
-            } catch (error) {
-                console.error("Error checking staff meetings access:", error);
-                if (!isMounted) return;
-                setPageError("Could not verify your permissions.");
-                setRoleLoading(false);
-            }
-        }
-
-        loadRole();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [user?.email, signedInEmail]);
-
-    const hasAccess = useMemo(() => {
-        return isAdminRole(staffProfile?.role);
-    }, [staffProfile?.role]);
-
-    useEffect(() => {
-        if (!user || roleLoading || !hasAccess || !pollId) {
+    async function loadPoll() {
+        if (!user || !pollId) {
             setLoadingPoll(false);
             return;
         }
@@ -266,57 +159,50 @@ export default function MeetingPollDetailsPage() {
         setLoadingPoll(true);
         setPageError("");
 
-        const pollRef = doc(db, "meetingPolls", pollId);
+        try {
+            const idToken = await user.getIdToken();
 
-        const unsubscribePoll = onSnapshot(
-            pollRef,
-            (snapshot) => {
-                if (!snapshot.exists()) {
-                    setPoll(null);
-                    setPageError("This meeting poll could not be found.");
-                    setLoadingPoll(false);
-                    return;
+            const response = await fetch(
+                `/api/admin/meeting-polls/${encodeURIComponent(pollId)}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${idToken}`,
+                    },
+                    cache: "no-store",
                 }
+            );
 
-                setPoll({
-                    id: snapshot.id,
-                    ...(snapshot.data() as Omit<MeetingPoll, "id">),
-                });
-                setLoadingPoll(false);
-            },
-            (error) => {
-                console.error("Error loading meeting poll:", error);
-                setPageError("Could not load this meeting poll.");
-                setLoadingPoll(false);
+            const result = await response.json().catch(() => null);
+
+            if (!response.ok || !result?.ok) {
+                throw new Error(
+                    result?.error || "Could not load this meeting poll."
+                );
             }
-        );
 
-        const responsesQuery = query(
-            collection(db, "meetingPollResponses"),
-            where("pollId", "==", pollId)
-        );
+            setPoll(result.poll);
+            setResponses(
+                Array.isArray(result.responses) ? result.responses : []
+            );
+        } catch (error) {
+            console.error("Error loading meeting poll:", error);
+            setPoll(null);
+            setResponses([]);
+            setPageError(
+                error instanceof Error
+                    ? error.message
+                    : "Could not load this meeting poll."
+            );
+        } finally {
+            setLoadingPoll(false);
+        }
+    }
 
-        const unsubscribeResponses = onSnapshot(
-            responsesQuery,
-            (snapshot) => {
-                const rows: MeetingPollResponse[] = snapshot.docs.map((docSnap) => ({
-                    id: docSnap.id,
-                    ...(docSnap.data() as Omit<MeetingPollResponse, "id">),
-                }));
-
-                setResponses(rows);
-            },
-            (error) => {
-                console.error("Error loading meeting responses:", error);
-                setPageError("Could not load meeting responses.");
-            }
-        );
-
-        return () => {
-            unsubscribePoll();
-            unsubscribeResponses();
-        };
-    }, [user, roleLoading, hasAccess, pollId]);
+    useEffect(() => {
+        if (user && pollId) {
+            loadPoll();
+        }
+    }, [user, pollId]);
 
     const allSlots = useMemo(() => getAllSlots(poll), [poll]);
 
@@ -361,7 +247,7 @@ export default function MeetingPollDetailsPage() {
 
     async function handleSignOut() {
         try {
-            await setPresenceOffline(user?.email);
+            await setPresenceOffline(user?.uid, user?.email);
             await signOut(auth);
             router.replace("/admin/login");
         } catch (error) {
@@ -388,7 +274,9 @@ export default function MeetingPollDetailsPage() {
     async function confirmFinalizeSlot() {
         if (!poll || !pendingFinalSlotId || !user) return;
 
-        const slot = allSlots.find((item) => item.id === pendingFinalSlotId);
+        const slot = allSlots.find(
+            (item) => item.id === pendingFinalSlotId
+        );
 
         if (!slot) {
             notify.error("Could not find the selected meeting time.");
@@ -399,35 +287,40 @@ export default function MeetingPollDetailsPage() {
         setPageError("");
 
         try {
-            await updateDoc(doc(db, "meetingPolls", poll.id), {
-                status: "finalized",
-                finalSlotId: pendingFinalSlotId,
-                updatedAt: serverTimestamp(),
-            });
-
             const idToken = await user.getIdToken();
 
-            const discordResponse = await fetch("/api/discord/meeting-finalized", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${idToken}`,
-                },
-                body: JSON.stringify({
-                    pollId: poll.id,
-                }),
-            });
+            const response = await fetch(
+                `/api/admin/meeting-polls/${encodeURIComponent(poll.id)}`,
+                {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${idToken}`,
+                    },
+                    body: JSON.stringify({
+                        action: "finalize",
+                        finalSlotId: pendingFinalSlotId,
+                    }),
+                }
+            );
 
-            const discordResult = await discordResponse.json().catch(() => null);
+            const result = await response.json().catch(() => null);
 
-            if (!discordResponse.ok) {
-                console.error("Discord announcement failed:", discordResult);
-
-                notify.warning(
-                    "Final meeting time was saved, but the Discord announcement could not be posted."
+            if (!response.ok || !result?.ok) {
+                throw new Error(
+                    result?.error || "Could not finalize this meeting time."
                 );
-            } else if (discordResult?.alreadyPosted) {
-                notify.success("Final meeting time saved. Discord was already notified.");
+            }
+
+            if (result.discordPosted === false) {
+                notify.warning(
+                    result.warning ||
+                    "The meeting was finalized, but Discord could not be notified."
+                );
+            } else if (result.alreadyPosted) {
+                notify.success(
+                    "Final meeting time saved. Discord was already notified."
+                );
             } else {
                 notify.success(
                     `Final meeting time saved and posted to Discord: ${formatDateLabel(
@@ -437,32 +330,26 @@ export default function MeetingPollDetailsPage() {
             }
 
             setPendingFinalSlotId(null);
+            await loadPoll();
         } catch (error) {
             console.error("Error finalizing meeting poll:", error);
-            setPageError("Could not finalize this meeting time.");
-            notify.error("Could not finalize this meeting time. Please try again.");
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Could not finalize this meeting time.";
+
+            setPageError(message);
+            notify.error(message);
         } finally {
             setFinalizingSlotId("");
         }
     }
 
-    if (authLoading || !user || roleLoading) {
+    if (authLoading || !user) {
         return (
             <main className="min-h-screen bg-zinc-950 text-white">
                 <div className="mx-auto max-w-7xl px-6 py-10">
                     <p className="text-sm text-zinc-400">Loading dashboard...</p>
-                </div>
-            </main>
-        );
-    }
-
-    if (!hasAccess) {
-        return (
-            <main className="min-h-screen bg-zinc-950 text-white">
-                <div className="mx-auto max-w-3xl px-6 py-10">
-                    <p className="text-sm text-red-400">
-                        You do not have permission to access Staff Meetings.
-                    </p>
                 </div>
             </main>
         );

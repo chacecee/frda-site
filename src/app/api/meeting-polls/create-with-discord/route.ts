@@ -1,8 +1,9 @@
 import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { Timestamp } from "firebase-admin/firestore";
-import { adminAuth, adminDb } from "@/lib/firebaseAdmin";
-import { isAdminRole } from "@/lib/adminPermissions";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { authorizeAdminRequest } from "@/lib/server/adminAuthorization";
+import { createSlotId } from "@/lib/meetingPolls";
 
 type MeetingSlot = {
     id: string;
@@ -31,19 +32,9 @@ type FailedDmMember = InvitedMember & {
     error: string;
 };
 
-function normalizeEmail(value?: string | null): string {
-    return value?.trim().toLowerCase() || "";
-}
-
-function createMeetingToken() {
-    return randomBytes(24).toString("hex");
-}
-
-function getMemberTokenId(pollId: string, discordUserId: string) {
-    return `${pollId}_${discordUserId}`;
-}
-
-function getDisplayName(member: DiscordGuildMember) {
+function getDisplayName(
+    member: DiscordGuildMember
+) {
     return (
         member.nick?.trim() ||
         member.user?.global_name?.trim() ||
@@ -52,84 +43,15 @@ function getDisplayName(member: DiscordGuildMember) {
     );
 }
 
-function formatDateLabel(dateValue: string) {
-    if (!dateValue) return "Date";
-
-    const parsed = new Date(`${dateValue}T00:00:00`);
-
-    if (Number.isNaN(parsed.getTime())) return dateValue;
-
-    return parsed.toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-    });
+function createMeetingToken() {
+    return randomBytes(24).toString("hex");
 }
 
-function formatTimeLabel(timeValue: string) {
-    if (!timeValue) return "Time";
-
-    const [hourRaw, minuteRaw] = timeValue.split(":");
-    const hour = Number(hourRaw);
-    const minute = Number(minuteRaw || "0");
-
-    if (Number.isNaN(hour) || Number.isNaN(minute)) return timeValue;
-
-    const parsed = new Date();
-    parsed.setHours(hour, minute, 0, 0);
-
-    return parsed.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-    });
-}
-
-function getSlotPreview(slots: MeetingSlot[]) {
-    const preview = slots
-        .slice(0, 6)
-        .map((slot) => `• ${formatDateLabel(slot.date)} at ${formatTimeLabel(slot.time)}`);
-
-    if (slots.length > 6) {
-        preview.push(`• And ${slots.length - 6} more option(s)`);
-    }
-
-    return preview.join("\n");
-}
-
-async function getAuthorizedAdminEmail(request: NextRequest) {
-    const authHeader = request.headers.get("authorization") || "";
-    const token = authHeader.startsWith("Bearer ")
-        ? authHeader.slice("Bearer ".length).trim()
-        : "";
-
-    if (!token) return null;
-
-    const decoded = await adminAuth.verifyIdToken(token);
-    const email = normalizeEmail(decoded.email);
-
-    if (!email) return null;
-
-    const exactSnapshot = await adminDb
-        .collection("staff")
-        .where("emailAddress", "==", email)
-        .limit(1)
-        .get();
-
-    if (!exactSnapshot.empty) {
-        const role = exactSnapshot.docs[0].data().role;
-        return isAdminRole(role) ? email : null;
-    }
-
-    const allStaffSnapshot = await adminDb.collection("staff").get();
-
-    const match = allStaffSnapshot.docs.find((docSnap) => {
-        const data = docSnap.data() as { emailAddress?: string; role?: string };
-        return normalizeEmail(data.emailAddress) === email;
-    });
-
-    if (!match) return null;
-
-    return isAdminRole(match.data().role) ? email : null;
+function getMemberTokenId(
+    pollId: string,
+    discordUserId: string
+) {
+    return `${pollId}_${discordUserId}`;
 }
 
 async function discordFetch(path: string, init?: RequestInit) {
@@ -247,13 +169,14 @@ async function sendDiscordMessage(channelId: string, body: Record<string, any>) 
 
 export async function POST(request: NextRequest) {
     try {
-        const adminEmail = await getAuthorizedAdminEmail(request);
+        const authorization = await authorizeAdminRequest(
+            request,
+            undefined,
+            true
+        );
 
-        if (!adminEmail) {
-            return NextResponse.json(
-                { error: "You are not authorized to create meeting polls." },
-                { status: 403 }
-            );
+        if (!authorization.ok) {
+            return authorization.response;
         }
 
         const channelId = process.env.DISCORD_MEETING_CHANNEL_ID;
@@ -274,10 +197,6 @@ export async function POST(request: NextRequest) {
         const slots = Array.isArray(body.slots) ? (body.slots as MeetingSlot[]) : [];
         const deadlineIso =
             typeof body.deadlineIso === "string" ? body.deadlineIso.trim() : "";
-        const createdByUid =
-            typeof body.createdByUid === "string" ? body.createdByUid.trim() : "";
-        const createdByName =
-            typeof body.createdByName === "string" ? body.createdByName.trim() : "";
 
         if (!title) {
             return NextResponse.json(
@@ -286,13 +205,37 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const usedSlotIds = new Set<string>();
+
         const cleanSlots = slots
-            .map((slot) => ({
-                id: String(slot.id || "").trim(),
-                date: String(slot.date || "").trim(),
-                time: String(slot.time || "").trim(),
-            }))
-            .filter((slot) => slot.id && slot.date && slot.time);
+            .map((slot) => {
+                const date = String(slot.date || "").trim();
+                const time = String(slot.time || "").trim();
+
+                return {
+                    id: createSlotId(date, time),
+                    date,
+                    time,
+                };
+            })
+            .filter((slot) => {
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(slot.date)) return false;
+                if (!/^\d{2}:\d{2}$/.test(slot.time)) return false;
+                if (usedSlotIds.has(slot.id)) return false;
+
+                const slotDate = new Date(`${slot.date}T${slot.time}:00+08:00`);
+
+                if (
+                    Number.isNaN(slotDate.getTime()) ||
+                    slotDate.getTime() <= Date.now()
+                ) {
+                    return false;
+                }
+
+                usedSlotIds.add(slot.id);
+                return true;
+            })
+            .slice(0, 100);
 
         if (cleanSlots.length === 0) {
             return NextResponse.json(
@@ -351,9 +294,11 @@ export async function POST(request: NextRequest) {
             targetRoleId: roleId,
             targetRoleName: "Meeting Participants",
             discordMeetingChannelId: channelId,
-            createdByUid,
-            createdByEmail: adminEmail,
-            createdByName: createdByName || adminEmail,
+            createdByUid: authorization.staff.uid,
+            createdByEmail: authorization.staff.emailAddress,
+            createdByName:
+                authorization.staff.displayName ||
+                authorization.staff.emailAddress,
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
         });

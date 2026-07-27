@@ -94,12 +94,20 @@ function sanitizeAvatarImage(
   const storagePath =
     sanitizeText(raw.storagePath, 500);
 
-  const requiredPrefix =
-    `developer-avatars/${memberUid}/`;
+  const escapedUid =
+    memberUid.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&",
+    );
+
+  const allowedPathPattern =
+    new RegExp(
+      `^developer-avatars/${escapedUid}/talent-seeker-[a-zA-Z0-9-]+\\.webp$`,
+    );
 
   if (
-    !storagePath.startsWith(
-      requiredPrefix,
+    !allowedPathPattern.test(
+      storagePath,
     )
   ) {
     return null;
@@ -111,28 +119,46 @@ function sanitizeAvatarImage(
     return null;
   }
 
+  try {
+    const parsedUrl =
+      new URL(url);
+
+    const allowedHost =
+      parsedUrl.hostname ===
+      "firebasestorage.googleapis.com" ||
+      parsedUrl.hostname.endsWith(
+        ".firebasestorage.app",
+      );
+
+    if (!allowedHost) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
   return {
     url,
     storagePath,
     width:
       typeof raw.width === "number"
         ? Math.max(
-            1,
-            Math.min(
-              2000,
-              Math.round(raw.width),
-            ),
-          )
+          1,
+          Math.min(
+            2000,
+            Math.round(raw.width),
+          ),
+        )
         : 512,
     height:
       typeof raw.height === "number"
         ? Math.max(
-            1,
-            Math.min(
-              2000,
-              Math.round(raw.height),
-            ),
-          )
+          1,
+          Math.min(
+            2000,
+            Math.round(raw.height),
+          ),
+        )
         : 512,
   };
 }
@@ -154,9 +180,9 @@ function getProfile(
   const raw =
     typeof memberData.talentSeekerProfile ===
       "object" &&
-    memberData.talentSeekerProfile !== null
+      memberData.talentSeekerProfile !== null
       ? memberData.talentSeekerProfile as
-          Record<string, unknown>
+      Record<string, unknown>
       : {};
 
   return {
@@ -176,9 +202,9 @@ function getProfile(
         : 512,
     entityType:
       raw.entityType === "individual" ||
-      raw.entityType === "studio" ||
-      raw.entityType === "company" ||
-      raw.entityType === "organization"
+        raw.entityType === "studio" ||
+        raw.entityType === "company" ||
+        raw.entityType === "organization"
         ? raw.entityType
         : "individual",
     organizationName:
@@ -238,7 +264,7 @@ export async function GET(
           String(
             memberData
               .talentSeekerReviewerNote ||
-              "",
+            "",
           ),
         submittedAt:
           timestampToIso(
@@ -314,22 +340,56 @@ export async function PATCH(
       body?.action ===
       "update_avatar"
     ) {
+      const isRemoval =
+        body.avatarImage === null;
+
       const avatar =
-        sanitizeAvatarImage(
-          body.avatarImage,
-          member.uid,
+        isRemoval
+          ? null
+          : sanitizeAvatarImage(
+            body.avatarImage,
+            member.uid,
+          );
+
+      if (
+        !isRemoval &&
+        !avatar
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "The profile photo reference is invalid.",
+          },
+          { status: 400 },
         );
+      }
+
+      const currentSnapshot =
+        await memberReference.get();
+
+      const currentProfile =
+        getProfile(
+          currentSnapshot.data() || {},
+          member.email,
+        );
+
+      const updatedProfile = {
+        ...currentProfile,
+        avatarUrl:
+          avatar?.url || "",
+        avatarStoragePath:
+          avatar?.storagePath || "",
+        avatarWidth:
+          avatar?.width || 0,
+        avatarHeight:
+          avatar?.height || 0,
+      };
 
       await memberReference.set(
         {
-          "talentSeekerProfile.avatarUrl":
-            avatar?.url || "",
-          "talentSeekerProfile.avatarStoragePath":
-            avatar?.storagePath || "",
-          "talentSeekerProfile.avatarWidth":
-            avatar?.width || 0,
-          "talentSeekerProfile.avatarHeight":
-            avatar?.height || 0,
+          talentSeekerProfile:
+            updatedProfile,
           updatedAt:
             FieldValue.serverTimestamp(),
         },

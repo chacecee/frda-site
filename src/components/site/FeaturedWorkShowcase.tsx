@@ -5,9 +5,9 @@ import Image from "next/image";
 import {
   collection,
   onSnapshot,
-  orderBy,
   query,
   Timestamp,
+  where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { logAnalyticsEvent } from "@/lib/analytics";
@@ -46,7 +46,10 @@ export default function FeaturedWorkShowcase() {
   const loggedImpressionsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const q = query(collection(db, "featuredGames"), orderBy("sortOrder", "asc"));
+    const q = query(
+      collection(db, "featuredGames"),
+      where("isPublished", "==", true)
+    );
 
     const unsubscribe = onSnapshot(
       q,
@@ -66,7 +69,14 @@ export default function FeaturedWorkShowcase() {
               sortOrder: data.sortOrder ?? 0,
             };
           })
-          .filter((item) => item.isPublished && item.title && item.image && item.href)
+          .filter(
+            (item) =>
+              item.isPublished &&
+              item.title &&
+              item.image &&
+              item.href
+          )
+          .sort((a, b) => a.sortOrder - b.sortOrder)
           .map(({ isPublished, sortOrder, ...item }) => item);
 
         setItems(publishedItems);
@@ -281,11 +291,10 @@ export default function FeaturedWorkShowcase() {
                   type="button"
                   aria-label={`Go to slide ${index + 1}`}
                   onClick={() => goToSlide(index)}
-                  className={`h-2.5 w-2.5 rounded-full transition ${
-                    index === activeIndex
-                      ? "bg-blue-400"
-                      : "bg-white/15 hover:bg-white/30"
-                  }`}
+                  className={`h-2.5 w-2.5 rounded-full transition ${index === activeIndex
+                    ? "bg-blue-400"
+                    : "bg-white/15 hover:bg-white/30"
+                    }`}
                 />
               ))}
             </div>

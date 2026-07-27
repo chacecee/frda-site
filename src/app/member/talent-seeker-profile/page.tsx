@@ -71,6 +71,8 @@ const EMPTY_FORM: FormState = {
   avatarHeight: 0,
 };
 
+const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
+
 function getStatusLabel(
   value: VerificationStatus,
 ): string {
@@ -378,7 +380,19 @@ export default function TalentSeekerProfilePage() {
       return;
     }
 
+    if (
+      file.size >
+      MAX_SOURCE_IMAGE_BYTES
+    ) {
+      notify.error(
+        "Please choose an image smaller than 10 MB.",
+      );
+      return;
+    }
+
     setUpdatingAvatar(true);
+
+    let uploadedStoragePath = "";
 
     try {
       const compressed =
@@ -386,8 +400,20 @@ export default function TalentSeekerProfilePage() {
           file,
         );
 
+      const uniqueId =
+        typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID ===
+          "function"
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2, 14)}`;
+
       const storagePath =
-        `developer-avatars/${user.uid}/talent-seeker-${Date.now()}.webp`;
+        `developer-avatars/${user.uid}/talent-seeker-${uniqueId}.webp`;
+
+      uploadedStoragePath =
+        storagePath;
 
       const storageReference =
         ref(storage, storagePath);
@@ -424,6 +450,8 @@ export default function TalentSeekerProfilePage() {
         avatarImage,
       );
 
+      uploadedStoragePath = "";
+
       setForm((current) => ({
         ...current,
         avatarUrl: url,
@@ -448,6 +476,15 @@ export default function TalentSeekerProfilePage() {
         "Profile photo updated.",
       );
     } catch (error) {
+      if (uploadedStoragePath) {
+        await deleteObject(
+          ref(
+            storage,
+            uploadedStoragePath,
+          ),
+        ).catch(() => undefined);
+      }
+
       notify.error(
         error instanceof Error
           ? error.message
@@ -634,7 +671,7 @@ export default function TalentSeekerProfilePage() {
 
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,image/gif"
                 className="hidden"
                 disabled={updatingAvatar}
                 onChange={(event) => {

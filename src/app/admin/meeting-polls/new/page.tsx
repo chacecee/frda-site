@@ -4,13 +4,6 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import {
-    collection,
-    getDocs,
-    limit,
-    query,
-    where,
-} from "firebase/firestore";
-import {
     ArrowLeft,
     CalendarClock,
     CalendarDays,
@@ -23,7 +16,7 @@ import {
     Trash2,
     X,
 } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { setPresenceOffline } from "@/lib/usePresence";
@@ -139,8 +132,6 @@ export default function NewMeetingPollPage() {
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
-    const [roleLoading, setRoleLoading] = useState(true);
 
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
@@ -167,7 +158,6 @@ export default function NewMeetingPollPage() {
         user?.displayName?.trim() ||
         (user?.email ? user.email.split("@")[0] : "Unknown User");
 
-    const signedInEmail = normalizeEmail(user?.email);
 
     const todayDateValue = getLocalDateValue(new Date());
     const currentTimeValue = getLocalTimeValue(new Date());
@@ -177,102 +167,6 @@ export default function NewMeetingPollPage() {
             router.replace("/admin/login");
         }
     }, [authLoading, user, router]);
-
-    useEffect(() => {
-        let isMounted = true;
-
-        async function loadRole() {
-            if (!user?.email) {
-                if (!isMounted) return;
-                setStaffProfile(null);
-                setRoleLoading(false);
-                return;
-            }
-
-            setRoleLoading(true);
-            setPageError("");
-
-            try {
-                const exactQuery = query(
-                    collection(db, "staff"),
-                    where("emailAddress", "==", user.email),
-                    limit(1)
-                );
-
-                const exactSnapshot = await getDocs(exactQuery);
-
-                if (!exactSnapshot.empty) {
-                    const docSnap = exactSnapshot.docs[0];
-                    if (!isMounted) return;
-
-                    setStaffProfile({
-                        id: docSnap.id,
-                        ...(docSnap.data() as Omit<StaffProfile, "id">),
-                    });
-                    setRoleLoading(false);
-                    return;
-                }
-
-                const lowerQuery = query(
-                    collection(db, "staff"),
-                    where("emailAddress", "==", signedInEmail),
-                    limit(1)
-                );
-
-                const lowerSnapshot = await getDocs(lowerQuery);
-
-                if (!lowerSnapshot.empty) {
-                    const docSnap = lowerSnapshot.docs[0];
-                    if (!isMounted) return;
-
-                    setStaffProfile({
-                        id: docSnap.id,
-                        ...(docSnap.data() as Omit<StaffProfile, "id">),
-                    });
-                    setRoleLoading(false);
-                    return;
-                }
-
-                const allStaffSnapshot = await getDocs(collection(db, "staff"));
-                const match = allStaffSnapshot.docs.find((docSnap) => {
-                    const data = docSnap.data() as {
-                        emailAddress?: string;
-                        role?: string;
-                    };
-                    return normalizeEmail(data.emailAddress) === signedInEmail;
-                });
-
-                if (!isMounted) return;
-
-                if (!match) {
-                    setStaffProfile(null);
-                    setRoleLoading(false);
-                    return;
-                }
-
-                setStaffProfile({
-                    id: match.id,
-                    ...(match.data() as Omit<StaffProfile, "id">),
-                });
-                setRoleLoading(false);
-            } catch (error) {
-                console.error("Error checking staff meetings access:", error);
-                if (!isMounted) return;
-                setPageError("Could not verify your permissions.");
-                setRoleLoading(false);
-            }
-        }
-
-        loadRole();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [user?.email, signedInEmail]);
-
-    const hasAccess = useMemo(() => {
-        return isAdminRole(staffProfile?.role);
-    }, [staffProfile?.role]);
 
     function updateDate(rowId: string, value: string) {
         setDateTimeRows((current) =>
@@ -354,7 +248,7 @@ export default function NewMeetingPollPage() {
 
     async function handleSignOut() {
         try {
-            await setPresenceOffline(user?.email);
+            await setPresenceOffline(user?.uid, user?.email);
             await signOut(auth);
             router.replace("/admin/login");
         } catch (error) {
@@ -365,7 +259,7 @@ export default function NewMeetingPollPage() {
     async function handleCreatePoll(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
-        if (!user || !hasAccess) return;
+        if (!user) return;
 
         setPageError("");
         setCreatedResult(null);
@@ -421,8 +315,7 @@ export default function NewMeetingPollPage() {
                     description: cleanDescription,
                     slots,
                     deadlineIso: deadlineDate.toISOString(),
-                    createdByUid: user.uid,
-                    createdByName: displayName,
+
                 }),
             });
 
@@ -464,23 +357,11 @@ export default function NewMeetingPollPage() {
         await navigator.clipboard.writeText(text);
     }
 
-    if (authLoading || !user || roleLoading) {
+    if (authLoading || !user) {
         return (
             <main className="min-h-screen bg-zinc-950 text-white">
                 <div className="mx-auto max-w-7xl px-6 py-10">
                     <p className="text-sm text-zinc-400">Loading dashboard...</p>
-                </div>
-            </main>
-        );
-    }
-
-    if (!hasAccess) {
-        return (
-            <main className="min-h-screen bg-zinc-950 text-white">
-                <div className="mx-auto max-w-3xl px-6 py-10">
-                    <p className="text-sm text-red-400">
-                        You do not have permission to create Staff Meeting polls.
-                    </p>
                 </div>
             </main>
         );

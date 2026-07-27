@@ -3,26 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
-import {
-    addDoc,
-    collection,
-    doc,
-    getDocs,
-    limit,
-    onSnapshot,
-    orderBy,
-    query,
-    serverTimestamp,
-    Timestamp,
-    updateDoc,
-    where,
-} from "firebase/firestore";
-import {
-    getDownloadURL,
-    ref,
-    uploadBytesResumable,
-} from "firebase/storage";
-import { auth, db, storage } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import { setPresenceOffline } from "@/lib/usePresence";
 import {
@@ -104,10 +85,26 @@ function normalizeEmail(value?: string | null): string {
     return value?.trim().toLowerCase() || "";
 }
 
-function formatTimestamp(timestamp?: Timestamp) {
+function formatTimestamp(
+    timestamp?:
+        | string
+        | {
+            toDate: () => Date;
+        }
+        | null,
+) {
     if (!timestamp) return "—";
 
-    return timestamp.toDate().toLocaleString("en-PH", {
+    const date =
+        typeof timestamp === "string"
+            ? new Date(timestamp)
+            : timestamp.toDate();
+
+    if (Number.isNaN(date.getTime())) {
+        return "—";
+    }
+
+    return date.toLocaleString("en-PH", {
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -263,11 +260,6 @@ export default function AdminGamesPage() {
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
-    const [roleLoading, setRoleLoading] = useState(true);
-
-    const [permissionMap, setPermissionMap] = useState<SidebarPermissionMap>({});
-    const [permissionsLoading, setPermissionsLoading] = useState(true);
 
     const [games, setGames] = useState<GameDirectoryItem[]>([]);
     const [loadingGames, setLoadingGames] = useState(true);
@@ -294,128 +286,12 @@ export default function AdminGamesPage() {
         user?.displayName?.trim() ||
         (user?.email ? user.email.split("@")[0] : "Unknown User");
 
-    const signedInEmail = normalizeEmail(user?.email);
 
     useEffect(() => {
         if (!authLoading && !user) {
             router.replace("/admin/login");
         }
     }, [authLoading, user, router]);
-
-    useEffect(() => {
-        let isMounted = true;
-
-        async function loadRole() {
-            if (!user?.email) {
-                if (!isMounted) return;
-                setStaffProfile(null);
-                setRoleLoading(false);
-                return;
-            }
-
-            setRoleLoading(true);
-            setErrorMsg("");
-
-            try {
-                const exactQuery = query(
-                    collection(db, "staff"),
-                    where("emailAddress", "==", user.email),
-                    limit(1)
-                );
-
-                const exactSnapshot = await getDocs(exactQuery);
-
-                if (!exactSnapshot.empty) {
-                    const docSnap = exactSnapshot.docs[0];
-                    if (!isMounted) return;
-
-                    setStaffProfile({
-                        id: docSnap.id,
-                        ...(docSnap.data() as Omit<StaffProfile, "id">),
-                    });
-                    setRoleLoading(false);
-                    return;
-                }
-
-                const lowerQuery = query(
-                    collection(db, "staff"),
-                    where("emailAddress", "==", signedInEmail),
-                    limit(1)
-                );
-
-                const lowerSnapshot = await getDocs(lowerQuery);
-
-                if (!lowerSnapshot.empty) {
-                    const docSnap = lowerSnapshot.docs[0];
-                    if (!isMounted) return;
-
-                    setStaffProfile({
-                        id: docSnap.id,
-                        ...(docSnap.data() as Omit<StaffProfile, "id">),
-                    });
-                    setRoleLoading(false);
-                    return;
-                }
-
-                const allStaffSnapshot = await getDocs(collection(db, "staff"));
-                const match = allStaffSnapshot.docs.find((docSnap) => {
-                    const data = docSnap.data() as { emailAddress?: string; role?: string };
-                    return normalizeEmail(data.emailAddress) === signedInEmail;
-                });
-
-                if (!isMounted) return;
-
-                if (!match) {
-                    setStaffProfile(null);
-                    setRoleLoading(false);
-                    return;
-                }
-
-                setStaffProfile({
-                    id: match.id,
-                    ...(match.data() as Omit<StaffProfile, "id">),
-                });
-                setRoleLoading(false);
-            } catch (error) {
-                console.error("Error checking game directory access:", error);
-                if (!isMounted) return;
-                setErrorMsg("Could not verify your permissions.");
-                setRoleLoading(false);
-            }
-        }
-
-        loadRole();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [user?.email, signedInEmail]);
-
-    useEffect(() => {
-        const permissionsRef = doc(db, "adminUiPermissions", "sidebar");
-
-        const unsubscribe = onSnapshot(
-            permissionsRef,
-            (snapshot) => {
-                if (!snapshot.exists()) {
-                    setPermissionMap({});
-                    setPermissionsLoading(false);
-                    return;
-                }
-
-                setPermissionMap(snapshot.data() as SidebarPermissionMap);
-                setPermissionsLoading(false);
-            },
-            (error) => {
-                console.error("Error loading game directory permissions:", error);
-                setErrorMsg("Could not verify your page permissions.");
-                setPermissionMap({});
-                setPermissionsLoading(false);
-            }
-        );
-
-        return () => unsubscribe();
-    }, []);
 
     useEffect(() => {
         let objectUrl: string | null = null;
@@ -434,57 +310,9 @@ export default function AdminGamesPage() {
         };
     }, [selectedThumbnailFile]);
 
-    const hasAccess = useMemo(() => {
-        return canViewSidebarTab(
-            staffProfile?.role,
-            staffProfile?.id,
-            permissionMap,
-            "content_game_directory"
-        );
-    }, [staffProfile?.role, staffProfile?.id, permissionMap]);
 
-    useEffect(() => {
-        if (!user || !hasAccess) {
-            setGames([]);
-            setLoadingGames(false);
-            return;
-        }
-
-        setLoadingGames(true);
-        setErrorMsg("");
-
-        const gamesQuery = query(
-            collection(db, "gameDirectory"),
-            orderBy("createdAt", "desc")
-        );
-
-        const unsubscribe = onSnapshot(
-            gamesQuery,
-            (snapshot) => {
-                const rows: GameDirectoryItem[] = snapshot.docs.map((docSnap) => {
-                    const data = docSnap.data() as Omit<GameDirectoryItem, "id">;
-
-                    return {
-                        id: docSnap.id,
-                        ...data,
-                        status: normalizeGameDirectoryStatus(data.status),
-                        genre: normalizeGameGenre(data.genre),
-                        contentMaturity: normalizeGameContentMaturity(data.contentMaturity),
-                    };
-                });
-
-                setGames(rows);
-                setLoadingGames(false);
-            },
-            (error) => {
-                console.error("Error loading game directory:", error);
-                setErrorMsg("Could not load game directory.");
-                setLoadingGames(false);
-            }
-        );
-
-        return () => unsubscribe();
-    }, [user, hasAccess]);
+    async function loadGames() { if (!user) return; setLoadingGames(true); setErrorMsg(""); try { const idToken = await user.getIdToken(); const response = await fetch("/api/admin/games", { headers: { Authorization: `Bearer ${idToken}` }, cache: "no-store" }); const result = await response.json().catch(() => null); if (!response.ok || !result?.ok) throw new Error(result?.error || "Could not load game directory."); const rows = (Array.isArray(result.games) ? result.games : []).map((data: GameDirectoryItem) => ({ ...data, status: normalizeGameDirectoryStatus(data.status), genre: normalizeGameGenre(data.genre), contentMaturity: normalizeGameContentMaturity(data.contentMaturity) })); setGames(rows); } catch (error) { setErrorMsg(error instanceof Error ? error.message : "Could not load game directory."); } finally { setLoadingGames(false); } }
+    useEffect(() => { if (user) loadGames(); }, [user]);
 
     const statusCounts = useMemo(() => {
         const counts: Record<GameDirectoryStatus, number> = {
@@ -584,71 +412,12 @@ export default function AdminGamesPage() {
 
     async function handleSignOut() {
         try {
-            await setPresenceOffline(user?.email);
+            await setPresenceOffline(user?.uid, user?.email);
             await signOut(auth);
             router.replace("/admin/login");
         } catch (error) {
             console.error("Sign out error:", error);
         }
-    }
-
-    function isValidImageFile(file: File) {
-        const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-        const maxSizeMb = 5;
-        const maxSizeBytes = maxSizeMb * 1024 * 1024;
-
-        if (!allowedTypes.includes(file.type)) {
-            return "Please upload a JPG, PNG, WEBP, or GIF image.";
-        }
-
-        if (file.size > maxSizeBytes) {
-            return `Please upload an image smaller than ${maxSizeMb}MB.`;
-        }
-
-        return "";
-    }
-
-    async function uploadGameDirectoryImage(file: File) {
-        const validationError = isValidImageFile(file);
-
-        if (validationError) {
-            throw new Error(validationError);
-        }
-
-        const extension = file.name.split(".").pop() || "jpg";
-        const safeBase = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-        const imagePath = `game-directory/thumbnails/${safeBase}.${extension}`;
-        const storageRef = ref(storage, imagePath);
-
-        return await new Promise<{ imagePath: string; imageUrl: string }>(
-            (resolve, reject) => {
-                const uploadTask = uploadBytesResumable(storageRef, file);
-
-                uploadTask.on(
-                    "state_changed",
-                    (snapshot) => {
-                        const progress =
-                            (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        setUploadProgress(progress);
-                    },
-                    (error) => {
-                        reject(error);
-                    },
-                    async () => {
-                        try {
-                            const imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
-
-                            resolve({
-                                imagePath,
-                                imageUrl,
-                            });
-                        } catch (error) {
-                            reject(error);
-                        }
-                    }
-                );
-            }
-        );
     }
 
     function validateForm() {
@@ -672,192 +441,9 @@ export default function AdminGamesPage() {
         return "";
     }
 
-    async function addStaffGame() {
-        if (!user) return;
+    async function addStaffGame() { if (!user) return; const validationError = validateForm(); if (validationError) { setFormError(validationError); return; } setSavingGame(true); setFormError(""); setUploadLabel("Saving game..."); try { const idToken = await user.getIdToken(); const data = new FormData(); data.set("title", form.title.trim()); data.set("description", form.description.trim()); data.set("robloxUrl", cleanRobloxGameUrl(form.robloxUrl)); data.set("creatorName", form.creatorName.trim()); data.set("creatorType", form.creatorType); data.set("memberId", form.memberId.trim()); data.set("genre", form.genre); data.set("contentMaturity", form.contentMaturity); data.set("isSponsored", String(form.isSponsored)); data.set("isHighlighted", String(form.isHighlighted)); if (selectedThumbnailFile) data.set("thumbnail", selectedThumbnailFile); const response = await fetch("/api/admin/games", { method: "POST", headers: { Authorization: `Bearer ${idToken}` }, body: data }); const result = await response.json().catch(() => null); if (!response.ok || !result?.ok) throw new Error(result?.error || "Could not add this game."); closeAddModal(); await loadGames(); } catch (error) { setFormError(error instanceof Error ? error.message : "Could not add this game."); } finally { setSavingGame(false); setUploadProgress(0); setUploadLabel(""); } }
 
-        const validationError = validateForm();
-
-        if (validationError) {
-            setFormError(validationError);
-            return;
-        }
-
-        setSavingGame(true);
-        setFormError("");
-        setUploadProgress(0);
-        setUploadLabel("");
-
-        try {
-            let thumbnailUrl = form.thumbnailUrl.trim();
-            let thumbnailPath = form.thumbnailPath.trim();
-
-            if (selectedThumbnailFile) {
-                setUploadLabel("Uploading thumbnail...");
-                const uploadedThumbnail = await uploadGameDirectoryImage(selectedThumbnailFile);
-
-                thumbnailUrl = uploadedThumbnail.imageUrl;
-                thumbnailPath = uploadedThumbnail.imagePath;
-            }
-
-            setUploadLabel("Saving game...");
-
-            await addDoc(collection(db, "gameDirectory"), {
-                title: form.title.trim(),
-                description: form.description.trim().slice(0, DESCRIPTION_LIMIT),
-                robloxUrl: cleanRobloxGameUrl(form.robloxUrl),
-
-                creatorName: form.creatorName.trim(),
-                creatorType: form.creatorType,
-                memberId: form.memberId.trim(),
-
-                genre: form.genre,
-                contentMaturity: form.contentMaturity,
-
-                thumbnailUrl,
-                thumbnailPath,
-                coverImageUrl: "",
-                coverImagePath: "",
-
-                isSponsored: form.isSponsored,
-                isHighlighted: form.isHighlighted,
-                isHiddenFromPublic: false,
-
-                status: "for_approval",
-                source: "staff_added",
-
-                uploadedByUid: user.uid,
-                uploadedByName: displayName,
-                uploadedByEmail: user.email || "",
-                uploadedAt: serverTimestamp(),
-
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-            });
-
-            setAddModalOpen(false);
-            setForm(EMPTY_FORM);
-        } catch (error) {
-            console.error("Error adding game:", error);
-            setFormError("Could not add this game. Please try again.");
-        } finally {
-            setSavingGame(false);
-            setUploadProgress(0);
-            setUploadLabel("");
-        }
-    }
-
-    async function saveEditedGame(nextStatus?: GameDirectoryStatus) {
-        if (!user || !editingGame) return;
-
-        const validationError = validateForm();
-
-        if (validationError) {
-            setFormError(validationError);
-            return;
-        }
-
-        setSavingGame(true);
-        setFormError("");
-        setUploadProgress(0);
-        setUploadLabel("");
-
-        try {
-            let thumbnailUrl = form.thumbnailUrl.trim();
-            let thumbnailPath = form.thumbnailPath.trim();
-
-            if (selectedThumbnailFile) {
-                setUploadLabel("Uploading new thumbnail...");
-                const uploadedThumbnail = await uploadGameDirectoryImage(selectedThumbnailFile);
-
-                thumbnailUrl = uploadedThumbnail.imageUrl;
-                thumbnailPath = uploadedThumbnail.imagePath;
-            }
-
-            setUploadLabel(
-                nextStatus
-                    ? `Saving changes and marking as ${getGameStatusLabel(nextStatus)}...`
-                    : "Saving changes..."
-            );
-
-            const updatePayload: Record<string, unknown> = {
-                title: form.title.trim(),
-                description: form.description.trim().slice(0, DESCRIPTION_LIMIT),
-                robloxUrl: cleanRobloxGameUrl(form.robloxUrl),
-
-                creatorName: form.creatorName.trim(),
-                creatorType: form.creatorType,
-                memberId: form.memberId.trim(),
-
-                genre: form.genre,
-                contentMaturity: form.contentMaturity,
-
-                thumbnailUrl,
-                thumbnailPath,
-
-                isSponsored: form.isSponsored,
-                isHighlighted: form.isHighlighted,
-
-                editedByUid: user.uid,
-                editedByName: displayName,
-                editedByEmail: user.email || "",
-                editedAt: serverTimestamp(),
-
-                updatedAt: serverTimestamp(),
-            };
-
-            await updateDoc(
-                doc(
-                    db,
-                    "gameDirectory",
-                    editingGame.id
-                ),
-                updatePayload
-            );
-
-            if (nextStatus) {
-                const idToken =
-                    await user.getIdToken();
-
-                const response = await fetch(
-                    "/api/admin/games/status",
-                    {
-                        method: "PATCH",
-                        headers: {
-                            "Content-Type":
-                                "application/json",
-                            Authorization:
-                                `Bearer ${idToken}`,
-                        },
-                        body: JSON.stringify({
-                            gameId:
-                                editingGame.id,
-                            nextStatus,
-                        }),
-                    }
-                );
-
-                const result = await response
-                    .json()
-                    .catch(() => null);
-
-                if (!response.ok || !result?.ok) {
-                    throw new Error(
-                        result?.error ||
-                        "The game details were saved, but its review status could not be updated."
-                    );
-                }
-            }
-
-            closeAddModal();
-        } catch (error) {
-            console.error("Error saving game changes:", error);
-            setFormError("Could not save changes. Please try again.");
-        } finally {
-            setSavingGame(false);
-            setUploadProgress(0);
-            setUploadLabel("");
-        }
-    }
+    async function saveEditedGame(nextStatus?: GameDirectoryStatus) { if (!user || !editingGame) return; const validationError = validateForm(); if (validationError) { setFormError(validationError); return; } setSavingGame(true); setFormError(""); setUploadLabel("Saving changes..."); try { const idToken = await user.getIdToken(); const data = new FormData(); data.set("id", editingGame.id); data.set("title", form.title.trim()); data.set("description", form.description.trim()); data.set("robloxUrl", cleanRobloxGameUrl(form.robloxUrl)); data.set("creatorName", form.creatorName.trim()); data.set("creatorType", form.creatorType); data.set("memberId", form.memberId.trim()); data.set("genre", form.genre); data.set("contentMaturity", form.contentMaturity); data.set("isSponsored", String(form.isSponsored)); data.set("isHighlighted", String(form.isHighlighted)); if (nextStatus) data.set("nextStatus", nextStatus); if (selectedThumbnailFile) data.set("thumbnail", selectedThumbnailFile); const response = await fetch("/api/admin/games", { method: "POST", headers: { Authorization: `Bearer ${idToken}` }, body: data }); const result = await response.json().catch(() => null); if (!response.ok || !result?.ok) throw new Error(result?.error || "Could not save changes."); closeAddModal(); await loadGames(); } catch (error) { setFormError(error instanceof Error ? error.message : "Could not save changes."); } finally { setSavingGame(false); setUploadProgress(0); setUploadLabel(""); } }
 
     async function updateGameStatus(
         game: GameDirectoryItem,
@@ -872,7 +458,7 @@ export default function AdminGamesPage() {
                 await user.getIdToken();
 
             const response = await fetch(
-                "/api/admin/games/status",
+                "/api/admin/games",
                 {
                     method: "PATCH",
                     headers: {
@@ -893,11 +479,9 @@ export default function AdminGamesPage() {
                 .catch(() => null);
 
             if (!response.ok || !result?.ok) {
-                throw new Error(
-                    result?.error ||
-                    "Could not update this game."
-                );
+                throw new Error(result?.error || "Could not update this game.");
             }
+            await loadGames();
         } catch (error) {
             console.error("Error updating game status:", error);
             alert(
@@ -910,23 +494,11 @@ export default function AdminGamesPage() {
         }
     }
 
-    if (authLoading || !user || roleLoading || permissionsLoading) {
+    if (authLoading || !user) {
         return (
             <main className="min-h-screen bg-zinc-950 text-white">
                 <div className="mx-auto max-w-7xl px-6 py-10">
                     <p className="text-sm text-zinc-400">Loading game directory...</p>
-                </div>
-            </main>
-        );
-    }
-
-    if (!hasAccess) {
-        return (
-            <main className="min-h-screen bg-zinc-950 text-white">
-                <div className="mx-auto max-w-7xl px-6 py-10">
-                    <p className="text-sm text-red-300">
-                        You do not have permission to access the Game Directory.
-                    </p>
                 </div>
             </main>
         );

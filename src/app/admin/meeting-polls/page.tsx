@@ -4,23 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "firebase/auth";
 import {
-  collection,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  Timestamp,
-  where,
-} from "firebase/firestore";
-import {
   CalendarClock,
   CheckCircle2,
   Clock,
   Plus,
   Users,
 } from "lucide-react";
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { setPresenceOffline } from "@/lib/usePresence";
@@ -47,19 +37,23 @@ type MeetingPoll = {
   invitedMembers?: MeetingInvitedMember[];
   status?: "open" | "finalized" | "cancelled";
   finalSlotId?: string | null;
-  createdAt?: Timestamp;
-  updatedAt?: Timestamp;
-  deadline?: Timestamp;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  deadline?: string | null;
 };
 
 function normalizeEmail(value?: string | null): string {
   return value?.trim().toLowerCase() || "";
 }
 
-function formatTimestamp(timestamp?: Timestamp) {
+function formatTimestamp(timestamp?: string | null) {
   if (!timestamp) return "—";
 
-  return timestamp.toDate().toLocaleString("en-PH", {
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleString("en-PH", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -101,8 +95,6 @@ export default function MeetingPollsAdminPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [staffProfile, setStaffProfile] = useState<StaffProfile | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
 
   const [meetingPolls, setMeetingPolls] = useState<MeetingPoll[]>([]);
   const [loadingPolls, setLoadingPolls] = useState(true);
@@ -113,7 +105,6 @@ export default function MeetingPollsAdminPage() {
     user?.displayName?.trim() ||
     (user?.email ? user.email.split("@")[0] : "Unknown User");
 
-  const signedInEmail = normalizeEmail(user?.email);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -121,139 +112,55 @@ export default function MeetingPollsAdminPage() {
     }
   }, [authLoading, user, router]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadRole() {
-      if (!user?.email) {
-        if (!isMounted) return;
-        setStaffProfile(null);
-        setRoleLoading(false);
-        return;
-      }
-
-      setRoleLoading(true);
-      setPageError("");
-
-      try {
-        const exactQuery = query(
-          collection(db, "staff"),
-          where("emailAddress", "==", user.email),
-          limit(1)
-        );
-
-        const exactSnapshot = await getDocs(exactQuery);
-
-        if (!exactSnapshot.empty) {
-          const docSnap = exactSnapshot.docs[0];
-          if (!isMounted) return;
-
-          setStaffProfile({
-            id: docSnap.id,
-            ...(docSnap.data() as Omit<StaffProfile, "id">),
-          });
-          setRoleLoading(false);
-          return;
-        }
-
-        const lowerQuery = query(
-          collection(db, "staff"),
-          where("emailAddress", "==", signedInEmail),
-          limit(1)
-        );
-
-        const lowerSnapshot = await getDocs(lowerQuery);
-
-        if (!lowerSnapshot.empty) {
-          const docSnap = lowerSnapshot.docs[0];
-          if (!isMounted) return;
-
-          setStaffProfile({
-            id: docSnap.id,
-            ...(docSnap.data() as Omit<StaffProfile, "id">),
-          });
-          setRoleLoading(false);
-          return;
-        }
-
-        const allStaffSnapshot = await getDocs(collection(db, "staff"));
-        const match = allStaffSnapshot.docs.find((docSnap) => {
-          const data = docSnap.data() as { emailAddress?: string; role?: string };
-          return normalizeEmail(data.emailAddress) === signedInEmail;
-        });
-
-        if (!isMounted) return;
-
-        if (!match) {
-          setStaffProfile(null);
-          setRoleLoading(false);
-          return;
-        }
-
-        setStaffProfile({
-          id: match.id,
-          ...(match.data() as Omit<StaffProfile, "id">),
-        });
-        setRoleLoading(false);
-      } catch (error) {
-        console.error("Error checking staff meetings access:", error);
-        if (!isMounted) return;
-        setPageError("Could not verify your permissions.");
-        setRoleLoading(false);
-      }
-    }
-
-    loadRole();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [user?.email, signedInEmail]);
-
-  const hasAccess = useMemo(() => {
-    return isAdminRole(staffProfile?.role);
-  }, [staffProfile?.role]);
-
-  useEffect(() => {
-    if (!user || roleLoading || !hasAccess) {
-      setMeetingPolls([]);
-      setLoadingPolls(false);
-      return;
-    }
+  async function loadMeetingPolls() {
+    if (!user) return;
 
     setLoadingPolls(true);
     setPageError("");
 
-    const pollsQuery = query(
-      collection(db, "meetingPolls"),
-      orderBy("updatedAt", "desc")
-    );
+    try {
+      const idToken = await user.getIdToken();
 
-    const unsubscribe = onSnapshot(
-      pollsQuery,
-      (snapshot) => {
-        const rows: MeetingPoll[] = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() as Omit<MeetingPoll, "id">),
-        }));
+      const response = await fetch("/api/admin/meeting-polls", {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+        cache: "no-store",
+      });
 
-        setMeetingPolls(rows);
-        setLoadingPolls(false);
-      },
-      (error) => {
-        console.error("Error loading meeting polls:", error);
-        setPageError("Could not load staff meetings.");
-        setMeetingPolls([]);
-        setLoadingPolls(false);
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.ok) {
+        throw new Error(
+          result?.error || "Could not load staff meetings."
+        );
       }
-    );
 
-    return () => unsubscribe();
-  }, [user, roleLoading, hasAccess]);
+      setMeetingPolls(
+        Array.isArray(result.polls) ? result.polls : []
+      );
+    } catch (error) {
+      console.error("Error loading meeting polls:", error);
+      setPageError(
+        error instanceof Error
+          ? error.message
+          : "Could not load staff meetings."
+      );
+      setMeetingPolls([]);
+    } finally {
+      setLoadingPolls(false);
+    }
+  }
+
+  useEffect(() => {
+    if (user) {
+      loadMeetingPolls();
+    }
+  }, [user]);
 
   async function handleSignOut() {
     try {
-      await setPresenceOffline(user?.email);
+      await setPresenceOffline(user?.uid, user?.email);
       await signOut(auth);
       router.replace("/admin/login");
     } catch (error) {
@@ -261,23 +168,11 @@ export default function MeetingPollsAdminPage() {
     }
   }
 
-  if (authLoading || !user || roleLoading) {
+  if (authLoading || !user) {
     return (
       <main className="min-h-screen bg-zinc-950 text-white">
         <div className="mx-auto max-w-7xl px-6 py-10">
           <p className="text-sm text-zinc-400">Loading dashboard...</p>
-        </div>
-      </main>
-    );
-  }
-
-  if (!hasAccess) {
-    return (
-      <main className="min-h-screen bg-zinc-950 text-white">
-        <div className="mx-auto max-w-3xl px-6 py-10">
-          <p className="text-sm text-red-400">
-            You do not have permission to access Staff Meetings.
-          </p>
         </div>
       </main>
     );
