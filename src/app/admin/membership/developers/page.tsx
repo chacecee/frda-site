@@ -296,6 +296,7 @@ export default function DeveloperAccountsPage() {
       | "request_changes"
       | "hide"
       | "grant_premium"
+      | "revoke_premium"
       | "suspend_account"
       | "restore_account"
       | null
@@ -606,6 +607,7 @@ export default function DeveloperAccountsPage() {
       | "request_changes"
       | "hide"
       | "grant_premium"
+      | "revoke_premium"
       | "suspend_account"
       | "restore_account"
   ) {
@@ -638,6 +640,16 @@ export default function DeveloperAccountsPage() {
     }
 
     if (
+      action === "revoke_premium" &&
+      !reviewerNote.trim()
+    ) {
+      notify.error(
+        "Add an internal reason before revoking lifetime premium."
+      );
+      return;
+    }
+
+    if (
       action === "suspend_account"
     ) {
       const confirmed =
@@ -656,6 +668,19 @@ export default function DeveloperAccountsPage() {
       const confirmed =
         window.confirm(
           "Restore this member account?\n\nThe member will regain portal access, but their developer profile will remain unpublished as a draft."
+        );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    if (
+      action === "revoke_premium"
+    ) {
+      const confirmed =
+        window.confirm(
+          "Revoke this developer's launch lifetime premium?\n\nAnalytics and custom-subdomain access will be removed, and the promotional spot will become available again."
         );
 
       if (!confirmed) {
@@ -1828,32 +1853,59 @@ export default function DeveloperAccountsPage() {
                       </div>
                     </div>
 
-                    {selectedDeveloper.profileStatus === "live" &&
-                      selectedDeveloper.developerPremiumStatus ===
-                      "pending_review" &&
-                      selectedDeveloper.launchPremiumEligible &&
-                      !selectedDeveloper.hasPremiumAccess ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          reviewProfile(
-                            "grant_premium",
-                          )
-                        }
-                        disabled={Boolean(
-                          processingAction,
-                        )}
-                        className="shrink-0 cursor-pointer bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
-                        style={{
-                          borderRadius: 7,
-                        }}
-                      >
-                        {processingAction ===
-                          "grant_premium"
-                          ? "Granting..."
-                          : "Grant Launch Lifetime Premium"}
-                      </button>
-                    ) : null}
+                    <div className="flex shrink-0 flex-col gap-3">
+                      {selectedDeveloper.profileStatus === "live" &&
+                        selectedDeveloper.developerPremiumStatus ===
+                        "pending_review" &&
+                        selectedDeveloper.launchPremiumEligible &&
+                        !selectedDeveloper.hasPremiumAccess ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            reviewProfile(
+                              "grant_premium",
+                            )
+                          }
+                          disabled={Boolean(
+                            processingAction,
+                          )}
+                          className="cursor-pointer bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+                          style={{
+                            borderRadius: 7,
+                          }}
+                        >
+                          {processingAction ===
+                            "grant_premium"
+                            ? "Granting..."
+                            : "Grant Launch Lifetime Premium"}
+                        </button>
+                      ) : null}
+
+                      {selectedDeveloper.hasPremiumAccess &&
+                        selectedDeveloper.developerPremiumGrantType ===
+                        "launch_lifetime" ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            reviewProfile(
+                              "revoke_premium",
+                            )
+                          }
+                          disabled={Boolean(
+                            processingAction,
+                          )}
+                          className="cursor-pointer border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          style={{
+                            borderRadius: 7,
+                          }}
+                        >
+                          {processingAction ===
+                            "revoke_premium"
+                            ? "Revoking..."
+                            : "Revoke Launch Lifetime Premium"}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </section>
 
@@ -1871,7 +1923,7 @@ export default function DeveloperAccountsPage() {
                     }
                     rows={6}
                     maxLength={3000}
-                    placeholder="Required for change requests and account suspension. Optional for other actions."
+                                        placeholder="Required for change requests, premium revocation, and account suspension. Optional for other actions."
                     className="w-full resize-y border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-blue-500"
                     style={{ borderRadius: 8 }}
                   />

@@ -30,6 +30,7 @@ type ReviewAction =
   | "request_changes"
   | "hide"
   | "grant_premium"
+  | "revoke_premium"
   | "suspend_account"
   | "restore_account";
 
@@ -484,6 +485,8 @@ function isReviewAction(
     value ===
     "grant_premium" ||
     value ===
+    "revoke_premium" ||
+    value ===
     "suspend_account" ||
     value ===
     "restore_account"
@@ -878,6 +881,23 @@ export async function PATCH(
       );
     }
 
+    if (
+      body.action ===
+      "revoke_premium" &&
+      !reviewerNote
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Add an internal reason before revoking lifetime premium.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
     const profileReference =
       adminDb
         .collection(
@@ -1215,6 +1235,193 @@ export async function PATCH(
             },
             {
               merge: true,
+            },
+          );
+
+          return;
+        }
+
+        if (
+          body.action ===
+          "revoke_premium"
+        ) {
+          if (
+            memberData
+              .developerPremiumStatus !==
+            "qualified" ||
+            memberData
+              .developerPremiumGrantType !==
+            "launch_lifetime"
+          ) {
+            throw new Error(
+              "Only a launch lifetime premium grant can be revoked through this action.",
+            );
+          }
+
+          const premiumReference =
+            adminDb
+              .collection(
+                "developerPremiumLaunchGrants",
+              )
+              .doc(
+                "launch_lifetime",
+              );
+
+          const premiumSnapshot =
+            await transaction.get(
+              premiumReference,
+            );
+
+          const currentCount =
+            typeof premiumSnapshot
+              .data()
+              ?.approvedCount ===
+              "number"
+              ? premiumSnapshot
+                .data()!
+                .approvedCount
+              : 0;
+
+          const nextPremiumStatus =
+            profile.isPublished ===
+              true &&
+              currentStatus === "live" &&
+              isEligibleForLaunchPremiumReview(
+                memberData,
+              )
+              ? "pending_review"
+              : "not_eligible";
+
+          transaction.set(
+            memberReference,
+            {
+              developerPremiumStatus:
+                nextPremiumStatus,
+
+              developerPremiumGrantType:
+                FieldValue.delete(),
+
+              developerPremiumGrantedAt:
+                FieldValue.delete(),
+
+              developerPremiumGrantedByUid:
+                FieldValue.delete(),
+
+              developerPremiumGrantedByEmail:
+                FieldValue.delete(),
+
+              analyticsAccess:
+                "disabled",
+
+              customSubdomainAccess:
+                "disabled",
+
+              developerPremiumRevokedAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              developerPremiumRevokedByUid:
+                authorization.staff
+                  .uid,
+
+              developerPremiumRevokedByEmail:
+                authorization.staff
+                  .emailAddress,
+
+              developerPremiumRevokedByName:
+                authorization.staff
+                  .displayName ||
+                authorization.staff
+                  .emailAddress,
+
+              developerPremiumRevocationReason:
+                reviewerNote,
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
+          transaction.set(
+            profileReference,
+            {
+              developerPremiumStatus:
+                nextPremiumStatus,
+
+              developerPremiumGrantType:
+                FieldValue.delete(),
+
+              developerPremiumRevokedAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              developerPremiumRevocationReason:
+                reviewerNote,
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
+          transaction.set(
+            premiumReference,
+            {
+              approvedCount:
+                Math.max(
+                  0,
+                  currentCount - 1,
+                ),
+
+              limit:
+                DEVELOPER_PREMIUM_LAUNCH_LIMIT,
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
+          transaction.set(
+            adminDb
+              .collection(
+                "memberNotifications",
+              )
+              .doc(),
+            {
+              memberId,
+
+              type:
+                "developer_premium_revoked",
+
+              title:
+                "Profile Premium removed",
+
+              message:
+                "Lifetime Profile Premium has been removed from your developer account. You can contact FRDA if you believe this was done in error.",
+
+              href:
+                "/member/dashboard",
+
+              isRead: false,
+
+              createdAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
             },
           );
 
@@ -1761,18 +1968,21 @@ export async function PATCH(
           "grant_premium"
           ? "Launch lifetime premium was granted to this developer."
           : body.action ===
-            "suspend_account"
-            ? "The member account was suspended and its public profile was hidden."
+            "revoke_premium"
+            ? "Launch lifetime premium was revoked and the promotional spot was returned."
             : body.action ===
-              "restore_account"
-              ? "The member account was restored. Its profile remains unpublished as a draft."
+              "suspend_account"
+              ? "The member account was suspended and its public profile was hidden."
               : body.action ===
-                "approve"
-                ? "Developer profile approved and published."
+                "restore_account"
+                ? "The member account was restored. Its profile remains unpublished as a draft."
                 : body.action ===
-                  "request_changes"
-                  ? "Changes were requested from the developer."
-                  : "Developer profile hidden.",
+                  "approve"
+                  ? "Developer profile approved and published."
+                  : body.action ===
+                    "request_changes"
+                    ? "Changes were requested from the developer."
+                    : "Developer profile hidden.",
     });
   } catch (error) {
     console.error(
@@ -1809,6 +2019,9 @@ export async function PATCH(
         ) ||
         message.includes(
           "not currently suspended",
+        ) ||
+        message.includes(
+          "Only a launch lifetime",
         )
         ? 409
         : message.includes(
