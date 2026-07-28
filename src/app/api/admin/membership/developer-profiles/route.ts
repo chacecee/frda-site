@@ -1681,8 +1681,27 @@ export async function PATCH(
       body.action ===
       "suspend_account"
     ) {
+      await adminAuth.updateUser(
+        uid,
+        {
+          disabled: true,
+        },
+      );
+
       await adminAuth
         .revokeRefreshTokens(uid);
+    }
+
+    if (
+      body.action ===
+      "restore_account"
+    ) {
+      await adminAuth.updateUser(
+        uid,
+        {
+          disabled: false,
+        },
+      );
     }
 
     const [
