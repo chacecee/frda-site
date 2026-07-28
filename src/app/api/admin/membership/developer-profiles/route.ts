@@ -1594,7 +1594,7 @@ export async function PATCH(
                 "Lifetime premium unlocked",
 
               message:
-                "Your developer profile has qualified for lifetime FRDA Profile Premium. Profile analytics and your custom FRDA subdomain are now available at no cost.",
+                "Congratulations! Your developer profile has qualified for lifetime FRDA Profile Premium.",
 
               href:
                 "/member/dashboard",
