@@ -1,8 +1,27 @@
-import { NextRequest, NextResponse } from "next/server";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { adminDb } from "@/lib/firebaseAdmin";
-import { authorizeAdminRequest } from "@/lib/server/adminAuthorization";
-import { DEVELOPER_PREMIUM_LAUNCH_LIMIT } from "@/lib/server/developerPremiumLaunch";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
+import {
+  FieldValue,
+  Timestamp,
+} from "firebase-admin/firestore";
+
+import {
+  adminAuth,
+  adminDb,
+} from "@/lib/firebaseAdmin";
+
+import {
+  authorizeAdminRequest,
+} from "@/lib/server/adminAuthorization";
+
+import {
+  DEVELOPER_PREMIUM_LAUNCH_LIMIT,
+  hasDeveloperPremiumAccess,
+  isEligibleForLaunchPremiumReview,
+} from "@/lib/server/developerPremiumLaunch";
 
 export const runtime = "nodejs";
 
@@ -10,19 +29,31 @@ type ReviewAction =
   | "approve"
   | "request_changes"
   | "hide"
-  | "grant_premium";
+  | "grant_premium"
+  | "suspend_account"
+  | "restore_account";
 
-function timestampToIso(value: unknown): string | null {
+function timestampToIso(
+  value: unknown,
+): string | null {
   if (
     value instanceof Timestamp ||
     (
       typeof value === "object" &&
       value !== null &&
       "toDate" in value &&
-      typeof (value as { toDate?: unknown }).toDate === "function"
+      typeof (
+        value as {
+          toDate?: unknown;
+        }
+      ).toDate === "function"
     )
   ) {
-    return (value as { toDate: () => Date })
+    return (
+      value as {
+        toDate: () => Date;
+      }
+    )
       .toDate()
       .toISOString();
   }
@@ -30,7 +61,9 @@ function timestampToIso(value: unknown): string | null {
   return null;
 }
 
-function normalizeExperienceTier(value: unknown): string {
+function normalizeExperienceTier(
+  value: unknown,
+): string {
   return value === "aspiring" ||
     value === "emerging" ||
     value === "established" ||
@@ -39,22 +72,39 @@ function normalizeExperienceTier(value: unknown): string {
     : "";
 }
 
-function normalizeDeliveryScope(value: unknown): string {
+function normalizeDeliveryScope(
+  value: unknown,
+): string {
   return value === "full_team" ||
-    value === "solo_full_project" ||
+    value ===
+    "solo_full_project" ||
     value === "specialist"
     ? value
     : "";
 }
 
-function normalizeAccountPurpose(value: unknown): string {
-  return String(value || "").trim().toLowerCase();
+function normalizeAccountPurpose(
+  value: unknown,
+): string {
+  return String(
+    value || "",
+  )
+    .trim()
+    .toLowerCase();
 }
 
-function isDeveloperAccount(value: unknown): boolean {
-  const purpose = normalizeAccountPurpose(value);
+function isDeveloperAccount(
+  value: unknown,
+): boolean {
+  const purpose =
+    normalizeAccountPurpose(
+      value,
+    );
 
-  return purpose === "developer" || purpose === "both";
+  return (
+    purpose === "developer" ||
+    purpose === "both"
+  );
 }
 
 function serializeDeveloperAccount({
@@ -65,198 +115,400 @@ function serializeDeveloperAccount({
   bookmarkCount,
 }: {
   memberId: string;
-  member: FirebaseFirestore.DocumentData;
-  profile: FirebaseFirestore.DocumentData | null;
-  analytics?: FirebaseFirestore.DocumentData | null;
+
+  member:
+  FirebaseFirestore.DocumentData;
+
+  profile:
+  | FirebaseFirestore.DocumentData
+  | null;
+
+  analytics?:
+  | FirebaseFirestore.DocumentData
+  | null;
+
   bookmarkCount?: number;
 }) {
+  const launchPremiumEligible =
+    isEligibleForLaunchPremiumReview(
+      member,
+    );
+
+  const premiumAccess =
+    hasDeveloperPremiumAccess(
+      member,
+    );
+
+  let launchPremiumIneligibilityReason =
+    "";
+
+  if (premiumAccess) {
+    launchPremiumIneligibilityReason =
+      "This developer already has premium access.";
+  } else if (
+    !launchPremiumEligible
+  ) {
+    launchPremiumIneligibilityReason =
+      "This account was created before the launch cutoff and cannot consume one of the 30 promotional spots.";
+  }
+
   return {
-    uid: String(member.authUid || profile?.uid || ""),
+    uid: String(
+      member.authUid ||
+      profile?.uid ||
+      "",
+    ),
+
     memberId,
 
-    email: String(member.email || profile?.email || ""),
-    displayName: String(
-      profile?.displayName ||
-      member.displayName ||
-      ""
+    email: String(
+      member.email ||
+      profile?.email ||
+      "",
     ),
 
-    accountPurpose: String(
-      member.accountPurpose || "developer"
-    ),
+    displayName:
+      String(
+        profile?.displayName ||
+        member.displayName ||
+        "",
+      ),
 
-    accountStatus: String(
-      member.accountStatus || ""
-    ),
+    accountPurpose:
+      String(
+        member.accountPurpose ||
+        "developer",
+      ),
 
-    memberStatus: String(
-      member.memberStatus || ""
-    ),
+    accountStatus:
+      String(
+        member.accountStatus ||
+        "",
+      ),
 
-    profileStatus: String(
-      profile?.profileStatus ||
-      member.profileStatus ||
-      "not_started"
-    ),
+    memberStatus:
+      String(
+        member.memberStatus ||
+        "",
+      ),
 
-    headline: String(profile?.headline || ""),
-    bio: String(profile?.bio || ""),
+    accountSuspensionReason:
+      String(
+        member.accountSuspensionReason ||
+        "",
+      ),
 
-    avatarUrl: String(
-      profile?.avatarUrl ||
-      (
-        typeof member.talentSeekerProfile ===
-          "object" &&
-        member.talentSeekerProfile !== null
-          ? (
-              member.talentSeekerProfile as
-                Record<string, unknown>
+    accountSuspendedAt:
+      timestampToIso(
+        member.accountSuspendedAt,
+      ),
+
+    accountSuspendedByName:
+      String(
+        member.accountSuspendedByName ||
+        "",
+      ),
+
+    accountRestoredAt:
+      timestampToIso(
+        member.accountRestoredAt,
+      ),
+
+    accountRestoredByName:
+      String(
+        member.accountRestoredByName ||
+        "",
+      ),
+
+    profileStatus:
+      String(
+        profile?.profileStatus ||
+        member.profileStatus ||
+        "not_started",
+      ),
+
+    headline:
+      String(
+        profile?.headline ||
+        "",
+      ),
+
+    bio:
+      String(
+        profile?.bio ||
+        "",
+      ),
+
+    avatarUrl:
+      String(
+        profile?.avatarUrl ||
+        (
+          typeof member
+            .talentSeekerProfile ===
+            "object" &&
+            member
+              .talentSeekerProfile !==
+            null
+            ? (
+              member
+                .talentSeekerProfile as
+              Record<
+                string,
+                unknown
+              >
             ).avatarUrl
-          : ""
-      ) ||
-      ""
-    ),
+            : ""
+        ) ||
+        "",
+      ),
 
-    skills: Array.isArray(profile?.skills)
-      ? profile.skills.filter(
-          (value: unknown): value is string =>
-            typeof value === "string"
+    skills:
+      Array.isArray(
+        profile?.skills,
+      )
+        ? profile.skills.filter(
+          (
+            value: unknown,
+          ): value is string =>
+            typeof value ===
+            "string",
         )
-      : [],
+        : [],
 
-    availability: String(
-      profile?.availability || ""
-    ),
+    availability:
+      String(
+        profile?.availability ||
+        "",
+      ),
 
     experienceTier:
       normalizeExperienceTier(
-        profile?.experienceTier
+        profile?.experienceTier,
       ),
 
     experienceTierIsSelfDeclared:
-      profile?.experienceTierIsSelfDeclared === true,
+      profile
+        ?.experienceTierIsSelfDeclared ===
+      true,
 
     deliveryScope:
       normalizeDeliveryScope(
-        profile?.deliveryScope
+        profile?.deliveryScope,
       ),
 
-    robloxProfileUrl: String(
-      profile?.robloxProfileUrl || ""
-    ),
+    portfolioUrl:
+      String(
+        profile?.portfolioUrl ||
+        "",
+      ),
 
-    portfolioUrl: String(
-      profile?.portfolioUrl || ""
-    ),
+    customSubdomain:
+      String(
+        profile?.customSubdomain ||
+        member.customSubdomain ||
+        "",
+      )
+        .trim()
+        .toLowerCase(),
 
-    profileSlug: String(
-      profile?.profileSlug || ""
-    ),
+    customProfileAddress:
+      String(
+        profile?.customProfileAddress ||
+        (
+          profile?.customSubdomain
+            ? `https://${String(
+              profile.customSubdomain,
+            )
+              .trim()
+              .toLowerCase()}.frdaph.org`
+            : ""
+        ),
+      ),
 
-    isPublished: profile?.isPublished === true,
+    profileSlug:
+      String(
+        profile?.profileSlug ||
+        "",
+      ),
+
+    isPublished:
+      profile?.isPublished === true,
 
     memberListingLimit:
-      typeof member.memberListingLimit === "number"
+      typeof member
+        .memberListingLimit ===
+        "number"
         ? member.memberListingLimit
         : 3,
 
     paidListingCredits:
-      typeof member.paidListingCredits === "number"
+      typeof member
+        .paidListingCredits ===
+        "number"
         ? member.paidListingCredits
         : 0,
 
-    activatedAt: timestampToIso(
-      member.activatedAt
-    ),
+    memberCreatedAt:
+      timestampToIso(
+        member.createdAt,
+      ),
 
-    profileCreatedAt: timestampToIso(
-      profile?.createdAt
-    ),
+    activatedAt:
+      timestampToIso(
+        member.activatedAt,
+      ),
 
-    profileUpdatedAt: timestampToIso(
-      profile?.updatedAt
-    ),
+    profileCreatedAt:
+      timestampToIso(
+        profile?.createdAt,
+      ),
 
-    publicationRequestedAt: timestampToIso(
-      profile?.publicationRequestedAt
-    ),
+    profileUpdatedAt:
+      timestampToIso(
+        profile?.updatedAt,
+      ),
 
-    publicationReviewedAt: timestampToIso(
-      profile?.publicationReviewedAt
-    ),
+    publicationRequestedAt:
+      timestampToIso(
+        profile
+          ?.publicationRequestedAt,
+      ),
 
-    publicationReviewedByName: String(
-      profile?.publicationReviewedByName || ""
-    ),
+    publicationReviewedAt:
+      timestampToIso(
+        profile
+          ?.publicationReviewedAt,
+      ),
 
-    publicationReviewerNote: String(
-      profile?.publicationReviewerNote || ""
-    ),
+    publicationReviewedByName:
+      String(
+        profile
+          ?.publicationReviewedByName ||
+        "",
+      ),
+
+    publicationReviewerNote:
+      String(
+        profile
+          ?.publicationReviewerNote ||
+        "",
+      ),
 
     profileViews:
-      typeof analytics?.profileViews === "number"
+      typeof analytics
+        ?.profileViews ===
+        "number"
         ? analytics.profileViews
         : 0,
 
     uniqueProfileViews:
-      typeof analytics?.uniqueProfileViews === "number"
-        ? analytics.uniqueProfileViews
+      typeof analytics
+        ?.uniqueProfileViews ===
+        "number"
+        ? analytics
+          .uniqueProfileViews
         : 0,
 
     bookmarkCount:
-      typeof bookmarkCount === "number"
+      typeof bookmarkCount ===
+        "number"
         ? bookmarkCount
         : 0,
 
     contactClicks:
-      typeof analytics?.contactClicks === "number"
+      typeof analytics
+        ?.contactClicks ===
+        "number"
         ? analytics.contactClicks
         : 0,
 
     projectViews:
-      typeof analytics?.projectViews === "number"
+      typeof analytics
+        ?.projectViews ===
+        "number"
         ? analytics.projectViews
         : 0,
 
     projectLinkClicks:
-      typeof analytics?.projectLinkClicks === "number"
-        ? analytics.projectLinkClicks
+      typeof analytics
+        ?.projectLinkClicks ===
+        "number"
+        ? analytics
+          .projectLinkClicks
         : 0,
 
     portfolioClicks:
-      typeof analytics?.portfolioClicks === "number"
+      typeof analytics
+        ?.portfolioClicks ===
+        "number"
         ? analytics.portfolioClicks
         : 0,
 
-    developerPremiumStatus: String(member.developerPremiumStatus || "not_eligible"),
-    developerPremiumGrantType: String(member.developerPremiumGrantType || ""),
-    developerPremiumGrantedAt: timestampToIso(member.developerPremiumGrantedAt),
+    developerPremiumStatus:
+      String(
+        member
+          .developerPremiumStatus ||
+        "not_eligible",
+      ),
+
+    developerPremiumGrantType:
+      String(
+        member
+          .developerPremiumGrantType ||
+        "",
+      ),
+
+    developerPremiumGrantedAt:
+      timestampToIso(
+        member
+          .developerPremiumGrantedAt,
+      ),
+
     hasPremiumAccess:
-      member.developerPremiumStatus === "qualified" ||
-      member.analyticsAccess === "pro" ||
-      Boolean(String(member.customSubdomain || "").trim()),
+      premiumAccess,
+
+    launchPremiumEligible,
+
+    launchPremiumIneligibilityReason,
   };
 }
 
 function isReviewAction(
-  value: unknown
+  value: unknown,
 ): value is ReviewAction {
   return (
     value === "approve" ||
-    value === "request_changes" ||
+    value ===
+    "request_changes" ||
     value === "hide" ||
-    value === "grant_premium"
+    value ===
+    "grant_premium" ||
+    value ===
+    "suspend_account" ||
+    value ===
+    "restore_account"
   );
 }
 
-function slugify(value: string): string {
+function slugify(
+  value: string,
+): string {
   return value
     .trim()
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    .replace(
+      /[\u0300-\u036f]/g,
+      "",
+    )
+    .replace(
+      /[^a-z0-9]+/g,
+      "-",
+    )
+    .replace(
+      /^-+|-+$/g,
+      "",
+    )
     .slice(0, 60);
 }
 
@@ -267,12 +519,18 @@ function createProfileSlug({
   displayName: string;
   memberId: string;
 }): string {
-  const base = slugify(displayName) || "developer";
+  const base =
+    slugify(displayName) ||
+    "developer";
 
-  const memberSuffix = memberId
-    .replace(/^FRDA-M-/i, "")
-    .toLowerCase()
-    .slice(-5);
+  const memberSuffix =
+    memberId
+      .replace(
+        /^FRDA-M-/i,
+        "",
+      )
+      .toLowerCase()
+      .slice(-5);
 
   return `${base}-${memberSuffix}`;
 }
@@ -284,20 +542,45 @@ async function loadDeveloperAccounts() {
     analyticsSnapshot,
     savesSnapshot,
   ] = await Promise.all([
-    adminDb.collection("members").get(),
-    adminDb.collection("developerProfiles").get(),
-    adminDb.collection("developerAnalytics").get(),
-    adminDb.collection("developerSaves").get(),
+    adminDb
+      .collection("members")
+      .get(),
+
+    adminDb
+      .collection(
+        "developerProfiles",
+      )
+      .get(),
+
+    adminDb
+      .collection(
+        "developerAnalytics",
+      )
+      .get(),
+
+    adminDb
+      .collection(
+        "developerSaves",
+      )
+      .get(),
   ]);
 
-  const profileByUid = new Map<
-    string,
-    FirebaseFirestore.DocumentData
-  >();
+  const profileByUid =
+    new Map<
+      string,
+      FirebaseFirestore.DocumentData
+    >();
 
-  profilesSnapshot.docs.forEach((document) => {
-    profileByUid.set(document.id, document.data());
-  });
+  profilesSnapshot.docs.forEach(
+    (
+      document,
+    ) => {
+      profileByUid.set(
+        document.id,
+        document.data(),
+      );
+    },
+  );
 
   const analyticsByUid =
     new Map<
@@ -306,7 +589,9 @@ async function loadDeveloperAccounts() {
     >();
 
   analyticsSnapshot.docs.forEach(
-    (document) => {
+    (
+      document,
+    ) => {
       analyticsByUid.set(
         document.id,
         document.data(),
@@ -315,13 +600,20 @@ async function loadDeveloperAccounts() {
   );
 
   const bookmarkCountByUid =
-    new Map<string, number>();
+    new Map<
+      string,
+      number
+    >();
 
   savesSnapshot.docs.forEach(
-    (document) => {
+    (
+      document,
+    ) => {
       const developerUid =
         String(
-          document.data().developerUid ||
+          document
+            .data()
+            .developerUid ||
           "",
         );
 
@@ -340,68 +632,106 @@ async function loadDeveloperAccounts() {
     },
   );
 
-  const accounts = membersSnapshot.docs
-    .filter((document) =>
-      isDeveloperAccount(
-        document.data().accountPurpose
+  const accounts =
+    membersSnapshot.docs
+      .filter(
+        (
+          document,
+        ) =>
+          isDeveloperAccount(
+            document
+              .data()
+              .accountPurpose,
+          ),
       )
-    )
-    .map((document) => {
-      const member = document.data();
+      .map(
+        (
+          document,
+        ) => {
+          const member =
+            document.data();
 
-      const authUid =
-        typeof member.authUid === "string"
-          ? member.authUid
-          : "";
+          const authUid =
+            typeof member.authUid ===
+              "string"
+              ? member.authUid
+              : "";
 
-      const profile = authUid
-        ? profileByUid.get(authUid) || null
-        : null;
+          const profile =
+            authUid
+              ? profileByUid.get(
+                authUid,
+              ) || null
+              : null;
 
-      return serializeDeveloperAccount({
-        memberId: document.id,
-        member,
-        profile,
-        analytics:
-          authUid
-            ? analyticsByUid.get(authUid) || null
-            : null,
-        bookmarkCount:
-          authUid
-            ? bookmarkCountByUid.get(authUid) || 0
-            : 0,
-      });
-    });
+          return serializeDeveloperAccount({
+            memberId:
+              document.id,
 
-  accounts.sort((first, second) => {
-    const firstTime =
-      new Date(
-        first.publicationRequestedAt ||
-        first.profileUpdatedAt ||
-        first.activatedAt ||
-        0
-      ).getTime();
+            member,
 
-    const secondTime =
-      new Date(
-        second.publicationRequestedAt ||
-        second.profileUpdatedAt ||
-        second.activatedAt ||
-        0
-      ).getTime();
+            profile,
 
-    return secondTime - firstTime;
-  });
+            analytics:
+              authUid
+                ? analyticsByUid.get(
+                  authUid,
+                ) || null
+                : null,
+
+            bookmarkCount:
+              authUid
+                ? bookmarkCountByUid.get(
+                  authUid,
+                ) || 0
+                : 0,
+          });
+        },
+      );
+
+  accounts.sort(
+    (
+      first,
+      second,
+    ) => {
+      const firstTime =
+        new Date(
+          first
+            .publicationRequestedAt ||
+          first
+            .profileUpdatedAt ||
+          first.activatedAt ||
+          0,
+        ).getTime();
+
+      const secondTime =
+        new Date(
+          second
+            .publicationRequestedAt ||
+          second
+            .profileUpdatedAt ||
+          second.activatedAt ||
+          0,
+        ).getTime();
+
+      return (
+        secondTime -
+        firstTime
+      );
+    },
+  );
 
   return accounts;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+) {
   try {
     const authorization =
       await authorizeAdminRequest(
         request,
-        "membership_developer_accounts"
+        "membership_developer_accounts",
       );
 
     if (!authorization.ok) {
@@ -418,7 +748,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error(
       "Load developer accounts error:",
-      error
+      error,
     );
 
     return NextResponse.json(
@@ -427,75 +757,96 @@ export async function GET(request: NextRequest) {
         error:
           "Could not load developer accounts and profiles.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      },
     );
   }
 }
 
 export async function PATCH(
-  request: NextRequest
+  request: NextRequest,
 ) {
   try {
     const authorization =
       await authorizeAdminRequest(
         request,
-        "membership_developer_accounts"
+        "membership_developer_accounts",
       );
 
     if (!authorization.ok) {
       return authorization.response;
     }
 
-    const body = (await request
-      .json()
-      .catch(() => null)) as
+    const body =
+      await request
+        .json()
+        .catch(() => null) as
       | {
-          uid?: unknown;
-          memberId?: unknown;
-          action?: unknown;
-          reviewerNote?: unknown;
-        }
+        uid?: unknown;
+        memberId?: unknown;
+        action?: unknown;
+        reviewerNote?: unknown;
+      }
       | null;
 
     const uid =
-      typeof body?.uid === "string"
+      typeof body?.uid ===
+        "string"
         ? body.uid.trim()
         : "";
 
     const memberId =
-      typeof body?.memberId === "string"
+      typeof body?.memberId ===
+        "string"
         ? body.memberId.trim()
         : "";
 
     const reviewerNote =
-      typeof body?.reviewerNote === "string"
-        ? body.reviewerNote.trim().slice(0, 3000)
+      typeof body
+        ?.reviewerNote ===
+        "string"
+        ? body.reviewerNote
+          .trim()
+          .slice(0, 3000)
         : "";
 
-    if (!uid || !memberId) {
+    if (
+      !uid ||
+      !memberId
+    ) {
       return NextResponse.json(
         {
           ok: false,
           error:
             "A developer UID and Member ID are required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        },
       );
     }
 
-    if (!isReviewAction(body?.action)) {
+    if (
+      !isReviewAction(
+        body?.action,
+      )
+    ) {
       return NextResponse.json(
         {
           ok: false,
           error:
             "A valid profile-review action is required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        },
       );
     }
 
     if (
-      body.action === "request_changes" &&
+      body.action ===
+      "request_changes" &&
       !reviewerNote
     ) {
       return NextResponse.json(
@@ -504,139 +855,583 @@ export async function PATCH(
           error:
             "Add a reviewer note explaining the requested changes.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        },
       );
     }
 
-    const profileReference = adminDb
-      .collection("developerProfiles")
-      .doc(uid);
+    if (
+      body.action ===
+      "suspend_account" &&
+      !reviewerNote
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Add an internal reason before suspending this account.",
+        },
+        {
+          status: 400,
+        },
+      );
+    }
 
-    const memberReference = adminDb
-      .collection("members")
-      .doc(memberId);
+    const profileReference =
+      adminDb
+        .collection(
+          "developerProfiles",
+        )
+        .doc(uid);
 
-    const requestReference = adminDb
-      .collection("profilePublicationRequests")
-      .doc(uid);
+    const memberReference =
+      adminDb
+        .collection("members")
+        .doc(memberId);
+
+    const requestReference =
+      adminDb
+        .collection(
+          "profilePublicationRequests",
+        )
+        .doc(uid);
 
     await adminDb.runTransaction(
-      async (transaction) => {
-        const [profileSnapshot, memberSnapshot] =
-          await Promise.all([
-            transaction.get(profileReference),
-            transaction.get(memberReference),
-          ]);
+      async (
+        transaction,
+      ) => {
+        const [
+          profileSnapshot,
+          memberSnapshot,
+        ] = await Promise.all([
+          transaction.get(
+            profileReference,
+          ),
 
-        if (!profileSnapshot.exists) {
+          transaction.get(
+            memberReference,
+          ),
+        ]);
+
+        if (
+          !profileSnapshot.exists
+        ) {
           throw new Error(
-            "The developer profile no longer exists."
+            "The developer profile no longer exists.",
           );
         }
 
-        if (!memberSnapshot.exists) {
+        if (
+          !memberSnapshot.exists
+        ) {
           throw new Error(
-            "The permanent member record no longer exists."
+            "The permanent member record no longer exists.",
           );
         }
 
         const profile =
-          profileSnapshot.data() || {};
+          profileSnapshot.data() ||
+          {};
 
-        const currentStatus = String(
-          profile.profileStatus || "draft"
-        );
+        const memberData =
+          memberSnapshot.data() ||
+          {};
+
+        const currentStatus =
+          String(
+            profile.profileStatus ||
+            "draft",
+          );
 
         const reviewerFields = {
           publicationReviewedAt:
-            FieldValue.serverTimestamp(),
+            FieldValue
+              .serverTimestamp(),
 
           publicationReviewedByUid:
             authorization.staff.uid,
 
           publicationReviewedByEmail:
-            authorization.staff.emailAddress,
+            authorization.staff
+              .emailAddress,
 
           publicationReviewedByName:
-            authorization.staff.displayName ||
-            authorization.staff.emailAddress,
+            authorization.staff
+              .displayName ||
+            authorization.staff
+              .emailAddress,
 
           publicationReviewerNote:
             reviewerNote,
 
           updatedAt:
-            FieldValue.serverTimestamp(),
+            FieldValue
+              .serverTimestamp(),
         };
 
-        if (body.action === "grant_premium") {
-          if (profile.isPublished !== true || currentStatus !== "live") {
-            throw new Error("Only a published profile can receive lifetime premium.");
+        if (
+          body.action ===
+          "suspend_account"
+        ) {
+          if (
+            memberData.accountStatus ===
+            "suspended" ||
+            memberData.memberStatus ===
+            "suspended"
+          ) {
+            throw new Error(
+              "This account is already suspended.",
+            );
           }
-
-          if (memberSnapshot.data()?.developerPremiumStatus === "qualified") {
-            throw new Error("This developer already has lifetime premium.");
-          }
-
-          const premiumSnapshot = await transaction.get(
-            adminDb.collection("developerPremiumLaunchGrants").doc("launch_lifetime"),
-          );
-          const currentCount = typeof premiumSnapshot.data()?.approvedCount === "number"
-            ? premiumSnapshot.data()!.approvedCount
-            : 0;
-
-          if (currentCount >= DEVELOPER_PREMIUM_LAUNCH_LIMIT) {
-            throw new Error("All 30 lifetime premium launch spots have already been awarded.");
-          }
-
-          transaction.set(memberReference, {
-            developerPremiumStatus: "qualified",
-            developerPremiumGrantType: "launch_lifetime",
-            developerPremiumGrantedAt: FieldValue.serverTimestamp(),
-            developerPremiumGrantedByUid: authorization.staff.uid,
-            developerPremiumGrantedByEmail: authorization.staff.emailAddress,
-            analyticsAccess: "pro",
-            customSubdomainAccess: "premium",
-            updatedAt: FieldValue.serverTimestamp(),
-          }, { merge: true });
-
-          transaction.set(profileReference, {
-            developerPremiumStatus: "qualified",
-            developerPremiumGrantType: "launch_lifetime",
-            updatedAt: FieldValue.serverTimestamp(),
-          }, { merge: true });
 
           transaction.set(
-            adminDb.collection("developerPremiumLaunchGrants").doc("launch_lifetime"),
-            { approvedCount: currentCount + 1, limit: DEVELOPER_PREMIUM_LAUNCH_LIMIT, updatedAt: FieldValue.serverTimestamp() },
-            { merge: true },
+            memberReference,
+            {
+              accountStatus:
+                "suspended",
+
+              memberStatus:
+                "suspended",
+
+              profileStatus:
+                "hidden",
+
+              accountSuspensionReason:
+                reviewerNote,
+
+              accountSuspendedAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              accountSuspendedByUid:
+                authorization.staff.uid,
+
+              accountSuspendedByEmail:
+                authorization.staff
+                  .emailAddress,
+
+              accountSuspendedByName:
+                authorization.staff
+                  .displayName ||
+                authorization.staff
+                  .emailAddress,
+
+              accountRestoredAt:
+                FieldValue.delete(),
+
+              accountRestoredByUid:
+                FieldValue.delete(),
+
+              accountRestoredByEmail:
+                FieldValue.delete(),
+
+              accountRestoredByName:
+                FieldValue.delete(),
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
           );
 
-          transaction.set(adminDb.collection("memberNotifications").doc(), {
-            memberId,
-            type: "developer_premium_qualified",
-            title: "Lifetime premium unlocked",
-            message: "Your developer profile has qualified for lifetime FRDA Profile Premium. Profile analytics and your custom FRDA subdomain are now available at no cost.",
-            href: "/member/dashboard",
-            isRead: false,
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+          transaction.set(
+            profileReference,
+            {
+              profileStatus:
+                "hidden",
+
+              isPublished: false,
+
+              moderationLock: true,
+
+              moderationNote:
+                reviewerNote,
+
+              moderationSource:
+                "account_suspension",
+
+              hiddenAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
+          transaction.set(
+            requestReference,
+            {
+              status:
+                "account_suspended",
+
+              reviewerNote,
+
+              reviewedAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              reviewedByUid:
+                authorization.staff
+                  .uid,
+
+              reviewedByEmail:
+                authorization.staff
+                  .emailAddress,
+
+              reviewedByName:
+                authorization.staff
+                  .displayName ||
+                authorization.staff
+                  .emailAddress,
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
           return;
         }
 
-        if (body.action === "approve") {
-          if (currentStatus !== "pending_review") {
+        if (
+          body.action ===
+          "restore_account"
+        ) {
+          if (
+            memberData.accountStatus !==
+            "suspended" &&
+            memberData.memberStatus !==
+            "suspended"
+          ) {
             throw new Error(
-              "Only profiles waiting for review can be approved."
+              "This account is not currently suspended.",
+            );
+          }
+
+          transaction.set(
+            memberReference,
+            {
+              accountStatus:
+                "active",
+
+              memberStatus:
+                "active",
+
+              profileStatus:
+                "draft",
+
+              accountRestoredAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              accountRestoredByUid:
+                authorization.staff.uid,
+
+              accountRestoredByEmail:
+                authorization.staff
+                  .emailAddress,
+
+              accountRestoredByName:
+                authorization.staff
+                  .displayName ||
+                authorization.staff
+                  .emailAddress,
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
+          transaction.set(
+            profileReference,
+            {
+              profileStatus:
+                "draft",
+
+              isPublished: false,
+
+              moderationLock: false,
+
+              moderationNote:
+                "",
+
+              moderationSource:
+                "",
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
+          transaction.set(
+            requestReference,
+            {
+              status:
+                "account_restored",
+
+              reviewerNote,
+
+              reviewedAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              reviewedByUid:
+                authorization.staff
+                  .uid,
+
+              reviewedByEmail:
+                authorization.staff
+                  .emailAddress,
+
+              reviewedByName:
+                authorization.staff
+                  .displayName ||
+                authorization.staff
+                  .emailAddress,
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
+          return;
+        }
+
+
+        if (
+          body.action ===
+          "grant_premium"
+        ) {
+          if (
+            profile.isPublished !==
+            true ||
+            currentStatus !== "live"
+          ) {
+            throw new Error(
+              "Only a published profile can receive launch lifetime premium.",
+            );
+          }
+
+          if (
+            hasDeveloperPremiumAccess(
+              memberData,
+            )
+          ) {
+            throw new Error(
+              "This developer already has premium access.",
+            );
+          }
+
+          if (
+            !isEligibleForLaunchPremiumReview(
+              memberData,
+            )
+          ) {
+            throw new Error(
+              "This account is not eligible for one of the 30 launch premium spots.",
+            );
+          }
+
+          if (
+            memberData
+              .developerPremiumStatus !==
+            "pending_review"
+          ) {
+            throw new Error(
+              "This profile is not awaiting launch premium review.",
+            );
+          }
+
+          const premiumReference =
+            adminDb
+              .collection(
+                "developerPremiumLaunchGrants",
+              )
+              .doc(
+                "launch_lifetime",
+              );
+
+          const premiumSnapshot =
+            await transaction.get(
+              premiumReference,
+            );
+
+          const currentCount =
+            typeof premiumSnapshot
+              .data()
+              ?.approvedCount ===
+              "number"
+              ? premiumSnapshot
+                .data()!
+                .approvedCount
+              : 0;
+
+          if (
+            currentCount >=
+            DEVELOPER_PREMIUM_LAUNCH_LIMIT
+          ) {
+            throw new Error(
+              "All 30 lifetime premium launch spots have already been awarded.",
+            );
+          }
+
+          transaction.set(
+            memberReference,
+            {
+              developerPremiumStatus:
+                "qualified",
+
+              developerPremiumGrantType:
+                "launch_lifetime",
+
+              developerPremiumGrantedAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              developerPremiumGrantedByUid:
+                authorization.staff
+                  .uid,
+
+              developerPremiumGrantedByEmail:
+                authorization.staff
+                  .emailAddress,
+
+              analyticsAccess:
+                "pro",
+
+              customSubdomainAccess:
+                "premium",
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
+          transaction.set(
+            profileReference,
+            {
+              developerPremiumStatus:
+                "qualified",
+
+              developerPremiumGrantType:
+                "launch_lifetime",
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
+          transaction.set(
+            premiumReference,
+            {
+              approvedCount:
+                currentCount + 1,
+
+              limit:
+                DEVELOPER_PREMIUM_LAUNCH_LIMIT,
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+          );
+
+          transaction.set(
+            adminDb
+              .collection(
+                "memberNotifications",
+              )
+              .doc(),
+            {
+              memberId,
+
+              type:
+                "developer_premium_qualified",
+
+              title:
+                "Lifetime premium unlocked",
+
+              message:
+                "Your developer profile has qualified for lifetime FRDA Profile Premium. Profile analytics and your custom FRDA subdomain are now available at no cost.",
+
+              href:
+                "/member/dashboard",
+
+              isRead: false,
+
+              createdAt:
+                FieldValue
+                  .serverTimestamp(),
+
+              updatedAt:
+                FieldValue
+                  .serverTimestamp(),
+            },
+          );
+
+          return;
+        }
+
+        if (
+          body.action ===
+          "approve"
+        ) {
+          if (
+            currentStatus !==
+            "pending_review"
+          ) {
+            throw new Error(
+              "Only profiles waiting for review can be approved.",
             );
           }
 
           const profileSlug =
-            String(profile.profileSlug || "") ||
+            String(
+              profile.profileSlug ||
+              "",
+            ) ||
             createProfileSlug({
-              displayName: String(
-                profile.displayName || "Developer"
-              ),
+              displayName:
+                String(
+                  profile.displayName ||
+                  "Developer",
+                ),
+
               memberId,
             });
 
@@ -645,60 +1440,85 @@ export async function PATCH(
             {
               ...reviewerFields,
 
-              profileStatus: "live",
+              profileStatus:
+                "live",
+
               isPublished: true,
+
               profileSlug,
 
               publishedAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
             },
-            { merge: true }
+            {
+              merge: true,
+            },
           );
 
           transaction.set(
             memberReference,
             {
-              profileStatus: "live",
+              profileStatus:
+                "live",
+
               updatedAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
             },
-            { merge: true }
+            {
+              merge: true,
+            },
           );
 
           transaction.set(
             requestReference,
             {
-              status: "approved",
+              status:
+                "approved",
+
               reviewerNote,
 
               reviewedAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
 
               reviewedByUid:
-                authorization.staff.uid,
+                authorization.staff
+                  .uid,
 
               reviewedByEmail:
-                authorization.staff.emailAddress,
+                authorization.staff
+                  .emailAddress,
 
               reviewedByName:
-                authorization.staff.displayName ||
-                authorization.staff.emailAddress,
+                authorization.staff
+                  .displayName ||
+                authorization.staff
+                  .emailAddress,
 
               updatedAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
             },
-            { merge: true }
+            {
+              merge: true,
+            },
           );
 
           return;
         }
 
         if (
-          body.action === "request_changes"
+          body.action ===
+          "request_changes"
         ) {
-          if (currentStatus !== "pending_review") {
+          if (
+            currentStatus !==
+            "pending_review"
+          ) {
             throw new Error(
-              "Only profiles waiting for review can receive change requests."
+              "Only profiles waiting for review can receive change requests.",
             );
           }
 
@@ -712,7 +1532,9 @@ export async function PATCH(
 
               isPublished: false,
             },
-            { merge: true }
+            {
+              merge: true,
+            },
           );
 
           transaction.set(
@@ -722,46 +1544,64 @@ export async function PATCH(
                 "changes_requested",
 
               updatedAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
             },
-            { merge: true }
+            {
+              merge: true,
+            },
           );
 
           transaction.set(
             requestReference,
             {
-              status: "changes_requested",
+              status:
+                "changes_requested",
+
               reviewerNote,
 
               reviewedAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
 
               reviewedByUid:
-                authorization.staff.uid,
+                authorization.staff
+                  .uid,
 
               reviewedByEmail:
-                authorization.staff.emailAddress,
+                authorization.staff
+                  .emailAddress,
 
               reviewedByName:
-                authorization.staff.displayName ||
-                authorization.staff.emailAddress,
+                authorization.staff
+                  .displayName ||
+                authorization.staff
+                  .emailAddress,
 
               updatedAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
             },
-            { merge: true }
+            {
+              merge: true,
+            },
           );
 
           return;
         }
 
-        if (body.action === "hide") {
+        if (
+          body.action ===
+          "hide"
+        ) {
           if (
-            currentStatus !== "live" &&
-            profile.isPublished !== true
+            currentStatus !==
+            "live" &&
+            profile.isPublished !==
+            true
           ) {
             throw new Error(
-              "Only a published profile can be hidden."
+              "Only a published profile can be hidden.",
             );
           }
 
@@ -770,53 +1610,80 @@ export async function PATCH(
             {
               ...reviewerFields,
 
-              profileStatus: "hidden",
+              profileStatus:
+                "hidden",
+
               isPublished: false,
 
               hiddenAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
             },
-            { merge: true }
+            {
+              merge: true,
+            },
           );
 
           transaction.set(
             memberReference,
             {
-              profileStatus: "hidden",
+              profileStatus:
+                "hidden",
 
               updatedAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
             },
-            { merge: true }
+            {
+              merge: true,
+            },
           );
 
           transaction.set(
             requestReference,
             {
-              status: "hidden",
+              status:
+                "hidden",
+
               reviewerNote,
 
               reviewedAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
 
               reviewedByUid:
-                authorization.staff.uid,
+                authorization.staff
+                  .uid,
 
               reviewedByEmail:
-                authorization.staff.emailAddress,
+                authorization.staff
+                  .emailAddress,
 
               reviewedByName:
-                authorization.staff.displayName ||
-                authorization.staff.emailAddress,
+                authorization.staff
+                  .displayName ||
+                authorization.staff
+                  .emailAddress,
 
               updatedAt:
-                FieldValue.serverTimestamp(),
+                FieldValue
+                  .serverTimestamp(),
             },
-            { merge: true }
+            {
+              merge: true,
+            },
           );
         }
-      }
+      },
     );
+
+    if (
+      body.action ===
+      "suspend_account"
+    ) {
+      await adminAuth
+        .revokeRefreshTokens(uid);
+    }
 
     const [
       updatedMemberSnapshot,
@@ -825,45 +1692,73 @@ export async function PATCH(
       updatedSavesSnapshot,
     ] = await Promise.all([
       memberReference.get(),
+
       profileReference.get(),
+
       adminDb
-        .collection("developerAnalytics")
+        .collection(
+          "developerAnalytics",
+        )
         .doc(uid)
         .get(),
+
       adminDb
-        .collection("developerSaves")
-        .where("developerUid", "==", uid)
+        .collection(
+          "developerSaves",
+        )
+        .where(
+          "developerUid",
+          "==",
+          uid,
+        )
         .get(),
     ]);
 
     return NextResponse.json({
       ok: true,
 
-      developer: serializeDeveloperAccount({
-        memberId,
-        member:
-          updatedMemberSnapshot.data() || {},
-        profile:
-          updatedProfileSnapshot.data() || {},
-        analytics:
-          updatedAnalyticsSnapshot.data() || null,
-        bookmarkCount:
-          updatedSavesSnapshot.size,
-      }),
+      developer:
+        serializeDeveloperAccount({
+          memberId,
+
+          member:
+            updatedMemberSnapshot
+              .data() || {},
+
+          profile:
+            updatedProfileSnapshot
+              .data() || {},
+
+          analytics:
+            updatedAnalyticsSnapshot
+              .data() || null,
+
+          bookmarkCount:
+            updatedSavesSnapshot.size,
+        }),
 
       message:
-        body.action === "grant_premium"
-          ? "Lifetime premium was granted to this developer."
-          : body.action === "approve"
-            ? "Developer profile approved and published."
-            : body.action === "request_changes"
-              ? "Changes were requested from the developer."
-              : "Developer profile hidden.",
+        body.action ===
+          "grant_premium"
+          ? "Launch lifetime premium was granted to this developer."
+          : body.action ===
+            "suspend_account"
+            ? "The member account was suspended and its public profile was hidden."
+            : body.action ===
+              "restore_account"
+              ? "The member account was restored. Its profile remains unpublished as a draft."
+              : body.action ===
+                "approve"
+                ? "Developer profile approved and published."
+                : body.action ===
+                  "request_changes"
+                  ? "Changes were requested from the developer."
+                  : "Developer profile hidden.",
     });
   } catch (error) {
     console.error(
       "Review developer profile error:",
-      error
+      error,
     );
 
     const message =
@@ -872,12 +1767,34 @@ export async function PATCH(
         : "Could not update the developer profile.";
 
     const status =
-      message.includes("Only profiles") ||
-      message.includes("Only a published") ||
-      message.includes("already has lifetime") ||
-      message.includes("All 30")
+      message.includes(
+        "Only profiles",
+      ) ||
+        message.includes(
+          "Only a published",
+        ) ||
+        message.includes(
+          "already has premium",
+        ) ||
+        message.includes(
+          "All 30",
+        ) ||
+        message.includes(
+          "not eligible",
+        ) ||
+        message.includes(
+          "not awaiting",
+        ) ||
+        message.includes(
+          "already suspended",
+        ) ||
+        message.includes(
+          "not currently suspended",
+        )
         ? 409
-        : message.includes("no longer exists")
+        : message.includes(
+          "no longer exists",
+        )
           ? 404
           : 500;
 
@@ -886,7 +1803,9 @@ export async function PATCH(
         ok: false,
         error: message,
       },
-      { status }
+      {
+        status,
+      },
     );
   }
 }

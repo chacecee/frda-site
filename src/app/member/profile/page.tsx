@@ -13,6 +13,7 @@ import {
   Camera,
   Eye,
   LoaderCircle,
+  LockKeyhole,
   Pencil,
   Plus,
   Save,
@@ -176,6 +177,14 @@ type PublicationStatus = {
   moderationNote: string;
   moderationSource: string;
   moderationReportId: string;
+
+  developerPremiumStatus:
+  | "not_eligible"
+  | "pending_review"
+  | "qualified";
+
+  hasPremiumAccess: boolean;
+  launchPremiumEligible: boolean;
 };
 
 const SKILL_OPTIONS = [
@@ -617,17 +626,24 @@ export default function MemberProfilePage() {
 
   const [successMessage, setSuccessMessage] = useState("");
 
-  const [publication, setPublication] = useState<PublicationStatus>({
-    status: "draft",
-    isPublished: false,
-    publishedAt: null,
-    unpublishedAt: null,
-    reviewerNote: "",
-    moderationLock: false,
-    moderationNote: "",
-    moderationSource: "",
-    moderationReportId: "",
-  });
+  const [publication, setPublication] =
+    useState<PublicationStatus>({
+      status: "draft",
+      isPublished: false,
+      publishedAt: null,
+      unpublishedAt: null,
+      reviewerNote: "",
+      moderationLock: false,
+      moderationNote: "",
+      moderationSource: "",
+      moderationReportId: "",
+
+      developerPremiumStatus:
+        "not_eligible",
+
+      hasPremiumAccess: false,
+      launchPremiumEligible: false,
+    });
 
   const [submittingForReview, setSubmittingForReview] = useState(false);
 
@@ -1113,12 +1129,12 @@ export default function MemberProfilePage() {
         result.profile.avatarUrl &&
           result.profile.avatarStoragePath
           ? {
-              url: result.profile.avatarUrl,
-              storagePath:
-                result.profile.avatarStoragePath,
-              width: 512,
-              height: 512,
-            }
+            url: result.profile.avatarUrl,
+            storagePath:
+              result.profile.avatarStoragePath,
+            width: 512,
+            height: 512,
+          }
           : null,
       );
 
@@ -1256,12 +1272,12 @@ export default function MemberProfilePage() {
       result.profile.avatarUrl &&
         result.profile.avatarStoragePath
         ? {
-            url: result.profile.avatarUrl,
-            storagePath:
-              result.profile.avatarStoragePath,
-            width: 512,
-            height: 512,
-          }
+          url: result.profile.avatarUrl,
+          storagePath:
+            result.profile.avatarStoragePath,
+          width: 512,
+          height: 512,
+        }
         : null,
     );
 
@@ -1903,24 +1919,24 @@ export default function MemberProfilePage() {
           current.map((project) =>
             project.id === projectId
               ? {
-                  ...project,
-                  images:
-                    project.images.map(
-                      (image) =>
-                        image.id ===
+                ...project,
+                images:
+                  project.images.map(
+                    (image) =>
+                      image.id ===
                         projectImage.id
-                          ? {
-                              ...image,
-                              url,
-                              storagePath,
-                              width:
-                                cropped.width,
-                              height:
-                                cropped.height,
-                            }
-                          : image,
-                    ),
-                }
+                        ? {
+                          ...image,
+                          url,
+                          storagePath,
+                          width:
+                            cropped.width,
+                          height:
+                            cropped.height,
+                        }
+                        : image,
+                  ),
+              }
               : project,
           ),
         );
@@ -1957,7 +1973,7 @@ export default function MemberProfilePage() {
           existing?.id ??
           (
             typeof crypto !== "undefined" &&
-            "randomUUID" in crypto
+              "randomUUID" in crypto
               ? crypto.randomUUID()
               : `cover-${Date.now()}`
           );
@@ -2006,24 +2022,24 @@ export default function MemberProfilePage() {
           (current) =>
             existing
               ? current
-                  .map((cover) =>
-                    cover.id === existing.id
-                      ? draftCover
-                      : cover,
-                  )
-                  .sort(
-                    (first, second) =>
-                      first.order -
-                      second.order,
-                  )
-              : [
-                  ...current,
-                  draftCover,
-                ].sort(
+                .map((cover) =>
+                  cover.id === existing.id
+                    ? draftCover
+                    : cover,
+                )
+                .sort(
                   (first, second) =>
                     first.order -
                     second.order,
-                ),
+                )
+              : [
+                ...current,
+                draftCover,
+              ].sort(
+                (first, second) =>
+                  first.order -
+                  second.order,
+              ),
         );
 
         setSuccessMessage(
@@ -2092,9 +2108,9 @@ export default function MemberProfilePage() {
             )
               ? current
               : [
-                  ...current,
-                  oldStoragePath,
-                ],
+                ...current,
+                oldStoragePath,
+              ],
         );
       }
 
@@ -2110,9 +2126,9 @@ export default function MemberProfilePage() {
                 ...item,
                 order:
                   (index + 1) as
-                    | 1
-                    | 2
-                    | 3,
+                  | 1
+                  | 2
+                  | 3,
               }),
             ),
       );
@@ -2591,173 +2607,289 @@ export default function MemberProfilePage() {
               </div>
             </section>
 
-            <section
-              className="border border-white/10 bg-white/[0.025] p-5 md:p-6"
+                        <section
+              className={`relative overflow-hidden border p-5 md:p-6 ${
+                publication.hasPremiumAccess
+                  ? "border-white/10 bg-white/[0.025]"
+                  : "border-violet-300/20 bg-violet-500/[0.055]"
+              }`}
               style={{ borderRadius: 8 }}
             >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-white">
-                    Custom Profile Address
-                  </h2>
+              {!publication.hasPremiumAccess ? (
+                <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet-500/10 blur-3xl" />
+              ) : null}
 
-                  <p className="mt-1 text-xs leading-5 text-zinc-500">
-                    Choose a short address for your public profile.
-                  </p>
-                </div>
-              </div>
+              <div className="relative">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold text-white">
+                        Custom Profile Address
+                      </h2>
 
-              {profile?.customSubdomain &&
-                !editingSubdomain ? (
-                <div
-                  className="mt-4 flex flex-col gap-3 border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                  style={{ borderRadius: 7 }}
-                >
-                  <p className="break-all text-sm font-semibold text-emerald-100">
-                    {profile.customSubdomain}
-                    .frdaph.org
-                  </p>
+                      {!publication.hasPremiumAccess ? (
+                        <span
+                          className="inline-flex items-center gap-1 border border-violet-300/20 bg-violet-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-violet-200"
+                          style={{
+                            borderRadius: 999,
+                          }}
+                        >
+                          <LockKeyhole
+                            size={11}
+                            strokeWidth={2}
+                          />
 
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const subdomain =
-                          profile.customSubdomain;
-
-                        const hostname =
-                          window.location.hostname;
-
-                        const isLocalhost =
-                          hostname === "localhost" ||
-                          hostname.endsWith(
-                            ".localhost",
-                          );
-
-                        const targetUrl =
-                          isLocalhost
-                            ? `http://${subdomain}.localhost${window.location.port
-                              ? `:${window.location.port}`
-                              : ""
-                            }`
-                            : `https://${subdomain}.frdaph.org`;
-
-                        window.open(
-                          targetUrl,
-                          "_blank",
-                          "noopener,noreferrer",
-                        );
-                      }}
-                      className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 border border-emerald-400/20 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
-                      style={{ borderRadius: 6 }}
-                    >
-                      <Eye className="h-4 w-4" />
-                      View
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingSubdomain(true);
-                        setSubdomainMessage("");
-                        setSubdomainAvailable(null);
-                      }}
-                      className="flex h-9 w-9 cursor-pointer items-center justify-center text-emerald-200 transition hover:text-white"
-                      aria-label="Edit custom profile address"
-                      title="Edit custom profile address"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4">
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <div
-                      className="flex min-w-0 flex-1 overflow-hidden border border-white/10 bg-black/20 focus-within:border-blue-400"
-                      style={{ borderRadius: 6 }}
-                    >
-                      <input
-                        type="text"
-                        value={subdomainValue}
-                        onChange={(event) => {
-                          const value =
-                            event.target.value
-                              .toLowerCase()
-                              .replace(
-                                /[^a-z0-9-]/g,
-                                "",
-                              );
-
-                          setSubdomainValue(value);
-                          setSubdomainAvailable(null);
-                          setSubdomainMessage("");
-                        }}
-                        minLength={3}
-                        maxLength={30}
-                        placeholder="your-name"
-                        className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm text-white outline-none placeholder:text-zinc-600"
-                      />
-
-                      <span className="flex shrink-0 items-center border-l border-white/10 bg-white/[0.03] px-3 text-sm text-zinc-500">
-                        .frdaph.org
-                      </span>
+                          Premium
+                        </span>
+                      ) : null}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={saveCustomSubdomain}
-                      disabled={
-                        savingSubdomain ||
-                        checkingSubdomain ||
-                        !subdomainValue.trim()
-                      }
-                      className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                      style={{ borderRadius: 6 }}
-                    >
-                      {savingSubdomain ? (
-                        <LoaderCircle className="h-4 w-4 animate-spin" />
-                      ) : null}
-                      Use Subdomain
-                    </button>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">
+                      Choose a short address for your public profile.
+                    </p>
+                  </div>
+                </div>
 
-                    {profile?.customSubdomain ? (
+                {!publication.hasPremiumAccess ? (
+                  <div className="mt-5">
+                    <div
+                      className="border border-violet-300/15 bg-black/15 p-4"
+                      style={{
+                        borderRadius: 7,
+                      }}
+                    >
+                      <p className="text-sm font-semibold text-violet-100">
+                        Create your own FRDA profile address
+                      </p>
+
+                      <p className="mt-2 text-sm leading-6 text-zinc-400">
+                        Profile Premium lets you replace the standard profile link with a custom address such as yourname.frdaph.org.
+                      </p>
+
+                      <div
+                        className="mt-4 flex overflow-hidden border border-white/10 bg-black/20 opacity-60"
+                        style={{
+                          borderRadius: 6,
+                        }}
+                      >
+                        <span className="min-w-0 flex-1 px-4 py-2.5 text-sm text-zinc-600">
+                          your-name
+                        </span>
+
+                        <span className="flex shrink-0 items-center border-l border-white/10 bg-white/[0.03] px-3 text-sm text-zinc-600">
+                          .frdaph.org
+                        </span>
+                      </div>
+
+                      {publication.launchPremiumEligible ? (
+                        <div
+                          className="mt-4 border border-sky-300/15 bg-sky-400/[0.06] p-4"
+                          style={{
+                            borderRadius: 7,
+                          }}
+                        >
+                          <p className="text-sm font-semibold text-sky-200">
+                            Available through the launch campaign
+                          </p>
+
+                          <p className="mt-2 text-xs leading-5 text-zinc-400">
+                            Complete and publish your developer profile to be considered for one of the 30 lifetime Profile Premium spots.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-4 text-xs leading-5 text-zinc-500">
+                          Custom profile addresses are included with Profile Premium.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : profile?.customSubdomain &&
+                  !editingSubdomain ? (
+                  <div
+                    className="mt-4 flex flex-col gap-3 border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    style={{ borderRadius: 7 }}
+                  >
+                    <p className="break-all text-sm font-semibold text-emerald-100">
+                      {profile.customSubdomain}
+                      .frdaph.org
+                    </p>
+
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
                       <button
                         type="button"
                         onClick={() => {
-                          setEditingSubdomain(false);
-                          setSubdomainValue(
-                            profile.customSubdomain,
+                          const subdomain =
+                            profile.customSubdomain;
+
+                          const hostname =
+                            window.location.hostname;
+
+                          const isLocalhost =
+                            hostname ===
+                              "localhost" ||
+                            hostname.endsWith(
+                              ".localhost",
+                            );
+
+                          const targetUrl =
+                            isLocalhost
+                              ? `http://${subdomain}.localhost${
+                                  window.location.port
+                                    ? `:${window.location.port}`
+                                    : ""
+                                }`
+                              : `https://${subdomain}.frdaph.org`;
+
+                          window.open(
+                            targetUrl,
+                            "_blank",
+                            "noopener,noreferrer",
                           );
-                          setSubdomainMessage("");
-                          setSubdomainAvailable(null);
                         }}
-                        className="min-h-10 cursor-pointer px-3 py-2 text-sm text-zinc-400 transition hover:text-white"
+                        className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 border border-emerald-400/20 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/20"
+                        style={{
+                          borderRadius: 6,
+                        }}
                       >
-                        Cancel
+                        <Eye className="h-4 w-4" />
+                        View
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingSubdomain(
+                            true,
+                          );
+
+                          setSubdomainMessage(
+                            "",
+                          );
+
+                          setSubdomainAvailable(
+                            null,
+                          );
+                        }}
+                        className="flex h-9 w-9 cursor-pointer items-center justify-center text-emerald-200 transition hover:text-white"
+                        aria-label="Edit custom profile address"
+                        title="Edit custom profile address"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4">
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <div
+                        className="flex min-w-0 flex-1 overflow-hidden border border-white/10 bg-black/20 focus-within:border-blue-400"
+                        style={{
+                          borderRadius: 6,
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={subdomainValue}
+                          onChange={(event) => {
+                            const value =
+                              event.target.value
+                                .toLowerCase()
+                                .replace(
+                                  /[^a-z0-9-]/g,
+                                  "",
+                                );
+
+                            setSubdomainValue(
+                              value,
+                            );
+
+                            setSubdomainAvailable(
+                              null,
+                            );
+
+                            setSubdomainMessage(
+                              "",
+                            );
+                          }}
+                          minLength={3}
+                          maxLength={30}
+                          placeholder="your-name"
+                          className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm text-white outline-none placeholder:text-zinc-600"
+                        />
+
+                        <span className="flex shrink-0 items-center border-l border-white/10 bg-white/[0.03] px-3 text-sm text-zinc-500">
+                          .frdaph.org
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={
+                          saveCustomSubdomain
+                        }
+                        disabled={
+                          savingSubdomain ||
+                          checkingSubdomain ||
+                          !subdomainValue.trim()
+                        }
+                        className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{
+                          borderRadius: 6,
+                        }}
+                      >
+                        {savingSubdomain ? (
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                        ) : null}
+
+                        Use Subdomain
+                      </button>
+
+                      {profile?.customSubdomain ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingSubdomain(
+                              false,
+                            );
+
+                            setSubdomainValue(
+                              profile.customSubdomain,
+                            );
+
+                            setSubdomainMessage(
+                              "",
+                            );
+
+                            setSubdomainAvailable(
+                              null,
+                            );
+                          }}
+                          className="min-h-10 cursor-pointer px-3 py-2 text-sm text-zinc-400 transition hover:text-white"
+                        >
+                          Cancel
+                        </button>
+                      ) : null}
+                    </div>
+
+                    <p className="mt-2 text-xs leading-5 text-zinc-500">
+                      Use 3–30 lowercase letters, numbers, or hyphens.
+                    </p>
+
+                    {subdomainMessage ? (
+                      <p
+                        className={`mt-2 text-sm ${
+                          subdomainAvailable
+                            ? "text-emerald-300"
+                            : "text-red-300"
+                        }`}
+                      >
+                        {subdomainMessage}
+                      </p>
                     ) : null}
                   </div>
-
-                  <p className="mt-2 text-xs leading-5 text-zinc-500">
-                    Use 3–30 lowercase letters, numbers, or hyphens.
-                  </p>
-
-                  {subdomainMessage ? (
-                    <p
-                      className={`mt-2 text-sm ${subdomainAvailable
-                        ? "text-emerald-300"
-                        : "text-red-300"
-                        }`}
-                    >
-                      {subdomainMessage}
-                    </p>
-                  ) : null}
-                </div>
-              )}
+                )}
+              </div>
             </section>
-
-
 
             <section
               className="border border-white/10 bg-white/[0.025] p-5 md:p-6"

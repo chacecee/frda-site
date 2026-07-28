@@ -47,6 +47,14 @@ type DeveloperAccount = {
   accountPurpose: string;
   accountStatus: string;
   memberStatus: string;
+
+  accountSuspensionReason: string;
+  accountSuspendedAt: string | null;
+  accountSuspendedByName: string;
+
+  accountRestoredAt: string | null;
+  accountRestoredByName: string;
+
   profileStatus: ProfileStatus;
 
   headline: string;
@@ -58,8 +66,11 @@ type DeveloperAccount = {
   experienceTierIsSelfDeclared: boolean;
   deliveryScope: string;
 
-  robloxProfileUrl: string;
   portfolioUrl: string;
+
+  customSubdomain: string;
+  customProfileAddress: string;
+
   profileSlug: string;
 
   isPublished: boolean;
@@ -67,6 +78,7 @@ type DeveloperAccount = {
   memberListingLimit: number;
   paidListingCredits: number;
 
+  memberCreatedAt: string | null;
   activatedAt: string | null;
   profileCreatedAt: string | null;
   profileUpdatedAt: string | null;
@@ -88,6 +100,9 @@ type DeveloperAccount = {
   developerPremiumGrantType: string;
   developerPremiumGrantedAt: string | null;
   hasPremiumAccess: boolean;
+
+  launchPremiumEligible: boolean;
+  launchPremiumIneligibilityReason: string;
 };
 
 function formatDate(
@@ -177,6 +192,27 @@ function getDeliveryScopeLabel(value: string): string {
   }
 }
 
+function getPremiumGrantLabel(
+  value: string,
+): string {
+  switch (value) {
+    case "grandfathered_lifetime":
+      return "Grandfathered lifetime premium";
+
+    case "launch_lifetime":
+      return "Launch lifetime premium";
+
+    case "manual_lifetime":
+      return "Manual lifetime premium";
+
+    case "subscription":
+      return "Premium subscription";
+
+    default:
+      return "";
+  }
+}
+
 function getAvailabilityLabel(
   value: string
 ): string {
@@ -256,7 +292,13 @@ export default function DeveloperAccountsPage() {
 
   const [processingAction, setProcessingAction] =
     useState<
-      "approve" | "request_changes" | "hide" | "grant_premium" | null
+      | "approve"
+      | "request_changes"
+      | "hide"
+      | "grant_premium"
+      | "suspend_account"
+      | "restore_account"
+      | null
     >(null);
 
   const displayName =
@@ -303,7 +345,7 @@ export default function DeveloperAccountsPage() {
         if (!response.ok || !result?.ok) {
           throw new Error(
             result?.error ||
-              "Could not load developer accounts."
+            "Could not load developer accounts."
           );
         }
 
@@ -564,6 +606,8 @@ export default function DeveloperAccountsPage() {
       | "request_changes"
       | "hide"
       | "grant_premium"
+      | "suspend_account"
+      | "restore_account"
   ) {
     if (
       !user ||
@@ -581,6 +625,42 @@ export default function DeveloperAccountsPage() {
         "Add a reviewer note explaining the requested changes."
       );
       return;
+    }
+
+    if (
+      action === "suspend_account" &&
+      !reviewerNote.trim()
+    ) {
+      notify.error(
+        "Add an internal reason before suspending this account."
+      );
+      return;
+    }
+
+    if (
+      action === "suspend_account"
+    ) {
+      const confirmed =
+        window.confirm(
+          "Suspend this member account?\n\nThe member will be blocked from protected portal features, their profile will be hidden, and their active sessions will be revoked."
+        );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    if (
+      action === "restore_account"
+    ) {
+      const confirmed =
+        window.confirm(
+          "Restore this member account?\n\nThe member will regain portal access, but their developer profile will remain unpublished as a draft."
+        );
+
+      if (!confirmed) {
+        return;
+      }
     }
 
     setProcessingAction(action);
@@ -619,7 +699,7 @@ export default function DeveloperAccountsPage() {
       if (!response.ok || !result?.ok) {
         throw new Error(
           result?.error ||
-            "Could not update the developer profile."
+          "Could not update the developer profile."
         );
       }
 
@@ -629,7 +709,7 @@ export default function DeveloperAccountsPage() {
       setDevelopers((current) =>
         current.map((developer) =>
           developer.memberId ===
-          updatedDeveloper.memberId
+            updatedDeveloper.memberId
             ? updatedDeveloper
             : developer
         )
@@ -719,16 +799,19 @@ export default function DeveloperAccountsPage() {
             </p>
           </div>
 
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-white">
-              Developer Accounts
-            </h1>
+          <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-white">
+                Developer Accounts
+              </h1>
 
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-              Review developer membership accounts,
-              profile drafts, and publication
-              requests.
-            </p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
+                Review developer membership accounts,
+                profile drafts, and publication
+                requests.
+              </p>
+            </div>
+
           </div>
 
           <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -774,8 +857,8 @@ export default function DeveloperAccountsPage() {
               onChange={(event) =>
                 setStatusFilter(
                   event.target.value as
-                    | ProfileStatus
-                    | "all"
+                  | ProfileStatus
+                  | "all"
                 )
               }
               className="border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
@@ -1301,12 +1384,43 @@ export default function DeveloperAccountsPage() {
 
               <div className="space-y-6">
                 <section
-                  className="border border-zinc-800 bg-zinc-950/35 p-5"
+                  className={`border p-5 ${selectedDeveloper.accountStatus ===
+                    "suspended" ||
+                    selectedDeveloper.memberStatus ===
+                    "suspended"
+                    ? "border-red-500/25 bg-red-500/[0.07]"
+                    : "border-zinc-800 bg-zinc-950/35"
+                    }`}
                   style={{ borderRadius: 8 }}
                 >
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
-                    Account
-                  </h3>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
+                      Account
+                    </h3>
+
+                    {selectedDeveloper.accountStatus ===
+                      "suspended" ||
+                      selectedDeveloper.memberStatus ===
+                      "suspended" ? (
+                      <span
+                        className="border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-200"
+                        style={{
+                          borderRadius: 999,
+                        }}
+                      >
+                        Suspended
+                      </span>
+                    ) : (
+                      <span
+                        className="border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-200"
+                        style={{
+                          borderRadius: 999,
+                        }}
+                      >
+                        Active
+                      </span>
+                    )}
+                  </div>
 
                   <div className="mt-4 space-y-3 text-sm">
                     <p>
@@ -1326,6 +1440,14 @@ export default function DeveloperAccountsPage() {
 
                     <p>
                       <span className="text-zinc-500">
+                        Member status —
+                      </span>{" "}
+                      {selectedDeveloper.memberStatus ||
+                        "—"}
+                    </p>
+
+                    <p>
+                      <span className="text-zinc-500">
                         Activated —
                       </span>{" "}
                       {formatDate(
@@ -1333,6 +1455,46 @@ export default function DeveloperAccountsPage() {
                       )}
                     </p>
                   </div>
+
+                  {selectedDeveloper.accountSuspensionReason ? (
+                    <div className="mt-5 border-t border-red-300/15 pt-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-red-200/80">
+                        Suspension Reason
+                      </p>
+
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-red-100">
+                        {
+                          selectedDeveloper.accountSuspensionReason
+                        }
+                      </p>
+
+                      {selectedDeveloper.accountSuspendedAt ? (
+                        <p className="mt-3 text-xs leading-5 text-red-200/55">
+                          Suspended{" "}
+                          {formatDate(
+                            selectedDeveloper.accountSuspendedAt
+                          )}
+                          {selectedDeveloper.accountSuspendedByName
+                            ? ` by ${selectedDeveloper.accountSuspendedByName}`
+                            : ""}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {selectedDeveloper.accountRestoredAt ? (
+                    <div className="mt-5 border-t border-zinc-800 pt-4">
+                      <p className="text-xs text-zinc-500">
+                        Last restored{" "}
+                        {formatDate(
+                          selectedDeveloper.accountRestoredAt
+                        )}
+                        {selectedDeveloper.accountRestoredByName
+                          ? ` by ${selectedDeveloper.accountRestoredByName}`
+                          : ""}
+                      </p>
+                    </div>
+                  ) : null}
                 </section>
 
                 <section
@@ -1444,7 +1606,7 @@ export default function DeveloperAccountsPage() {
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     {selectedDeveloper.skills.length >
-                    0 ? (
+                      0 ? (
                       selectedDeveloper.skills.map(
                         (skill) => (
                           <span
@@ -1471,47 +1633,74 @@ export default function DeveloperAccountsPage() {
                   style={{ borderRadius: 8 }}
                 >
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
-                    Links
+                    Profile Links
                   </h3>
 
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    {safeExternalUrl(
-                      selectedDeveloper
-                        .robloxProfileUrl
-                    ) ? (
-                      <a
-                        href={
-                          selectedDeveloper
-                            .robloxProfileUrl
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm font-medium text-blue-200"
-                        style={{
-                          borderRadius: 6,
-                        }}
-                      >
-                        Roblox Profile
-                      </a>
-                    ) : null}
+                  <div className="mt-4 space-y-4">
+                    {selectedDeveloper.customSubdomain ? (
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          Custom FRDA Address
+                        </p>
+
+                        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="break-all text-sm font-semibold text-violet-200">
+                            {
+                              selectedDeveloper.customSubdomain
+                            }
+                            .frdaph.org
+                          </p>
+
+                          <a
+                            href={
+                              selectedDeveloper.customProfileAddress ||
+                              `https://${selectedDeveloper.customSubdomain}.frdaph.org`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex w-fit items-center justify-center border border-violet-400/25 bg-violet-500/10 px-4 py-2.5 text-sm font-medium text-violet-200 transition hover:bg-violet-500/20"
+                            style={{
+                              borderRadius: 6,
+                            }}
+                          >
+                            Open Profile Address
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          Custom FRDA Address
+                        </p>
+
+                        <p className="mt-2 text-sm text-zinc-500">
+                          No custom subdomain selected.
+                        </p>
+                      </div>
+                    )}
 
                     {safeExternalUrl(
-                      selectedDeveloper.portfolioUrl
+                      selectedDeveloper.portfolioUrl,
                     ) ? (
-                      <a
-                        href={
-                          selectedDeveloper
-                            .portfolioUrl
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="border border-zinc-600 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-200"
-                        style={{
-                          borderRadius: 6,
-                        }}
-                      >
-                        Portfolio or Website
-                      </a>
+                      <div className="border-t border-zinc-800 pt-4">
+                        <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          Portfolio or Website
+                        </p>
+
+                        <a
+                          href={
+                            selectedDeveloper.portfolioUrl
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex border border-zinc-600 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800"
+                          style={{
+                            borderRadius: 6,
+                          }}
+                        >
+                          Open Portfolio or Website
+                        </a>
+                      </div>
                     ) : null}
                   </div>
                 </section>
@@ -1551,16 +1740,118 @@ export default function DeveloperAccountsPage() {
                   </section>
                 ) : null}
 
-                <section className="border border-violet-400/20 bg-violet-500/[0.07] p-5" style={{ borderRadius: 8 }}>
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-sm font-semibold uppercase tracking-wide text-violet-200">Profile Premium</h3>
-                      <p className="mt-2 text-sm leading-6 text-zinc-400">Includes developer analytics and a custom FRDA subdomain.</p>
-                      <p className="mt-2 text-xs text-zinc-500">Status — {selectedDeveloper.developerPremiumStatus === "qualified" ? "Lifetime premium granted" : selectedDeveloper.developerPremiumStatus === "pending_review" ? "Awaiting eligibility review" : selectedDeveloper.hasPremiumAccess ? "Grandfathered access" : "Not eligible"}</p>
+                <section
+                  className="border border-violet-400/20 bg-violet-500/[0.07] p-5"
+                  style={{ borderRadius: 8 }}
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-violet-200">
+                        Profile Premium
+                      </h3>
+
+                      <p className="mt-2 text-sm leading-6 text-zinc-400">
+                        Includes developer analytics and a custom FRDA subdomain.
+                      </p>
+
+                      {selectedDeveloper.hasPremiumAccess ? (
+                        <div className="mt-4">
+                          <p className="text-sm font-semibold text-emerald-300">
+                            Lifetime premium granted
+                          </p>
+
+                          {selectedDeveloper.developerPremiumGrantType ? (
+                            <p className="mt-1 text-xs text-zinc-500">
+                              {getPremiumGrantLabel(
+                                selectedDeveloper.developerPremiumGrantType,
+                              )}
+                            </p>
+                          ) : null}
+
+                          {selectedDeveloper.developerPremiumGrantedAt ? (
+                            <p className="mt-1 text-xs text-zinc-600">
+                              Granted{" "}
+                              {formatDate(
+                                selectedDeveloper.developerPremiumGrantedAt,
+                              )}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : selectedDeveloper.developerPremiumStatus ===
+                        "pending_review" ? (
+                        <div className="mt-4">
+                          <p className="text-sm font-semibold text-amber-200">
+                            Awaiting launch premium review
+                          </p>
+
+                          <p className="mt-1 text-xs leading-5 text-zinc-500">
+                            This developer published after the campaign cutoff and may qualify for one of the 30 launch spots.
+                          </p>
+                        </div>
+                      ) : selectedDeveloper.launchPremiumEligible ? (
+                        <div className="mt-4">
+                          <p className="text-sm font-semibold text-sky-200">
+                            Eligible after publishing
+                          </p>
+
+                          <p className="mt-1 text-xs leading-5 text-zinc-500">
+                            This account was created after the campaign cutoff but is not currently awaiting premium review.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-4">
+                          <p className="text-sm font-semibold text-zinc-300">
+                            Not awaiting launch premium review
+                          </p>
+
+                          {selectedDeveloper.launchPremiumIneligibilityReason ? (
+                            <p className="mt-1 text-xs leading-5 text-zinc-500">
+                              {
+                                selectedDeveloper.launchPremiumIneligibilityReason
+                              }
+                            </p>
+                          ) : null}
+                        </div>
+                      )}
+
+                      <div className="mt-4 border-t border-violet-300/10 pt-4 text-xs leading-5 text-zinc-500">
+                        <p>
+                          Member account created{" "}
+                          {formatDate(
+                            selectedDeveloper.memberCreatedAt,
+                          )}
+                        </p>
+
+                        <p className="mt-1">
+                          Campaign cutoff — Jul 27, 2026, 11:00 AM PHT
+                        </p>
+                      </div>
                     </div>
-                    {selectedDeveloper.profileStatus === "live" && selectedDeveloper.developerPremiumStatus !== "qualified" ? (
-                      <button type="button" onClick={() => reviewProfile("grant_premium")} disabled={Boolean(processingAction)} className="cursor-pointer bg-violet-600 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50" style={{ borderRadius: 7 }}>
-                        {processingAction === "grant_premium" ? "Granting..." : "Grant Lifetime Premium"}
+
+                    {selectedDeveloper.profileStatus === "live" &&
+                      selectedDeveloper.developerPremiumStatus ===
+                      "pending_review" &&
+                      selectedDeveloper.launchPremiumEligible &&
+                      !selectedDeveloper.hasPremiumAccess ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          reviewProfile(
+                            "grant_premium",
+                          )
+                        }
+                        disabled={Boolean(
+                          processingAction,
+                        )}
+                        className="shrink-0 cursor-pointer bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{
+                          borderRadius: 7,
+                        }}
+                      >
+                        {processingAction ===
+                          "grant_premium"
+                          ? "Granting..."
+                          : "Grant Launch Lifetime Premium"}
                       </button>
                     ) : null}
                   </div>
@@ -1568,7 +1859,7 @@ export default function DeveloperAccountsPage() {
 
                 <section>
                   <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                    Reviewer Note
+                    Reviewer or Internal Note
                   </label>
 
                   <textarea
@@ -1580,7 +1871,7 @@ export default function DeveloperAccountsPage() {
                     }
                     rows={6}
                     maxLength={3000}
-                    placeholder="Required when requesting changes. Optional for approval or hiding."
+                    placeholder="Required for change requests and account suspension. Optional for other actions."
                     className="w-full resize-y border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-blue-500"
                     style={{ borderRadius: 8 }}
                   />
@@ -1589,25 +1880,77 @@ export default function DeveloperAccountsPage() {
             </div>
 
             <div className="flex flex-col gap-3 border-t border-zinc-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-              <div>
-                {selectedDeveloper.profileStatus ===
-                "live" ? (
+              <div className="flex flex-col gap-3 sm:flex-row">
+                {selectedDeveloper.accountStatus ===
+                  "suspended" ||
+                  selectedDeveloper.memberStatus ===
+                  "suspended" ? (
                   <button
                     type="button"
                     onClick={() =>
-                      reviewProfile("hide")
+                      reviewProfile(
+                        "restore_account"
+                      )
                     }
                     disabled={Boolean(
                       processingAction
                     )}
-                    className="w-full cursor-pointer border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 disabled:opacity-50 sm:w-auto"
+                    className="w-full cursor-pointer border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                     style={{ borderRadius: 7 }}
                   >
-                    {processingAction === "hide"
-                      ? "Hiding..."
-                      : "Hide Profile"}
+                    {processingAction ===
+                      "restore_account"
+                      ? "Restoring..."
+                      : "Restore Account"}
                   </button>
-                ) : null}
+                ) : (
+                  <>
+                    {selectedDeveloper.profileStatus ===
+                      "live" ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          reviewProfile(
+                            "hide"
+                          )
+                        }
+                        disabled={Boolean(
+                          processingAction
+                        )}
+                        className="w-full cursor-pointer border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                        style={{
+                          borderRadius: 7,
+                        }}
+                      >
+                        {processingAction ===
+                          "hide"
+                          ? "Hiding..."
+                          : "Hide Profile"}
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        reviewProfile(
+                          "suspend_account"
+                        )
+                      }
+                      disabled={Boolean(
+                        processingAction
+                      )}
+                      className="w-full cursor-pointer border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                      style={{
+                        borderRadius: 7,
+                      }}
+                    >
+                      {processingAction ===
+                        "suspend_account"
+                        ? "Suspending..."
+                        : "Suspend Account"}
+                    </button>
+                  </>
+                )}
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row">
@@ -1624,7 +1967,11 @@ export default function DeveloperAccountsPage() {
                 </button>
 
                 {selectedDeveloper.profileStatus ===
-                "pending_review" ? (
+                  "pending_review" &&
+                  selectedDeveloper.accountStatus !==
+                  "suspended" &&
+                  selectedDeveloper.memberStatus !==
+                  "suspended" ? (
                   <>
                     <button
                       type="button"
@@ -1642,7 +1989,7 @@ export default function DeveloperAccountsPage() {
                       }}
                     >
                       {processingAction ===
-                      "request_changes"
+                        "request_changes"
                         ? "Sending..."
                         : "Request Changes"}
                     </button>
@@ -1650,7 +1997,9 @@ export default function DeveloperAccountsPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        reviewProfile("approve")
+                        reviewProfile(
+                          "approve"
+                        )
                       }
                       disabled={Boolean(
                         processingAction
@@ -1661,7 +2010,7 @@ export default function DeveloperAccountsPage() {
                       }}
                     >
                       {processingAction ===
-                      "approve"
+                        "approve"
                         ? "Publishing..."
                         : "Approve and Publish"}
                     </button>

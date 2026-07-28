@@ -1,12 +1,566 @@
-import { NextRequest, NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
-import { adminDb } from "@/lib/firebaseAdmin";
-import { authorizeMemberRequest } from "@/lib/server/memberAuthorization";
-import { hasDeveloperPremiumAccess } from "@/lib/server/developerPremiumLaunch";
-export const runtime="nodejs";
-const RESERVED_SUBDOMAINS=new Set(["www","admin","portal","api","mail","email","support","help","contact","about","blog","news","games","game","developers","developer","opportunities","opportunity","member","members","staff","login","register","signup","survey","privacy","terms","status","discord","cdn","assets","static","files","images","media","app","dashboard","account","accounts","billing","payments","security","root","system","localhost"]);
-const normalize=(v:unknown)=>typeof v==="string"?v.trim().toLowerCase():"";
-function validate(v:string){if(!v)return"Enter the custom address you want to use.";if(v.length<3||v.length>30)return"Your custom address must contain between 3 and 30 characters.";if(!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(v))return"Use lowercase letters, numbers, and hyphens only. It cannot begin or end with a hyphen.";if(v.includes("--"))return"Your custom address cannot contain consecutive hyphens.";if(RESERVED_SUBDOMAINS.has(v))return"That address is reserved by FRDA. Please choose another one.";return"";}
-const address=(s:string)=>s?`https://${s}.frdaph.org`:"";
-export async function GET(request:NextRequest){try{const a=await authorizeMemberRequest(request);if(!a.ok)return a.response;const {member,memberData}=a;if(member.accountPurpose!=="developer"&&member.accountPurpose!=="both")return NextResponse.json({ok:false,error:"This account does not include a developer profile."},{status:403});const profileSnap=await adminDb.collection("developerProfiles").doc(member.uid).get();const profile=profileSnap.data()||{};const existing=String(profile.customSubdomain||"");const access=hasDeveloperPremiumAccess({...memberData,customSubdomain:existing});const requested=normalize(request.nextUrl.searchParams.get("value"));if(requested){if(!access)return NextResponse.json({ok:false,error:"Custom FRDA subdomains are only available to eligible premium profiles."},{status:403});const error=validate(requested);if(error)return NextResponse.json({ok:true,available:false,error});const r=await adminDb.collection("developerSubdomains").doc(requested).get();const data=r.exists?r.data()||{}:null;const available=!data||String(data.uid||"")===member.uid;return NextResponse.json({ok:true,available,error:available?"":"That custom address is already claimed."});}return NextResponse.json({ok:true,customSubdomain:existing,publicAddress:address(existing),hasAccess:access});}catch(error){console.error("Load developer subdomain error:",error);return NextResponse.json({ok:false,error:"Could not load your custom profile address."},{status:500});}}
-export async function POST(request:NextRequest){try{const a=await authorizeMemberRequest(request);if(!a.ok)return a.response;const {member,memberData}=a;if(member.accountPurpose!=="developer"&&member.accountPurpose!=="both")return NextResponse.json({ok:false,error:"This account does not include a developer profile."},{status:403});const profileRef=adminDb.collection("developerProfiles").doc(member.uid);const initial=await profileRef.get();const existing=String(initial.data()?.customSubdomain||"");if(!hasDeveloperPremiumAccess({...memberData,customSubdomain:existing}))return NextResponse.json({ok:false,error:"Custom FRDA subdomains are only available to eligible premium profiles."},{status:403});const body=await request.json().catch(()=>null);const customSubdomain=normalize(body?.customSubdomain);const validationError=validate(customSubdomain);if(validationError)return NextResponse.json({ok:false,error:validationError},{status:400});const memberRef=adminDb.collection("members").doc(member.memberId);const newRef=adminDb.collection("developerSubdomains").doc(customSubdomain);await adminDb.runTransaction(async t=>{const [p,n]=await Promise.all([t.get(profileRef),t.get(newRef)]);if(!p.exists)throw new Error("Create your developer profile before choosing a custom address.");const previous=String(p.data()?.customSubdomain||"").trim().toLowerCase();if(n.exists&&String(n.data()?.uid||"")!==member.uid)throw new Error("That custom address is already claimed.");t.set(newRef,{customSubdomain,uid:member.uid,memberId:member.memberId,claimedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()},{merge:true});t.set(profileRef,{customSubdomain,customProfileAddress:address(customSubdomain),updatedAt:FieldValue.serverTimestamp()},{merge:true});t.set(memberRef,{customSubdomain,updatedAt:FieldValue.serverTimestamp()},{merge:true});if(previous&&previous!==customSubdomain)t.delete(adminDb.collection("developerSubdomains").doc(previous));});return NextResponse.json({ok:true,customSubdomain,publicAddress:address(customSubdomain),message:"Your custom profile address has been reserved."});}catch(error){const message=error instanceof Error?error.message:"Could not reserve this custom address.";return NextResponse.json({ok:false,error:message},{status:message.includes("already claimed")?409:message.includes("Create your")?400:500});}}
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
+import {
+  FieldValue,
+} from "firebase-admin/firestore";
+
+import {
+  adminDb,
+} from "@/lib/firebaseAdmin";
+
+import {
+  authorizeMemberRequest,
+} from "@/lib/server/memberAuthorization";
+
+import {
+  hasDeveloperPremiumAccess,
+} from "@/lib/server/developerPremiumLaunch";
+
+export const runtime = "nodejs";
+
+const RESERVED_SUBDOMAINS =
+  new Set([
+    "www",
+    "admin",
+    "portal",
+    "api",
+    "mail",
+    "email",
+    "support",
+    "help",
+    "contact",
+    "about",
+    "blog",
+    "news",
+    "games",
+    "game",
+    "developers",
+    "developer",
+    "opportunities",
+    "opportunity",
+    "member",
+    "members",
+    "staff",
+    "login",
+    "register",
+    "signup",
+    "survey",
+    "privacy",
+    "terms",
+    "status",
+    "discord",
+    "cdn",
+    "assets",
+    "static",
+    "files",
+    "images",
+    "media",
+    "app",
+    "dashboard",
+    "account",
+    "accounts",
+    "billing",
+    "payments",
+    "security",
+    "root",
+    "system",
+    "localhost",
+  ]);
+
+function normalize(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim().toLowerCase()
+    : "";
+}
+
+function validateSubdomain(
+  value: string,
+): string {
+  if (!value) {
+    return "Enter the custom address you want to use.";
+  }
+
+  if (
+    value.length < 3 ||
+    value.length > 30
+  ) {
+    return "Your custom address must contain between 3 and 30 characters.";
+  }
+
+  if (
+    !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(
+      value,
+    )
+  ) {
+    return "Use lowercase letters, numbers, and hyphens only. It cannot begin or end with a hyphen.";
+  }
+
+  if (value.includes("--")) {
+    return "Your custom address cannot contain consecutive hyphens.";
+  }
+
+  if (
+    RESERVED_SUBDOMAINS.has(
+      value,
+    )
+  ) {
+    return "That address is reserved by FRDA. Please choose another one.";
+  }
+
+  return "";
+}
+
+function createPublicAddress(
+  subdomain: string,
+): string {
+  return subdomain
+    ? `https://${subdomain}.frdaph.org`
+    : "";
+}
+
+export async function GET(
+  request: NextRequest,
+) {
+  try {
+    const authorization =
+      await authorizeMemberRequest(
+        request,
+      );
+
+    if (!authorization.ok) {
+      return authorization.response;
+    }
+
+    const {
+      member,
+      memberData,
+    } = authorization;
+
+    if (
+      member.accountPurpose !==
+        "developer" &&
+      member.accountPurpose !==
+        "both"
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "This account does not include a developer profile.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
+    const hasAccess =
+      hasDeveloperPremiumAccess(
+        memberData,
+      );
+
+    const profileSnapshot =
+      await adminDb
+        .collection(
+          "developerProfiles",
+        )
+        .doc(member.uid)
+        .get();
+
+    const profile =
+      profileSnapshot.data() ||
+      {};
+
+    const existingSubdomain =
+      normalize(
+        profile.customSubdomain,
+      );
+
+    const requestedSubdomain =
+      normalize(
+        request.nextUrl.searchParams.get(
+          "value",
+        ),
+      );
+
+    if (requestedSubdomain) {
+      if (!hasAccess) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "Custom FRDA subdomains are only available to premium profiles.",
+          },
+          {
+            status: 403,
+          },
+        );
+      }
+
+      const validationError =
+        validateSubdomain(
+          requestedSubdomain,
+        );
+
+      if (validationError) {
+        return NextResponse.json({
+          ok: true,
+          available: false,
+          error:
+            validationError,
+        });
+      }
+
+      const reservationSnapshot =
+        await adminDb
+          .collection(
+            "developerSubdomains",
+          )
+          .doc(
+            requestedSubdomain,
+          )
+          .get();
+
+      const reservationData =
+        reservationSnapshot.exists
+          ? reservationSnapshot.data() ||
+            {}
+          : null;
+
+      const available =
+        !reservationData ||
+        String(
+          reservationData.uid ||
+            "",
+        ) === member.uid;
+
+      return NextResponse.json({
+        ok: true,
+        available,
+        error: available
+          ? ""
+          : "That custom address is already claimed.",
+      });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      customSubdomain:
+        existingSubdomain,
+      publicAddress:
+        createPublicAddress(
+          existingSubdomain,
+        ),
+      hasAccess,
+    });
+  } catch (error) {
+    console.error(
+      "Load developer subdomain error:",
+      error,
+    );
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Could not load your custom profile address.",
+      },
+      {
+        status: 500,
+      },
+    );
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+) {
+  try {
+    const authorization =
+      await authorizeMemberRequest(
+        request,
+      );
+
+    if (!authorization.ok) {
+      return authorization.response;
+    }
+
+    const {
+      member,
+      memberData,
+    } = authorization;
+
+    if (
+      member.accountPurpose !==
+        "developer" &&
+      member.accountPurpose !==
+        "both"
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "This account does not include a developer profile.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
+    if (
+      !hasDeveloperPremiumAccess(
+        memberData,
+      )
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Custom FRDA subdomains are only available to premium profiles.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
+    const body =
+      await request
+        .json()
+        .catch(() => null);
+
+    const customSubdomain =
+      normalize(
+        body?.customSubdomain,
+      );
+
+    const validationError =
+      validateSubdomain(
+        customSubdomain,
+      );
+
+    if (validationError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            validationError,
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    const profileReference =
+      adminDb
+        .collection(
+          "developerProfiles",
+        )
+        .doc(member.uid);
+
+    const memberReference =
+      adminDb
+        .collection("members")
+        .doc(member.memberId);
+
+    const newSubdomainReference =
+      adminDb
+        .collection(
+          "developerSubdomains",
+        )
+        .doc(customSubdomain);
+
+    await adminDb.runTransaction(
+      async (
+        transaction,
+      ) => {
+        const [
+          profileSnapshot,
+          newSubdomainSnapshot,
+          currentMemberSnapshot,
+        ] = await Promise.all([
+          transaction.get(
+            profileReference,
+          ),
+
+          transaction.get(
+            newSubdomainReference,
+          ),
+
+          transaction.get(
+            memberReference,
+          ),
+        ]);
+
+        if (
+          !profileSnapshot.exists
+        ) {
+          throw new Error(
+            "Create your developer profile before choosing a custom address.",
+          );
+        }
+
+        if (
+          !currentMemberSnapshot.exists
+        ) {
+          throw new Error(
+            "Your membership account could not be found.",
+          );
+        }
+
+        const currentMemberData =
+          currentMemberSnapshot.data() ||
+          {};
+
+        if (
+          !hasDeveloperPremiumAccess(
+            currentMemberData,
+          )
+        ) {
+          throw new Error(
+            "Custom FRDA subdomains are only available to premium profiles.",
+          );
+        }
+
+        const previousSubdomain =
+          normalize(
+            profileSnapshot.data()
+              ?.customSubdomain,
+          );
+
+        if (
+          newSubdomainSnapshot.exists &&
+          String(
+            newSubdomainSnapshot
+              .data()?.uid || "",
+          ) !== member.uid
+        ) {
+          throw new Error(
+            "That custom address is already claimed.",
+          );
+        }
+
+        transaction.set(
+          newSubdomainReference,
+          {
+            customSubdomain,
+            uid: member.uid,
+            memberId:
+              member.memberId,
+            claimedAt:
+              FieldValue
+                .serverTimestamp(),
+            updatedAt:
+              FieldValue
+                .serverTimestamp(),
+          },
+          {
+            merge: true,
+          },
+        );
+
+        transaction.set(
+          profileReference,
+          {
+            customSubdomain,
+            customProfileAddress:
+              createPublicAddress(
+                customSubdomain,
+              ),
+            updatedAt:
+              FieldValue
+                .serverTimestamp(),
+          },
+          {
+            merge: true,
+          },
+        );
+
+        transaction.set(
+          memberReference,
+          {
+            customSubdomain,
+            updatedAt:
+              FieldValue
+                .serverTimestamp(),
+          },
+          {
+            merge: true,
+          },
+        );
+
+        if (
+          previousSubdomain &&
+          previousSubdomain !==
+            customSubdomain
+        ) {
+          transaction.delete(
+            adminDb
+              .collection(
+                "developerSubdomains",
+              )
+              .doc(
+                previousSubdomain,
+              ),
+          );
+        }
+      },
+    );
+
+    return NextResponse.json({
+      ok: true,
+      customSubdomain,
+      publicAddress:
+        createPublicAddress(
+          customSubdomain,
+        ),
+      message:
+        "Your custom profile address has been reserved.",
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Could not reserve this custom address.";
+
+    const status =
+      message.includes(
+        "already claimed",
+      )
+        ? 409
+        : message.includes(
+              "only available to premium",
+            )
+          ? 403
+          : message.includes(
+                "Create your",
+              ) ||
+              message.includes(
+                "membership account could not be found",
+              )
+            ? 400
+            : 500;
+
+    console.error(
+      "Reserve developer subdomain error:",
+      error,
+    );
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: message,
+      },
+      {
+        status,
+      },
+    );
+  }
+}

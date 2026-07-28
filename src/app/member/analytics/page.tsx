@@ -13,6 +13,7 @@ import {
   ExternalLink,
   FolderOpen,
   LoaderCircle,
+  LockKeyhole,
   MessagesSquare,
   MousePointerClick,
   Users,
@@ -23,6 +24,7 @@ import {
 } from "next/navigation";
 
 import MemberPortalHeader from "@/components/member/MemberPortalHeader";
+
 import {
   useAuthUser,
 } from "@/lib/useAuthUser";
@@ -120,14 +122,23 @@ export default function MemberAnalyticsPage() {
   const [projects, setProjects] =
     useState<ProjectRow[]>([]);
 
-  const [analyticsAccess, setAnalyticsAccess] =
-    useState("basic");
+  const [
+    analyticsAccess,
+    setAnalyticsAccess,
+  ] = useState("basic");
 
   const [loading, setLoading] =
     useState(true);
 
-  const [pageError, setPageError] =
-    useState("");
+  const [
+    pageError,
+    setPageError,
+  ] = useState("");
+
+  const [
+    premiumLocked,
+    setPremiumLocked,
+  ] = useState(false);
 
   useEffect(() => {
     if (
@@ -150,11 +161,13 @@ export default function MemberAnalyticsPage() {
     }
 
     const currentUser = user;
+
     let cancelled = false;
 
     async function loadAnalytics() {
       setLoading(true);
       setPageError("");
+      setPremiumLocked(false);
 
       try {
         const idToken =
@@ -176,6 +189,16 @@ export default function MemberAnalyticsPage() {
           await response
             .json()
             .catch(() => null);
+
+        if (
+          response.status === 403
+        ) {
+          if (!cancelled) {
+            setPremiumLocked(true);
+          }
+
+          return;
+        }
 
         if (
           !response.ok ||
@@ -334,47 +357,147 @@ export default function MemberAnalyticsPage() {
             </p>
           </div>
 
-          <div className="inline-flex w-full overflow-x-auto border border-white/10 bg-black/20 p-1 sm:w-auto" style={{ borderRadius: 8 }}>
-            {rangeOptions.map(
-              (option) => (
+          {!premiumLocked ? (
+            <div
+              className="inline-flex w-full overflow-x-auto border border-white/10 bg-black/20 p-1 sm:w-auto"
+              style={{
+                borderRadius: 8,
+              }}
+            >
+              {rangeOptions.map(
+                (option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() =>
+                      setRange(
+                        option.value,
+                      )
+                    }
+                    className={`min-w-max cursor-pointer px-4 py-2.5 text-sm font-medium transition ${
+                      range ===
+                      option.value
+                        ? "bg-sky-400/15 text-sky-200"
+                        : "text-zinc-500 hover:text-zinc-200"
+                    }`}
+                    style={{
+                      borderRadius: 6,
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ),
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        {premiumLocked ? (
+          <section
+            className="relative mt-7 overflow-hidden border border-violet-300/20 bg-violet-500/[0.06] p-6 sm:p-8"
+            style={{
+              borderRadius: 10,
+            }}
+          >
+            <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-violet-500/10 blur-3xl" />
+
+            <div className="relative max-w-3xl">
+              <div
+                className="flex h-12 w-12 items-center justify-center border border-violet-300/20 bg-violet-400/10 text-violet-200"
+                style={{
+                  borderRadius: 8,
+                }}
+              >
+                <LockKeyhole
+                  size={22}
+                  strokeWidth={1.8}
+                />
+              </div>
+
+              <p className="mt-6 text-xs font-semibold uppercase tracking-[0.15em] text-violet-300">
+                Premium Analytics
+              </p>
+
+              <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
+                Understand how people engage with your profile
+              </h2>
+
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400">
+                Profile Premium shows how visitors discover and interact with your public developer profile and featured work.
+              </p>
+
+              <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  "Profile and unique visitor counts",
+                  "Current profile bookmarks",
+                  "Contact attempts",
+                  "Featured work opens",
+                  "Project link clicks",
+                  "Activity across selected date ranges",
+                ].map(
+                  (benefit) => (
+                    <div
+                      key={benefit}
+                      className="border border-white/10 bg-black/15 p-4 text-sm leading-6 text-zinc-300"
+                      style={{
+                        borderRadius: 7,
+                      }}
+                    >
+                      {benefit}
+                    </div>
+                  ),
+                )}
+              </div>
+
+              <div
+                className="mt-7 border border-sky-300/15 bg-sky-400/[0.06] p-4"
+                style={{
+                  borderRadius: 8,
+                }}
+              >
+                <p className="text-sm font-semibold text-sky-200">
+                  Limited launch benefit
+                </p>
+
+                <p className="mt-2 text-sm leading-6 text-zinc-400">
+                  Lifetime Profile Premium is available to the first 30 eligible developer profiles approved during the launch campaign.
+                </p>
+
                 <button
-                  key={option.value}
                   type="button"
                   onClick={() =>
-                    setRange(
-                      option.value,
+                    router.push(
+                      "/member/profile",
                     )
                   }
-                  className={`min-w-max cursor-pointer px-4 py-2.5 text-sm font-medium transition ${
-                    range ===
-                    option.value
-                      ? "bg-sky-400/15 text-sky-200"
-                      : "text-zinc-500 hover:text-zinc-200"
-                  }`}
+                  className="mt-4 cursor-pointer bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
                   style={{
                     borderRadius: 6,
                   }}
                 >
-                  {option.label}
+                  Complete Your Developer Profile
                 </button>
-              ),
-            )}
-          </div>
-        </div>
-
-        {pageError ? (
+              </div>
+            </div>
+          </section>
+        ) : pageError ? (
           <div
             className="mt-7 border border-red-500/25 bg-red-500/10 p-5 text-sm text-red-200"
-            style={{ borderRadius: 8 }}
+            style={{
+              borderRadius: 8,
+            }}
           >
             {pageError}
           </div>
         ) : loading ? (
           <div
             className="mt-7 flex items-center gap-3 border border-white/10 bg-white/[0.025] p-6 text-sm text-zinc-400"
-            style={{ borderRadius: 8 }}
+            style={{
+              borderRadius: 8,
+            }}
           >
             <LoaderCircle className="h-4 w-4 animate-spin" />
+
             Loading your analytics...
           </div>
         ) : (
@@ -387,7 +510,9 @@ export default function MemberAnalyticsPage() {
 
                   return (
                     <div
-                      key={metric.label}
+                      key={
+                        metric.label
+                      }
                       className="border border-white/10 bg-white/[0.025] p-4 md:p-5"
                       style={{
                         borderRadius: 8,
@@ -415,7 +540,9 @@ export default function MemberAnalyticsPage() {
 
             <section
               className="mt-7 border border-white/10 bg-white/[0.025] p-5 md:p-6"
-              style={{ borderRadius: 8 }}
+              style={{
+                borderRadius: 8,
+              }}
             >
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -442,7 +569,12 @@ export default function MemberAnalyticsPage() {
               </div>
 
               {series.length === 0 ? (
-                <div className="mt-6 border border-dashed border-white/10 px-5 py-10 text-center text-sm text-zinc-500" style={{ borderRadius: 7 }}>
+                <div
+                  className="mt-6 border border-dashed border-white/10 px-5 py-10 text-center text-sm text-zinc-500"
+                  style={{
+                    borderRadius: 7,
+                  }}
+                >
                   No profile-view activity has been recorded for this period yet.
                 </div>
               ) : (
@@ -456,8 +588,7 @@ export default function MemberAnalyticsPage() {
                             (
                               item.profileViews /
                               maximumViews
-                            ) *
-                              180,
+                            ) * 180,
                           );
 
                         return (
@@ -495,7 +626,9 @@ export default function MemberAnalyticsPage() {
 
             <section
               className="mt-7 border border-white/10 bg-white/[0.025] p-5 md:p-6"
-              style={{ borderRadius: 8 }}
+              style={{
+                borderRadius: 8,
+              }}
             >
               <div className="flex items-center gap-3">
                 <MousePointerClick
@@ -515,7 +648,12 @@ export default function MemberAnalyticsPage() {
               </div>
 
               {projects.length === 0 ? (
-                <div className="mt-6 border border-dashed border-white/10 px-5 py-10 text-center text-sm text-zinc-500" style={{ borderRadius: 7 }}>
+                <div
+                  className="mt-6 border border-dashed border-white/10 px-5 py-10 text-center text-sm text-zinc-500"
+                  style={{
+                    borderRadius: 7,
+                  }}
+                >
                   Featured Work engagement will appear here after visitors interact with your projects.
                 </div>
               ) : (
@@ -545,6 +683,7 @@ export default function MemberAnalyticsPage() {
                           <p className="text-[10px] uppercase tracking-wide text-zinc-600">
                             Opens
                           </p>
+
                           <p className="mt-1 text-sm font-semibold text-zinc-200">
                             {project.detailViews.toLocaleString()}
                           </p>
@@ -554,6 +693,7 @@ export default function MemberAnalyticsPage() {
                           <p className="text-[10px] uppercase tracking-wide text-zinc-600">
                             Link Clicks
                           </p>
+
                           <p className="mt-1 text-sm font-semibold text-zinc-200">
                             {project.linkClicks.toLocaleString()}
                           </p>

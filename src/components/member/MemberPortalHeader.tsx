@@ -16,6 +16,7 @@ import {
   Bookmark,
   BarChart3,
   LayoutDashboard,
+  LockKeyhole,
   LogOut,
   UserRound,
   MessagesSquare,
@@ -32,12 +33,12 @@ type AccountPurpose =
 
 type MemberPortalHeaderProps = {
   active:
-    | "dashboard"
-    | "profile"
-    | "analytics"
-    | "saved_developers"
-    | "connection_requests"
-    | "sent_requests";
+  | "dashboard"
+  | "profile"
+  | "analytics"
+  | "saved_developers"
+  | "connection_requests"
+  | "sent_requests";
   title?: string;
   subtitle?: string;
   accountPurpose?: AccountPurpose;
@@ -58,11 +59,11 @@ type GeneralMemberNotification = {
 type ConnectionNotification = {
   requestId: string;
   status:
-    | "pending_developer_response"
-    | "connected"
-    | "declined"
-    | "reported"
-    | "closed";
+  | "pending_developer_response"
+  | "connected"
+  | "declined"
+  | "reported"
+  | "closed";
   inquiryType: string;
   opportunityTitle: string;
   organizationName: string;
@@ -125,6 +126,16 @@ export default function MemberPortalHeader({
     useState<AccountPurpose | null>(
       accountPurpose || null,
     );
+
+  const [
+    hasDeveloperPremium,
+    setHasDeveloperPremium,
+  ] = useState(false);
+
+  const [
+    memberDataLoaded,
+    setMemberDataLoaded,
+  ] = useState(false);
 
   useEffect(() => {
     if (accountPurpose) {
@@ -210,11 +221,19 @@ export default function MemberPortalHeader({
           const loadedPurpose =
             memberResult.member
               .accountPurpose as
-                AccountPurpose;
+            AccountPurpose;
 
           setMemberPurpose(
             loadedPurpose,
           );
+
+          setHasDeveloperPremium(
+            memberResult.member
+              .hasDeveloperPremium ===
+            true,
+          );
+
+          setMemberDataLoaded(true);
 
           window.sessionStorage.setItem(
             "frdaMemberAccountPurpose",
@@ -259,7 +278,7 @@ export default function MemberPortalHeader({
 
         if (
           resolvedPurpose !==
-            "developer" &&
+          "developer" &&
           resolvedPurpose !== "both"
         ) {
           return;
@@ -297,6 +316,10 @@ export default function MemberPortalHeader({
           "Load member portal header error:",
           error,
         );
+
+        if (!cancelled) {
+          setMemberDataLoaded(true);
+        }
       }
     }
 
@@ -339,11 +362,11 @@ export default function MemberPortalHeader({
         (current) =>
           current.map((item) =>
             item.notificationId ===
-            notification.notificationId
+              notification.notificationId
               ? {
-                  ...item,
-                  isUnread: false,
-                }
+                ...item,
+                isUnread: false,
+              }
               : item,
           ),
       );
@@ -401,11 +424,11 @@ export default function MemberPortalHeader({
       (current) =>
         current.map((item) =>
           item.requestId ===
-          notification.requestId
+            notification.requestId
             ? {
-                ...item,
-                isUnread: false,
-              }
+              ...item,
+              isUnread: false,
+            }
             : item,
         ),
     );
@@ -449,58 +472,73 @@ export default function MemberPortalHeader({
 
   const talentSeekerAccount =
     memberPurpose ===
-      "talent_seeker" ||
+    "talent_seeker" ||
     memberPurpose === "both";
 
-  const tabs = [
-    {
-      key: "dashboard",
-      label: "Dashboard",
-      path: "/member/dashboard",
-      icon: LayoutDashboard,
-      show: true,
-    },
-    {
-      key: "profile",
-      label: "Profile",
-      path: "/member/profile",
-      icon: UserRound,
-      show: developerAccount,
-    },
-    {
-      key: "analytics",
-      label: "Analytics",
-      path: "/member/analytics",
-      icon: BarChart3,
-      show: developerAccount,
-    },
-    {
-      key: "saved_developers",
-      label: "Bookmarked Developers",
-      path: "/member/saved-developers",
-      icon: Bookmark,
-      show: true,
-    },
-    {
-      key: "connection_requests",
-      label: `Connection Requests${
-        unreadNotificationCount > 0
+  const tabs: Array<{
+    key:
+    | "dashboard"
+    | "profile"
+    | "analytics"
+    | "saved_developers"
+    | "connection_requests"
+    | "sent_requests";
+    label: string;
+    path: string;
+    icon: typeof LayoutDashboard;
+    show: boolean;
+    premiumLocked?: boolean;
+  }> = [
+      {
+        key: "dashboard",
+        label: "Dashboard",
+        path: "/member/dashboard",
+        icon: LayoutDashboard,
+        show: true,
+      },
+      {
+        key: "profile",
+        label: "Profile",
+        path: "/member/profile",
+        icon: UserRound,
+        show: developerAccount,
+      },
+      {
+        key: "analytics",
+        label: "Analytics",
+        path: "/member/analytics",
+        icon: BarChart3,
+        show: developerAccount,
+        premiumLocked:
+          memberDataLoaded &&
+          !hasDeveloperPremium,
+      },
+      {
+        key: "saved_developers",
+        label: "Bookmarked Developers",
+        path: "/member/saved-developers",
+        icon: Bookmark,
+        show: true,
+      },
+      {
+        key: "connection_requests",
+        label: `Connection Requests${unreadNotificationCount > 0
           ? ` (${unreadNotificationCount})`
           : ""
-      }`,
-      path:
-        "/member/connection-requests",
-      icon: MessagesSquare,
-      show: developerAccount,
-    },
-    {
-      key: "sent_requests",
-      label: "Sent Requests",
-      path: "/member/sent-requests",
-      icon: Send,
-      show: talentSeekerAccount,
-    },
-  ] as const;
+          }`,
+        path:
+          "/member/connection-requests",
+        icon: MessagesSquare,
+        show: developerAccount,
+      },
+      {
+        key: "sent_requests",
+        label: "Sent Requests",
+        path: "/member/sent-requests",
+        icon: Send,
+        show: talentSeekerAccount,
+      },
+    ];
 
   return (
     <>
@@ -552,10 +590,10 @@ export default function MemberPortalHeader({
                   />
 
                   {unreadNotificationCount >
-                  0 ? (
+                    0 ? (
                     <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-300 px-1 text-[10px] font-bold text-slate-950 shadow-[0_0_14px_rgba(125,211,252,0.85)]">
                       {unreadNotificationCount >
-                      9
+                        9
                         ? "9+"
                         : unreadNotificationCount}
                     </span>
@@ -604,7 +642,7 @@ export default function MemberPortalHeader({
                         </div>
 
                         {unreadNotificationCount >
-                        0 ? (
+                          0 ? (
                           <span className="text-xs font-medium text-sky-300">
                             {
                               unreadNotificationCount
@@ -616,7 +654,7 @@ export default function MemberPortalHeader({
 
                       {connectionNotifications.length ===
                         0 &&
-                      generalNotifications.length ===
+                        generalNotifications.length ===
                         0 ? (
                         <div className="px-4 py-6 text-center text-sm text-zinc-500">
                           No notifications yet.
@@ -635,27 +673,25 @@ export default function MemberPortalHeader({
                                     notification,
                                   )
                                 }
-                                className={`block w-full cursor-pointer border-b border-white/10 px-4 py-4 text-left transition hover:bg-white/[0.04] ${
-                                  notification.isUnread
-                                    ? "bg-emerald-400/[0.07]"
-                                    : ""
-                                }`}
+                                className={`block w-full cursor-pointer border-b border-white/10 px-4 py-4 text-left transition hover:bg-white/[0.04] ${notification.isUnread
+                                  ? "bg-emerald-400/[0.07]"
+                                  : ""
+                                  }`}
                               >
                                 <div className="flex items-start gap-3">
                                   <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-400/12 text-emerald-300">
                                     {notification.type ===
-                                    "game_approved" ? (
+                                      "game_approved" ? (
                                       <Gamepad2 size={18} />
                                     ) : (
                                       <CheckCircle2 size={18} />
                                     )}
 
                                     <span
-                                      className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#081426] ${
-                                        notification.isUnread
-                                          ? "bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.9)]"
-                                          : "bg-zinc-700"
-                                      }`}
+                                      className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#081426] ${notification.isUnread
+                                        ? "bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.9)]"
+                                        : "bg-zinc-700"
+                                        }`}
                                     />
                                   </div>
 
@@ -691,11 +727,10 @@ export default function MemberPortalHeader({
                                     notification,
                                   )
                                 }
-                                className={`block w-full cursor-pointer border-b border-white/10 px-4 py-4 text-left transition last:border-b-0 hover:bg-white/[0.04] ${
-                                  notification.isUnread
-                                    ? "bg-sky-400/[0.07]"
-                                    : ""
-                                }`}
+                                className={`block w-full cursor-pointer border-b border-white/10 px-4 py-4 text-left transition last:border-b-0 hover:bg-white/[0.04] ${notification.isUnread
+                                  ? "bg-sky-400/[0.07]"
+                                  : ""
+                                  }`}
                               >
                                 <div className="flex items-start gap-3">
                                   <div className="relative shrink-0">
@@ -714,11 +749,10 @@ export default function MemberPortalHeader({
                                     )}
 
                                     <span
-                                      className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#081426] ${
-                                        notification.isUnread
-                                          ? "bg-sky-300 shadow-[0_0_10px_rgba(125,211,252,0.9)]"
-                                          : "bg-zinc-700"
-                                      }`}
+                                      className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#081426] ${notification.isUnread
+                                        ? "bg-sky-300 shadow-[0_0_10px_rgba(125,211,252,0.9)]"
+                                        : "bg-zinc-700"
+                                        }`}
                                     />
                                   </div>
 
@@ -798,11 +832,10 @@ export default function MemberPortalHeader({
                         tab.path,
                       )
                     }
-                    className={`relative flex cursor-pointer items-center gap-2 py-4 text-sm font-medium transition ${
-                      isActive
-                        ? "text-sky-300"
-                        : "text-zinc-500 hover:text-zinc-200"
-                    }`}
+                    className={`relative flex cursor-pointer items-center gap-2 py-4 text-sm font-medium transition ${isActive
+                      ? "text-sky-300"
+                      : "text-zinc-500 hover:text-zinc-200"
+                      }`}
                   >
                     <Icon
                       size={15}
@@ -810,6 +843,22 @@ export default function MemberPortalHeader({
                     />
 
                     {tab.label}
+
+                    {tab.premiumLocked ? (
+                      <span
+                        className="inline-flex items-center gap-1 border border-violet-300/20 bg-violet-400/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-200"
+                        style={{
+                          borderRadius: 999,
+                        }}
+                      >
+                        <LockKeyhole
+                          size={9}
+                          strokeWidth={2}
+                        />
+
+                        Premium
+                      </span>
+                    ) : null}
 
                     {isActive ? (
                       <span className="absolute inset-x-0 bottom-0 h-0.5 bg-sky-300" />

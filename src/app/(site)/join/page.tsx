@@ -30,7 +30,7 @@ const profileBenefits = [
         href: "",
         linkLabel: "",
         disclaimer:
-            "Custom FRDA subdomains are currently available only to the first 30 approved published profiles and may later be offered as a paid upgrade.",
+            "Custom FRDA subdomains are included for 30 newly approved profiles during the launch campaign and may later be offered as a paid upgrade.",
     },
 ];
 
@@ -175,7 +175,7 @@ export default function DeveloperJoinPage() {
                                         </Link>
                                     ) : (
                                         <p className="mt-5 text-xs leading-6 text-zinc-500">
-                                            Custom <span className="font-semibold text-zinc-400">yourname.frdaph.org</span> addresses are currently available only to the first 30 approved published profiles and may later be offered as a paid upgrade.
+                                            Custom <span className="font-semibold text-zinc-400">yourname.frdaph.org</span> addresses are included for 30 newly approved profiles during the launch campaign and may later be offered as a paid upgrade.
                                         </p>
                                     )}
                                 </article>
@@ -283,11 +283,11 @@ export default function DeveloperJoinPage() {
                             </div>
 
                             <h2 className="mt-5 text-3xl font-semibold leading-tight text-white md:text-4xl">
-                                The first 30 approved profiles receive premium access free for life
+                                30 newly approved profiles will receive premium access free for life
                             </h2>
 
                             <p className="mt-5 text-base leading-8 text-zinc-300">
-                                Publish early and your profile may qualify for lifetime access to the premium profile features planned for the marketplace.
+                                Create and publish a strong developer profile during the launch campaign, and it may qualify for lifetime access to Profile Premium.
                             </p>
 
                             <div className="mt-7 grid gap-4 sm:grid-cols-2">
@@ -303,7 +303,7 @@ export default function DeveloperJoinPage() {
                                     <Globe2 className="h-5 w-5 text-blue-300" />
                                     <p className="mt-3 font-semibold text-white">Custom FRDA subdomain</p>
                                     <p className="mt-2 text-sm leading-6 text-zinc-400">
-                                        A custom address such as yourname.frdaph.org. This is currently available only to the first 30 FRDA-approved published profiles and may later be offered as a paid upgrade.
+                                        A custom address such as yourname.frdaph.org. This is included for 30 newly approved profiles during the launch campaign and may later be offered as a paid upgrade.
                                     </p>
                                 </div>
                             </div>
@@ -315,7 +315,7 @@ export default function DeveloperJoinPage() {
                     <div className="mt-8 flex gap-3 rounded-[8px] border border-amber-300/15 bg-amber-300/[0.06] p-4">
                         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-200" />
                         <p className="text-xs leading-6 text-zinc-400 sm:text-sm">
-                            Premium qualification is subject to FRDA review. Publishing early does not automatically reserve a slot. Profiles should be sufficiently complete, presentable, and supported by genuine work samples. Placeholder images or weak sample content may be found ineligible. FRDA aims to review eligible published profiles within three business days.
+                            Premium qualification is subject to FRDA review. Registering or publishing does not reserve a slot. A spot is counted only after FRDA reviews the profile and grants lifetime premium. Profiles should be sufficiently complete, presentable, and supported by genuine work samples. Placeholder images or weak sample content may be found ineligible. FRDA aims to review eligible published profiles within three business days.
                         </p>
                     </div>
                 </div>

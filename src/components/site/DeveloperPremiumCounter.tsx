@@ -1,6 +1,10 @@
 "use client";
 
 import {
+  LoaderCircle,
+} from "lucide-react";
+
+import {
   useEffect,
   useState,
 } from "react";
@@ -11,56 +15,78 @@ type PremiumCount = {
   remaining: number;
 };
 
-const DEFAULT_COUNT: PremiumCount = {
-  limit: 30,
-  claimed: 0,
-  remaining: 30,
-};
-
 export default function DeveloperPremiumCounter() {
-  const [count, setCount] =
-    useState<PremiumCount>(
-      DEFAULT_COUNT,
-    );
+  const [
+    count,
+    setCount,
+  ] = useState<PremiumCount | null>(
+    null,
+  );
+
+  const [
+    countUnavailable,
+    setCountUnavailable,
+  ] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadCount() {
       try {
-        const response = await fetch(
-          "/api/public/developer-premium-count",
-          {
-            cache: "no-store",
-          },
-        );
+        const response =
+          await fetch(
+            "/api/public/developer-premium-count",
+            {
+              cache: "no-store",
+            },
+          );
 
-        const result = await response
-          .json()
-          .catch(() => null);
+        const result =
+          await response
+            .json()
+            .catch(() => null);
+
+        if (cancelled) {
+          return;
+        }
 
         if (
-          !cancelled &&
-          response.ok &&
-          result?.ok
+          !response.ok ||
+          !result?.ok ||
+          typeof result.limit !==
+            "number" ||
+          typeof result.claimed !==
+            "number" ||
+          typeof result.remaining !==
+            "number"
         ) {
-          setCount({
-            limit:
-              typeof result.limit === "number"
-                ? result.limit
-                : DEFAULT_COUNT.limit,
-            claimed:
-              typeof result.claimed === "number"
-                ? result.claimed
-                : 0,
-            remaining:
-              typeof result.remaining === "number"
-                ? result.remaining
-                : DEFAULT_COUNT.remaining,
-          });
+          setCountUnavailable(true);
+          return;
         }
+
+        setCount({
+          limit:
+            Math.max(
+              0,
+              result.limit,
+            ),
+
+          claimed:
+            Math.max(
+              0,
+              result.claimed,
+            ),
+
+          remaining:
+            Math.max(
+              0,
+              result.remaining,
+            ),
+        });
       } catch {
-        // Keep the default display if the live count is unavailable.
+        if (!cancelled) {
+          setCountUnavailable(true);
+        }
       }
     }
 
@@ -72,12 +98,14 @@ export default function DeveloperPremiumCounter() {
   }, []);
 
   const percentage =
+    count &&
     count.limit > 0
       ? Math.min(
           100,
-          (count.claimed /
-            count.limit) *
-            100,
+          (
+            count.claimed /
+            count.limit
+          ) * 100,
         )
       : 0;
 
@@ -87,28 +115,53 @@ export default function DeveloperPremiumCounter() {
         Lifetime premium availability
       </p>
 
-      <p className="mt-4 text-5xl font-semibold text-white">
-        {count.remaining}
-      </p>
+      {!count &&
+      !countUnavailable ? (
+        <div className="flex min-h-40 flex-col items-center justify-center">
+          <LoaderCircle className="h-5 w-5 animate-spin text-blue-300" />
 
-      <p className="mt-2 text-sm text-zinc-400">
-        approved profiles remaining
-      </p>
+          <p className="mt-3 text-sm text-zinc-400">
+            Checking availability...
+          </p>
+        </div>
+      ) : countUnavailable ? (
+        <div className="flex min-h-40 flex-col items-center justify-center">
+          <p className="text-lg font-semibold text-white">
+            Availability temporarily unavailable
+          </p>
 
-      <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10">
-        <div
-          className="h-full rounded-full bg-blue-400 transition-all"
-          style={{
-            width: `${percentage}%`,
-          }}
-        />
-      </div>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-zinc-500">
+            Please refresh the page to check the latest number of remaining lifetime premium spots.
+          </p>
+        </div>
+      ) : count ? (
+        <>
+          <p className="mt-4 text-5xl font-semibold text-white">
+            {count.remaining}
+          </p>
 
-      <p className="mt-5 text-xs leading-6 text-zinc-500">
-        {count.claimed} of {count.limit}{" "}
-        lifetime premium spots have
-        been awarded.
-      </p>
+          <p className="mt-2 text-sm text-zinc-400">
+            approved profiles remaining
+          </p>
+
+          <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-blue-400 transition-all"
+              style={{
+                width:
+                  `${percentage}%`,
+              }}
+            />
+          </div>
+
+          <p className="mt-5 text-xs leading-6 text-zinc-500">
+            {count.claimed} of{" "}
+            {count.limit} lifetime
+            premium spots have been
+            awarded.
+          </p>
+        </>
+      ) : null}
     </div>
   );
 }
