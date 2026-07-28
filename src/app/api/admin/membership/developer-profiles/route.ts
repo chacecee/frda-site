@@ -1408,7 +1408,7 @@ export async function PATCH(
                 "Profile Premium removed",
 
               message:
-                "Lifetime Profile Premium has been removed from your developer account. You can contact FRDA if you believe this was done in error.",
+                "Your Lifetime Profile Premium was removed. Contact FRDA if you believe this was an error.",
 
               href:
                 "/member/dashboard",

@@ -351,6 +351,16 @@ export default function MemberPortalHeader({
       ],
     );
 
+  const unreadConnectionRequestCount =
+    useMemo(
+      () =>
+        connectionNotifications.filter(
+          (notification) =>
+            notification.isUnread,
+        ).length,
+      [connectionNotifications],
+    );
+
   async function openGeneralNotification(
     notification:
       GeneralMemberNotification,
@@ -522,8 +532,8 @@ export default function MemberPortalHeader({
       },
       {
         key: "connection_requests",
-        label: `Connection Requests${unreadNotificationCount > 0
-          ? ` (${unreadNotificationCount})`
+        label: `Connection Requests${unreadConnectionRequestCount > 0
+          ? ` (${unreadConnectionRequestCount})`
           : ""
           }`,
         path:
@@ -792,7 +802,7 @@ export default function MemberPortalHeader({
                         }}
                         className="block w-full shrink-0 cursor-pointer border-t border-white/10 px-4 py-4 text-center text-sm font-semibold text-sky-300 hover:bg-white/[0.03] md:py-3 md:text-xs"
                       >
-                        View All Connection Requests
+                        View Connection Requests
                       </button>
                     </div>
                   </>
