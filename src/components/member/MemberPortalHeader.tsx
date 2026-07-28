@@ -77,6 +77,20 @@ type ConnectionNotification = {
   createdAt: string | null;
 };
 
+type CombinedNotification =
+  | {
+    kind: "general";
+    id: string;
+    createdAt: string | null;
+    notification: GeneralMemberNotification;
+  }
+  | {
+    kind: "connection";
+    id: string;
+    createdAt: string | null;
+    notification: ConnectionNotification;
+  };
+
 function getInitials(value: string): string {
   return value
     .split(/\s+/)
@@ -359,6 +373,56 @@ export default function MemberPortalHeader({
             notification.isUnread,
         ).length,
       [connectionNotifications],
+    );
+
+  const combinedNotifications =
+    useMemo<CombinedNotification[]>(
+      () =>
+        [
+          ...generalNotifications.map(
+            (notification) => ({
+              kind: "general" as const,
+              id:
+                notification.notificationId,
+              createdAt:
+                notification.createdAt,
+              notification,
+            }),
+          ),
+
+          ...connectionNotifications.map(
+            (notification) => ({
+              kind: "connection" as const,
+              id:
+                notification.requestId,
+              createdAt:
+                notification.createdAt,
+              notification,
+            }),
+          ),
+        ]
+          .sort((first, second) => {
+            const firstTime =
+              first.createdAt
+                ? new Date(
+                  first.createdAt,
+                ).getTime()
+                : 0;
+
+            const secondTime =
+              second.createdAt
+                ? new Date(
+                  second.createdAt,
+                ).getTime()
+                : 0;
+
+            return secondTime - firstTime;
+          })
+          .slice(0, 8),
+      [
+        generalNotifications,
+        connectionNotifications,
+      ],
     );
 
   async function openGeneralNotification(
@@ -671,124 +735,153 @@ export default function MemberPortalHeader({
                         </div>
                       ) : (
                         <div className="min-h-0 flex-1 overflow-y-auto md:max-h-[420px]">
-                          {generalNotifications.map(
-                            (notification) => (
-                              <button
-                                key={
-                                  notification.notificationId
-                                }
-                                type="button"
-                                onClick={() =>
-                                  openGeneralNotification(
-                                    notification,
-                                  )
-                                }
-                                className={`block w-full cursor-pointer border-b border-white/10 px-4 py-4 text-left transition hover:bg-white/[0.04] ${notification.isUnread
-                                  ? "bg-emerald-400/[0.07]"
-                                  : ""
-                                  }`}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-400/12 text-emerald-300">
-                                    {notification.type ===
-                                      "game_approved" ? (
-                                      <Gamepad2 size={18} />
-                                    ) : (
-                                      <CheckCircle2 size={18} />
-                                    )}
+                          {combinedNotifications.map(
+                            (item) => {
+                              if (
+                                item.kind ===
+                                "general"
+                              ) {
+                                const notification =
+                                  item.notification;
 
-                                    <span
-                                      className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#081426] ${notification.isUnread
-                                        ? "bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.9)]"
-                                        : "bg-zinc-700"
-                                        }`}
-                                    />
-                                  </div>
+                                return (
+                                  <button
+                                    key={`general-${item.id}`}
+                                    type="button"
+                                    onClick={() =>
+                                      openGeneralNotification(
+                                        notification,
+                                      )
+                                    }
+                                    className={`block w-full cursor-pointer border-b border-white/10 px-4 py-4 text-left transition hover:bg-white/[0.04] ${notification.isUnread
+                                        ? "bg-emerald-400/[0.07]"
+                                        : ""
+                                      }`}
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-400/12 text-emerald-300">
+                                        {notification.type ===
+                                          "game_approved" ? (
+                                          <Gamepad2
+                                            size={
+                                              18
+                                            }
+                                          />
+                                        ) : (
+                                          <CheckCircle2
+                                            size={
+                                              18
+                                            }
+                                          />
+                                        )}
 
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-white">
-                                      {notification.title}
-                                    </p>
-
-                                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400">
-                                      {notification.message}
-                                    </p>
-
-                                    <p className="mt-2 text-[11px] text-zinc-600">
-                                      {formatDate(
-                                        notification.createdAt,
-                                      )}
-                                    </p>
-                                  </div>
-                                </div>
-                              </button>
-                            ),
-                          )}
-
-                          {connectionNotifications.map(
-                            (notification) => (
-                              <button
-                                key={
-                                  notification.requestId
-                                }
-                                type="button"
-                                onClick={() =>
-                                  openNotification(
-                                    notification,
-                                  )
-                                }
-                                className={`block w-full cursor-pointer border-b border-white/10 px-4 py-4 text-left transition last:border-b-0 hover:bg-white/[0.04] ${notification.isUnread
-                                  ? "bg-sky-400/[0.07]"
-                                  : ""
-                                  }`}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <div className="relative shrink-0">
-                                    {notification.requesterAvatarUrl ? (
-                                      <img
-                                        src={notification.requesterAvatarUrl}
-                                        alt=""
-                                        className="h-10 w-10 rounded-full border border-white/10 object-cover"
-                                      />
-                                    ) : (
-                                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-400/15 text-xs font-semibold text-sky-200">
-                                        {getInitials(
-                                          notification.requesterDisplayName,
-                                        ) || "TS"}
+                                        <span
+                                          className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#081426] ${notification.isUnread
+                                              ? "bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.9)]"
+                                              : "bg-zinc-700"
+                                            }`}
+                                        />
                                       </div>
-                                    )}
 
-                                    <span
-                                      className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#081426] ${notification.isUnread
-                                        ? "bg-sky-300 shadow-[0_0_10px_rgba(125,211,252,0.9)]"
-                                        : "bg-zinc-700"
-                                        }`}
-                                    />
-                                  </div>
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold text-white">
+                                          {
+                                            notification.title
+                                          }
+                                        </p>
 
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-white">
-                                      {notification.opportunityTitle}
-                                    </p>
+                                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400">
+                                          {
+                                            notification.message
+                                          }
+                                        </p>
 
-                                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400">
-                                      {notification.requesterDisplayName}
-                                      {notification.organizationName
-                                        ? ` from ${notification.organizationName}`
-                                        : ""}{" "}
-                                      sent you a connection request.
-                                    </p>
+                                        <p className="mt-2 text-[11px] text-zinc-600">
+                                          {formatDate(
+                                            notification.createdAt,
+                                          )}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              }
 
-                                    <p className="mt-2 text-[11px] text-zinc-600">
-                                      {formatDate(
-                                        notification.createdAt,
+                              const notification =
+                                item.notification;
+
+                              return (
+                                <button
+                                  key={`connection-${item.id}`}
+                                  type="button"
+                                  onClick={() =>
+                                    openNotification(
+                                      notification,
+                                    )
+                                  }
+                                  className={`block w-full cursor-pointer border-b border-white/10 px-4 py-4 text-left transition hover:bg-white/[0.04] ${notification.isUnread
+                                      ? "bg-sky-400/[0.07]"
+                                      : ""
+                                    }`}
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <div className="relative shrink-0">
+                                      {notification.requesterAvatarUrl ? (
+                                        <img
+                                          src={
+                                            notification.requesterAvatarUrl
+                                          }
+                                          alt=""
+                                          className="h-10 w-10 rounded-full border border-white/10 object-cover"
+                                        />
+                                      ) : (
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-400/15 text-xs font-semibold text-sky-200">
+                                          {getInitials(
+                                            notification.requesterDisplayName,
+                                          ) ||
+                                            "TS"}
+                                        </div>
                                       )}
-                                    </p>
+
+                                      <span
+                                        className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#081426] ${notification.isUnread
+                                            ? "bg-sky-300 shadow-[0_0_10px_rgba(125,211,252,0.9)]"
+                                            : "bg-zinc-700"
+                                          }`}
+                                      />
+                                    </div>
+
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-semibold text-white">
+                                        {
+                                          notification.opportunityTitle
+                                        }
+                                      </p>
+
+                                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-400">
+                                        {
+                                          notification.requesterDisplayName
+                                        }
+                                        {notification.organizationName
+                                          ? ` from ${notification.organizationName}`
+                                          : ""}{" "}
+                                        sent you a
+                                        connection
+                                        request.
+                                      </p>
+
+                                      <p className="mt-2 text-[11px] text-zinc-600">
+                                        {formatDate(
+                                          notification.createdAt,
+                                        )}
+                                      </p>
+                                    </div>
                                   </div>
-                                </div>
-                              </button>
-                            ),
+                                </button>
+                              );
+                            },
                           )}
+
                         </div>
                       )}
 
