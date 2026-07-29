@@ -48,6 +48,7 @@ type LoginModalView =
 type OpenAccountModalDetail = {
   tab?: AccountModalTab;
   accountPurpose?: AccountPurpose;
+  signupOnly?: boolean;
 };
 
 type HeaderMember = {
@@ -136,6 +137,9 @@ export default function SiteHeader() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [accountTab, setAccountTab] =
     useState<AccountModalTab>("signup");
+
+  const [signupOnly, setSignupOnly] =
+    useState(false);
 
   const [loginView, setLoginView] =
     useState<LoginModalView>("login");
@@ -386,9 +390,13 @@ export default function SiteHeader() {
   function openAccountModal(
     tab: AccountModalTab = "signup",
     accountPurpose?: AccountPurpose,
+    openSignupOnly = false,
   ) {
     setMobileOpen(false);
-    setAccountTab(tab);
+    setSignupOnly(openSignupOnly);
+    setAccountTab(
+      openSignupOnly ? "signup" : tab
+    );
 
     if (accountPurpose) {
       setJoinForm((current) => ({
@@ -409,6 +417,7 @@ export default function SiteHeader() {
     if (joining || loggingIn) return;
 
     setJoinOpen(false);
+    setSignupOnly(false);
     setJoinError("");
     setJoinSuccess("");
     setLoginError("");
@@ -643,6 +652,10 @@ export default function SiteHeader() {
         "signup",
         customEvent.detail
           ?.accountPurpose,
+        Boolean(
+          customEvent.detail
+            ?.signupOnly,
+        ),
       );
     }
 
@@ -1127,11 +1140,15 @@ export default function SiteHeader() {
 
                       <div className="min-w-0">
                         <h2 className="text-2xl font-semibold text-white">
-                          FRDA Member Account
+                          {signupOnly
+                            ? "Create Your Developer Profile"
+                            : "FRDA Member Account"}
                         </h2>
 
                         <p className="mt-2 text-sm leading-6 text-zinc-400">
-                          Our membership is open to Roblox game developers and people looking to work with them.
+                          {signupOnly
+                            ? "Create your free FRDA member account to start building your public developer profile."
+                            : "Our membership is open to Roblox game developers and people looking to work with them."}
                         </p>
                       </div>
                     </div>
@@ -1148,8 +1165,11 @@ export default function SiteHeader() {
                   </div>
                 )}
 
-                {accountTab === "login" &&
-                  loginView !== "login" ? null : (
+                {!signupOnly &&
+                (
+                  accountTab !== "login" ||
+                  loginView === "login"
+                ) ? (
                   <div className="mt-5 grid grid-cols-2 border-b border-white/10 px-6">
                     <button
                       type="button"
@@ -1185,7 +1205,7 @@ export default function SiteHeader() {
                       ) : null}
                     </button>
                   </div>
-                )}
+                ) : null}
 
                 {accountTab === "signup" && joinSuccess ? (
                   <div className="p-6">
@@ -1203,12 +1223,16 @@ export default function SiteHeader() {
                     <button
                       type="button"
                       onClick={() =>
-                        switchAccountTab("login")
+                        signupOnly
+                          ? closeJoinModal()
+                          : switchAccountTab("login")
                       }
                       className="mt-5 inline-flex bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500"
                       style={{ borderRadius: 5 }}
                     >
-                      Continue to Log In
+                      {signupOnly
+                        ? "Done"
+                        : "Continue to Log In"}
                     </button>
                   </div>
                 ) : accountTab === "signup" ? (
@@ -1358,40 +1382,42 @@ export default function SiteHeader() {
                       </div>
                     </div>
 
-                    <fieldset className="mt-6">
-                      <legend className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-                        How will you use FRDA?
-                      </legend>
+                    {!signupOnly ? (
+                      <fieldset className="mt-6">
+                        <legend className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                          How will you use FRDA?
+                        </legend>
 
-                      <div className="mt-3 grid gap-3">
-                        {[
-                          ["developer", "I’m a developer"],
-                          ["talent_seeker", "I’m looking for talent"],
-                          ["both", "I’m both"],
-                        ].map(([value, label]) => (
-                          <label
-                            key={value}
-                            className="flex cursor-pointer items-center gap-3 border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-zinc-200"
-                            style={{ borderRadius: 6 }}
-                          >
-                            <input
-                              type="radio"
-                              name="accountPurpose"
-                              value={value}
-                              checked={joinForm.accountPurpose === value}
-                              onChange={() =>
-                                setJoinForm((current) => ({
-                                  ...current,
-                                  accountPurpose: value as AccountPurpose,
-                                }))
-                              }
-                            />
+                        <div className="mt-3 grid gap-3">
+                          {[
+                            ["developer", "I’m a developer"],
+                            ["talent_seeker", "I’m looking for talent"],
+                            ["both", "I’m both"],
+                          ].map(([value, label]) => (
+                            <label
+                              key={value}
+                              className="flex cursor-pointer items-center gap-3 border border-white/10 bg-white/[0.025] px-4 py-3 text-sm text-zinc-200"
+                              style={{ borderRadius: 6 }}
+                            >
+                              <input
+                                type="radio"
+                                name="accountPurpose"
+                                value={value}
+                                checked={joinForm.accountPurpose === value}
+                                onChange={() =>
+                                  setJoinForm((current) => ({
+                                    ...current,
+                                    accountPurpose: value as AccountPurpose,
+                                  }))
+                                }
+                              />
 
-                            <span>{label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
+                              <span>{label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                    ) : null}
 
                     {joinError ? (
                       <div

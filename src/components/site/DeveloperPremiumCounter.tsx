@@ -54,11 +54,11 @@ export default function DeveloperPremiumCounter() {
           !response.ok ||
           !result?.ok ||
           typeof result.limit !==
-            "number" ||
+          "number" ||
           typeof result.claimed !==
-            "number" ||
+          "number" ||
           typeof result.remaining !==
-            "number"
+          "number"
         ) {
           setCountUnavailable(true);
           return;
@@ -99,14 +99,14 @@ export default function DeveloperPremiumCounter() {
 
   const percentage =
     count &&
-    count.limit > 0
+      count.limit > 0
       ? Math.min(
-          100,
-          (
-            count.claimed /
-            count.limit
-          ) * 100,
-        )
+        100,
+        (
+          count.claimed /
+          count.limit
+        ) * 100,
+      )
       : 0;
 
   return (
@@ -116,7 +116,7 @@ export default function DeveloperPremiumCounter() {
       </p>
 
       {!count &&
-      !countUnavailable ? (
+        !countUnavailable ? (
         <div className="flex min-h-40 flex-col items-center justify-center">
           <LoaderCircle className="h-5 w-5 animate-spin text-blue-300" />
 
@@ -136,7 +136,7 @@ export default function DeveloperPremiumCounter() {
         </div>
       ) : count ? (
         <>
-          <p className="mt-4 text-5xl font-semibold text-white">
+          <p className="mt-4 text-5xl font-semibold text-white drop-shadow-[0_0_4px_rgba(96,165,250,0.95)]">
             {count.remaining}
           </p>
 

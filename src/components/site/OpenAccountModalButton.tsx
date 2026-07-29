@@ -13,11 +13,13 @@ export default function OpenAccountModalButton({
   children,
   tab = "signup",
   accountPurpose = "developer",
+  signupOnly = false,
   className = "",
 }: {
   children: React.ReactNode;
   tab?: AccountModalTab;
   accountPurpose?: AccountPurpose;
+  signupOnly?: boolean;
   className?: string;
 }) {
   function openAccountModal() {
@@ -28,6 +30,7 @@ export default function OpenAccountModalButton({
           detail: {
             tab,
             accountPurpose,
+            signupOnly,
           },
         },
       ),
