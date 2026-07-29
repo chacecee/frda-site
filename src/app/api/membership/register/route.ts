@@ -63,7 +63,7 @@ function normalizeEmail(value: unknown): string {
     : "";
 }
 
-function sanitizeName(value: unknown): string {
+function sanitizeDisplayName(value: unknown): string {
   if (typeof value !== "string") {
     return "";
   }
@@ -405,14 +405,16 @@ export async function POST(
       );
     }
 
-    const fullName =
-      sanitizeName(
-        (
-          body as Record<
-            string,
-            unknown
-          >
-        ).fullName,
+    const registrationBody =
+      body as Record<
+        string,
+        unknown
+      >;
+
+    const displayName =
+      sanitizeDisplayName(
+        registrationBody.displayName ??
+        registrationBody.fullName,
       );
 
     const email =
@@ -470,13 +472,13 @@ export async function POST(
     }
 
     if (
-      fullName.length < 2
+      displayName.length < 2
     ) {
       return jsonResponse(
         {
           ok: false,
           error:
-            "Enter your full name.",
+            "Enter your developer name or alias.",
         },
         400,
       );
@@ -605,7 +607,7 @@ export async function POST(
             email,
             password,
             displayName:
-              fullName,
+              displayName,
             emailVerified:
               false,
             disabled:
@@ -639,7 +641,7 @@ export async function POST(
       await createSelfRegisteredMember({
         email,
         displayName:
-          fullName,
+          displayName,
         accountPurpose,
         authUid:
           createdUid,
@@ -661,7 +663,7 @@ export async function POST(
     await sendVerificationEmail({
       email,
       displayName:
-        fullName,
+        displayName,
       verificationUrl,
     });
 

@@ -63,7 +63,7 @@ type HeaderMember = {
 
 
 type JoinFormState = {
-  fullName: string;
+  displayName: string;
   email: string;
   password: string;
   confirmPassword: string;
@@ -72,7 +72,7 @@ type JoinFormState = {
 };
 
 const EMPTY_JOIN_FORM: JoinFormState = {
-  fullName: "",
+  displayName: "",
   email: "",
   password: "",
   confirmPassword: "",
@@ -577,8 +577,8 @@ export default function SiteHeader() {
     setJoinError("");
     setJoinSuccess("");
 
-    if (!joinForm.fullName.trim()) {
-      setJoinError("Enter your full name.");
+    if (!joinForm.displayName.trim()) {
+      setJoinError("Enter your developer name or alias.");
       return;
     }
 
@@ -605,7 +605,7 @@ export default function SiteHeader() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            fullName: joinForm.fullName.trim(),
+            displayName: joinForm.displayName.trim(),
             email: joinForm.email.trim(),
             password: joinForm.password,
             accountPurpose: joinForm.accountPurpose,
@@ -1240,23 +1240,28 @@ export default function SiteHeader() {
                     <div className="grid gap-5 sm:grid-cols-2">
                       <div className="sm:col-span-2">
                         <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                          Full Name
+                          Developer Name or Alias
                         </label>
 
                         <input
                           type="text"
-                          value={joinForm.fullName}
+                          value={joinForm.displayName}
                           onChange={(event) =>
                             setJoinForm((current) => ({
                               ...current,
-                              fullName: event.target.value,
+                              displayName: event.target.value,
                             }))
                           }
                           maxLength={120}
+                          placeholder="Your Roblox name, studio name, nickname, or public alias"
                           className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
                           style={{ borderRadius: 5 }}
                           required
                         />
+
+                        <p className="mt-2 text-xs leading-5 text-zinc-500">
+                          Use the name people know you by in the Roblox developer community. It doesn’t need to be your legal name.
+                        </p>
                       </div>
 
                       <div className="sm:col-span-2">

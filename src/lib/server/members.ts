@@ -643,7 +643,7 @@ export async function createSelfRegisteredMember({
     !normalizedDisplayName
   ) {
     throw new Error(
-      "A full name is required.",
+      "A developer name or alias is required.",
     );
   }
 

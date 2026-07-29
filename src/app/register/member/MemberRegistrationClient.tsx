@@ -439,7 +439,7 @@ export default function MemberRegistrationPage() {
 
               <div className="mt-6">
                 <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
-                  Display Name
+                  Developer Name or Alias
                 </label>
 
                 <input
@@ -450,8 +450,13 @@ export default function MemberRegistrationPage() {
                   }
                   className="w-full border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-blue-400"
                   style={{ borderRadius: 5 }}
+                  placeholder="Your Roblox name, studio name, nickname, or public alias"
                   required
                 />
+
+                <p className="mt-2 text-xs leading-5 text-zinc-500">
+                  Use the name people know you by. It doesn’t need to be your legal name.
+                </p>
               </div>
 
               <div className="mt-5">
