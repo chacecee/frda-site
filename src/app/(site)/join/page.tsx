@@ -338,7 +338,7 @@ export default function DeveloperJoinPage() {
                                                             href="/games"
                                                             className="text-blue-300 underline decoration-blue-400/50 underline-offset-4 transition hover:text-blue-200"
                                                         >
-                                                            FRDA’s public games directory
+                                                            our public games directory
                                                         </Link>
                                                         . Each listing can also lead visitors back to your developer profile.
                                                     </>
