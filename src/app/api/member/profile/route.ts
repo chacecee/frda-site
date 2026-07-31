@@ -941,6 +941,39 @@ export async function PATCH(request: NextRequest) {
         },
       );
 
+    const hasInvalidYoutubeVideoUrl =
+      rawWorkSamples.some(
+        (item) => {
+          if (
+            typeof item !== "object" ||
+            item === null
+          ) {
+            return false;
+          }
+
+          const raw =
+            item as Record<
+              string,
+              unknown
+            >;
+
+          const rawYoutubeVideoUrl =
+            typeof raw.youtubeVideoUrl ===
+              "string"
+              ? raw.youtubeVideoUrl.trim()
+              : "";
+
+          return (
+            Boolean(
+              rawYoutubeVideoUrl,
+            ) &&
+            !sanitizeYoutubeUrl(
+              rawYoutubeVideoUrl,
+            )
+          );
+        },
+      );
+
     const workSamples = sanitizeWorkSamples(body.workSamples, member.uid);
 
     const coverShowcaseImages = sanitizeCoverShowcaseImages(
@@ -1012,6 +1045,19 @@ export async function PATCH(request: NextRequest) {
           ok: false,
           error:
             "Enter a valid Roblox experience link from roblox.com/games/.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (
+      hasInvalidYoutubeVideoUrl
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Enter a valid YouTube video link from youtube.com or youtu.be.",
         },
         { status: 400 },
       );
