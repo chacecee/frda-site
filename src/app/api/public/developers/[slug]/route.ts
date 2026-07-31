@@ -9,6 +9,9 @@ import {
 
 import { adminDb } from "@/lib/firebaseAdmin";
 import {
+    PUBLISHED_DEVELOPER_PROFILES_COLLECTION,
+} from "@/lib/server/publishedDeveloperProfiles";
+import {
     GAME_GENRE_OPTIONS,
     type GameDirectoryGenre,
 } from "@/lib/gameDirectory";
@@ -612,7 +615,7 @@ export async function GET(
 
         let snapshot = await adminDb
             .collection(
-                "developerProfiles"
+                PUBLISHED_DEVELOPER_PROFILES_COLLECTION
             )
             .where(
                 "profileSlug",
@@ -626,6 +629,46 @@ export async function GET(
             )
             .limit(1)
             .get();
+
+        if (snapshot.empty) {
+            snapshot = await adminDb
+                .collection(
+                    PUBLISHED_DEVELOPER_PROFILES_COLLECTION
+                )
+                .where(
+                    "customSubdomain",
+                    "==",
+                    normalizedSlug
+                )
+                .where(
+                    "isPublished",
+                    "==",
+                    true
+                )
+                .limit(1)
+                .get();
+        }
+
+        // Temporary Install 1 fallback.
+        // Remove this fallback after migration is confirmed.
+        if (snapshot.empty) {
+            snapshot = await adminDb
+                .collection(
+                    "developerProfiles"
+                )
+                .where(
+                    "profileSlug",
+                    "==",
+                    normalizedSlug
+                )
+                .where(
+                    "isPublished",
+                    "==",
+                    true
+                )
+                .limit(1)
+                .get();
+        }
 
         if (snapshot.empty) {
             snapshot = await adminDb

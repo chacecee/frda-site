@@ -5,6 +5,9 @@ import {
 import {
     adminDb,
 } from "@/lib/firebaseAdmin";
+import {
+    PUBLISHED_DEVELOPER_PROFILES_COLLECTION,
+} from "@/lib/server/publishedDeveloperProfiles";
 
 import {
     GAME_GENRE_OPTIONS,
@@ -264,27 +267,40 @@ function getDirectoryShowcase(
 
 export async function GET() {
     try {
-        const [
-            snapshot,
-            savesSnapshot,
-        ] = await Promise.all([
-            adminDb
+        let snapshot =
+            await adminDb
                 .collection(
-                    "developerProfiles"
+                    PUBLISHED_DEVELOPER_PROFILES_COLLECTION
                 )
                 .where(
                     "isPublished",
                     "==",
                     true
                 )
-                .get(),
+                .get();
 
-            adminDb
+        // Temporary Install 1 fallback.
+        // Remove this fallback after migration is confirmed.
+        if (snapshot.empty) {
+            snapshot =
+                await adminDb
+                    .collection(
+                        "developerProfiles"
+                    )
+                    .where(
+                        "isPublished",
+                        "==",
+                        true
+                    )
+                    .get();
+        }
+
+        const savesSnapshot =
+            await adminDb
                 .collection(
                     "developerSaves"
                 )
-                .get(),
-        ]);
+                .get();
 
         const saveCountByDeveloper =
             new Map<string, number>();
