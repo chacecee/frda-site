@@ -185,6 +185,11 @@ type PublicationStatus = {
 
   hasPremiumAccess: boolean;
   launchPremiumEligible: boolean;
+
+  hasPublishedProfile: boolean;
+  hasPendingChanges: boolean;
+  requiresProfileReview: boolean;
+  hasBeenApprovedBefore: boolean;
 };
 
 const SKILL_OPTIONS = [
@@ -643,6 +648,11 @@ export default function MemberProfilePage() {
 
       hasPremiumAccess: false,
       launchPremiumEligible: false,
+
+      hasPublishedProfile: false,
+      hasPendingChanges: false,
+      requiresProfileReview: true,
+      hasBeenApprovedBefore: false,
     });
 
   const [submittingForReview, setSubmittingForReview] = useState(false);
@@ -1076,20 +1086,10 @@ export default function MemberProfilePage() {
         );
       }
 
-      if (
-        oldAvatarPathToDelete &&
-        oldAvatarPathToDelete !== avatarForSave?.storagePath
-      ) {
-        await safelyDeleteStorageObject(
-          oldAvatarPathToDelete,
-        );
-      }
-
-      for (const oldCoverPath of oldCoverPathsToDelete) {
-        await safelyDeleteStorageObject(
-          oldCoverPath,
-        );
-      }
+      // Old media is intentionally retained here.
+      // The approved public snapshot may still reference it until review.
+      void oldAvatarPathToDelete;
+      void oldCoverPathsToDelete;
 
       if (pendingAvatarImage?.previewUrl) {
         URL.revokeObjectURL(
@@ -1219,20 +1219,10 @@ export default function MemberProfilePage() {
       );
     }
 
-    if (
-      oldAvatarPathToDelete &&
-      oldAvatarPathToDelete !== avatarForSave?.storagePath
-    ) {
-      await safelyDeleteStorageObject(
-        oldAvatarPathToDelete,
-      );
-    }
-
-    for (const oldCoverPath of oldCoverPathsToDelete) {
-      await safelyDeleteStorageObject(
-        oldCoverPath,
-      );
-    }
+    // Old media is intentionally retained here.
+    // The approved public snapshot may still reference it until review.
+    void oldAvatarPathToDelete;
+    void oldCoverPathsToDelete;
 
     if (pendingAvatarImage?.previewUrl) {
       URL.revokeObjectURL(
@@ -1555,15 +1545,8 @@ export default function MemberProfilePage() {
     setSuccessMessage("");
 
     try {
-      for (const image of sample.images || []) {
-        await safelyDeleteStorageObject(
-          image.showcaseStoragePath,
-        );
-
-        await safelyDeleteStorageObject(
-          image.storagePath,
-        );
-      }
+      // Storage files are retained until a later safe cleanup.
+      // The currently approved public profile may still reference them.
 
       setWorkSamples((current) => current.filter((item) => item.id !== id));
       setSuccessMessage(
@@ -1675,13 +1658,8 @@ export default function MemberProfilePage() {
     setSuccessMessage("");
 
     try {
-      await safelyDeleteStorageObject(
-        image.showcaseStoragePath,
-      );
-
-      await safelyDeleteStorageObject(
-        image.storagePath,
-      );
+      // Storage files are retained until a later safe cleanup.
+      // The currently approved public profile may still reference them.
 
       setWorkSamples((current) =>
         current.map((project) =>
@@ -1909,11 +1887,8 @@ export default function MemberProfilePage() {
             storageReference,
           );
 
-        if (projectImage.storagePath) {
-          await safelyDeleteStorageObject(
-            projectImage.storagePath,
-          );
-        }
+        // Keep the previous Storage object until a later safe cleanup.
+        // The approved public snapshot may still reference it.
 
         setWorkSamples((current) =>
           current.map((project) =>
@@ -2384,6 +2359,43 @@ export default function MemberProfilePage() {
           </div>
         ) : null}
 
+        {!publication.moderationLock &&
+        publication.status === "pending_review" ? (
+          <div
+            className="mb-6 border border-blue-400/25 bg-blue-500/10 p-4 text-sm leading-6 text-blue-100"
+            style={{ borderRadius: 8 }}
+          >
+            <p className="font-semibold">
+              Your profile is waiting for FRDA review.
+            </p>
+
+            <p className="mt-2 text-blue-100/80">
+              {publication.isPublished
+                ? "Your current approved profile remains public while these changes are reviewed."
+                : "Your profile will appear publicly after it is approved."}
+            </p>
+          </div>
+        ) : null}
+
+        {!publication.moderationLock &&
+        publication.status === "changes_requested" ? (
+          <div
+            className="mb-6 border border-amber-400/25 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100"
+            style={{ borderRadius: 8 }}
+          >
+            <p className="font-semibold">
+              FRDA requested changes to this profile.
+            </p>
+
+            <p className="mt-2 text-amber-100/80">
+              Save your updates, then use Resubmit for Review.
+              {publication.isPublished
+                ? " Your previous approved profile remains public."
+                : ""}
+            </p>
+          </div>
+        ) : null}
+
         <div className="fixed inset-x-0 bottom-0 z-[80] border-t border-sky-300/20 bg-[#071225]/76 shadow-[0_-14px_42px_rgba(0,0,0,0.42),0_-2px_24px_rgba(56,189,248,0.12),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-5 py-3 md:px-8">
             <p className="hidden text-sm font-semibold text-white sm:block">
@@ -2427,7 +2439,9 @@ export default function MemberProfilePage() {
                 type="button"
                 onClick={() =>
                   updatePublication(
-                    publication.isPublished
+                    publication.isPublished &&
+                      !publication.hasPendingChanges &&
+                      publication.status === "live"
                       ? "unpublish"
                       : "publish",
                   )
@@ -2438,7 +2452,9 @@ export default function MemberProfilePage() {
                   (
                     publication.moderationLock &&
                     !publication.isPublished
-                  )
+                  ) ||
+                  publication.status ===
+                    "pending_review"
                 }
                 className={`inline-flex min-h-10 cursor-pointer items-center gap-2 px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${publication.isPublished
                   ? "border border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
@@ -2449,11 +2465,23 @@ export default function MemberProfilePage() {
                 {submittingForReview ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" />
                 ) : null}
-                {publication.isPublished
-                  ? "Unpublish"
-                  : publication.moderationLock
-                    ? "Publishing Disabled"
-                    : "Publish"}
+                {publication.moderationLock
+                  ? "Publishing Disabled"
+                  : publication.status === "pending_review"
+                    ? "Waiting for Review"
+                    : publication.status === "changes_requested"
+                      ? "Resubmit for Review"
+                      : publication.isPublished &&
+                          !publication.hasPendingChanges
+                        ? "Unpublish"
+                        : publication.hasBeenApprovedBefore &&
+                            publication.requiresProfileReview
+                          ? "Submit Changes for Review"
+                          : publication.requiresProfileReview
+                            ? "Submit for Review"
+                            : publication.hasBeenApprovedBefore
+                              ? "Update Public Profile"
+                              : "Submit for Review"}
               </button>
             </div>
           </div>
@@ -3453,7 +3481,7 @@ export default function MemberProfilePage() {
                   />
 
                   <span className="text-sm leading-6 text-zinc-300">
-                    By publishing, I confirm that the information on this
+                    By submitting, I confirm that the information on this
                     profile is accurate, that I have permission to share the
                     work shown, and that my role in each project is described
                     truthfully.

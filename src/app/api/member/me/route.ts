@@ -193,6 +193,21 @@ export async function GET(
             .developerPremiumStatus
         : "not_eligible";
 
+    const isDeveloperAccount =
+      member.accountPurpose === "developer" ||
+      member.accountPurpose === "both";
+
+    const discordInviteEligible =
+      isDeveloperAccount &&
+      memberData.hasBeenApprovedBefore === true;
+
+    const discordInviteGeneratedOnce =
+      memberData.discordInviteGeneratedOnce === true ||
+      Boolean(
+        memberData.discordInviteCode ||
+        memberData.discordInviteCreatedAt,
+      );
+
     return NextResponse.json({
       ok: true,
 
@@ -320,15 +335,13 @@ export async function GET(
 
         source:
           String(
-            memberData.source ||
-              "",
+            memberData.source || "",
           ),
 
         sourceApplicationId:
           String(
             memberData
-              .sourceApplicationId ||
-              "",
+              .sourceApplicationId || "",
           ),
 
         activatedAt:
@@ -336,11 +349,27 @@ export async function GET(
             memberData.activatedAt,
           ),
 
+        discordInviteEligible,
+
+        discordInviteGeneratedOnce,
+
+        discordInviteStatus:
+          String(
+            memberData
+              .discordInviteStatus ||
+              (
+                discordInviteGeneratedOnce
+                  ? "used_or_expired"
+                  : discordInviteEligible
+                    ? "eligible"
+                    : "locked"
+              ),
+          ),
+
         discordInviteUrl:
           String(
             memberData
-              .discordInviteUrl ||
-              "",
+              .discordInviteUrl || "",
           ),
 
         discordInviteExpiresAt:
@@ -352,8 +381,7 @@ export async function GET(
         discordInviteError:
           String(
             memberData
-              .discordInviteError ||
-              "",
+              .discordInviteError || "",
           ),
       },
     });
@@ -369,9 +397,7 @@ export async function GET(
         error:
           "Could not load your FRDA membership account.",
       },
-      {
-        status: 500,
-      },
+      { status: 500 },
     );
   }
 }

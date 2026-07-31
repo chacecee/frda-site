@@ -82,6 +82,11 @@ type DeveloperAccount = {
   profileSlug: string;
 
   isPublished: boolean;
+  hasPublishedProfile: boolean;
+  publicProfileStatus: string;
+  requiresProfileReview: boolean;
+  hasBeenApprovedBefore: boolean;
+  hasPendingChanges: boolean;
 
   memberListingLimit: number;
   paidListingCredits: number;
@@ -310,6 +315,7 @@ export default function DeveloperAccountsPage() {
       | "revoke_premium"
       | "suspend_account"
       | "restore_account"
+      | "set_review_requirement"
       | null
     >(null);
 
@@ -819,6 +825,98 @@ export default function DeveloperAccountsPage() {
         error instanceof Error
           ? error.message
           : "Could not update the developer profile."
+      );
+    } finally {
+      setProcessingAction(null);
+    }
+  }
+
+  async function setReviewRequirement(
+    reviewRequired: boolean,
+  ) {
+    if (
+      !user ||
+      !selectedDeveloper ||
+      processingAction
+    ) {
+      return;
+    }
+
+    setProcessingAction(
+      "set_review_requirement",
+    );
+
+    try {
+      const idToken =
+        await user.getIdToken();
+
+      const response =
+        await fetch(
+          "/api/admin/membership/developer-profiles",
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type":
+                "application/json",
+              Authorization:
+                `Bearer ${idToken}`,
+            },
+            body:
+              JSON.stringify({
+                uid:
+                  selectedDeveloper.uid,
+                memberId:
+                  selectedDeveloper.memberId,
+                action:
+                  "set_review_requirement",
+                reviewRequired,
+                reviewerNote:
+                  reviewerNote.trim(),
+              }),
+          },
+        );
+
+      const result =
+        await response
+          .json()
+          .catch(() => null);
+
+      if (
+        !response.ok ||
+        !result?.ok
+      ) {
+        throw new Error(
+          result?.error ||
+          "Could not update the review requirement.",
+        );
+      }
+
+      const updatedDeveloper =
+        result.developer as DeveloperAccount;
+
+      setDevelopers(
+        (current) =>
+          current.map(
+            (developer) =>
+              developer.memberId ===
+                updatedDeveloper.memberId
+                ? updatedDeveloper
+                : developer,
+          ),
+      );
+
+      setSelectedDeveloper(
+        updatedDeveloper,
+      );
+
+      notify.success(
+        result.message,
+      );
+    } catch (error) {
+      notify.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update the review requirement.",
       );
     } finally {
       setProcessingAction(null);
@@ -1502,6 +1600,32 @@ export default function DeveloperAccountsPage() {
                     selectedDeveloper.availability
                   )}
                 </span>
+
+                {selectedDeveloper.hasPublishedProfile ? (
+                  <span
+                    className="inline-flex border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200"
+                    style={{ borderRadius: 999 }}
+                  >
+                    Public profile live
+                  </span>
+                ) : (
+                  <span
+                    className="inline-flex border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300"
+                    style={{ borderRadius: 999 }}
+                  >
+                    No public profile
+                  </span>
+                )}
+
+                {selectedDeveloper.hasPendingChanges &&
+                selectedDeveloper.hasPublishedProfile ? (
+                  <span
+                    className="inline-flex border border-blue-500/25 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-200"
+                    style={{ borderRadius: 999 }}
+                  >
+                    Public version preserved
+                  </span>
+                ) : null}
               </div>
 
               <div className="space-y-6">
@@ -1951,7 +2075,7 @@ export default function DeveloperAccountsPage() {
                     </div>
 
                     <div className="flex shrink-0 flex-col gap-3">
-                      {selectedDeveloper.profileStatus === "live" &&
+                      {selectedDeveloper.hasPublishedProfile &&
                         selectedDeveloper.developerPremiumStatus ===
                         "pending_review" &&
                         selectedDeveloper.launchPremiumEligible &&
@@ -2006,6 +2130,70 @@ export default function DeveloperAccountsPage() {
                   </div>
                 </section>
 
+                <section
+                  className="border border-sky-400/20 bg-sky-500/[0.06] p-5"
+                  style={{ borderRadius: 8 }}
+                >
+                  <div className="flex items-start justify-between gap-5">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-sky-200">
+                        Profile Moderation
+                      </h3>
+
+                      <p className="mt-3 text-sm font-semibold text-white">
+                        Require review for future profile changes
+                      </p>
+
+                      <p className="mt-2 max-w-lg text-sm leading-6 text-zinc-400">
+                        When enabled, this developer’s saved changes must be approved before they replace the public version.
+                      </p>
+
+                      <p className="mt-3 text-xs font-medium text-zinc-500">
+                        {selectedDeveloper.requiresProfileReview
+                          ? "Review required"
+                          : "Trusted updates"}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={
+                        selectedDeveloper.requiresProfileReview
+                      }
+                      aria-label="Require review for future profile changes"
+                      onClick={() =>
+                        setReviewRequirement(
+                          !selectedDeveloper.requiresProfileReview,
+                        )
+                      }
+                      disabled={Boolean(
+                        processingAction,
+                      )}
+                      className={`relative mt-1 h-7 w-12 shrink-0 cursor-pointer rounded-full border transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                        selectedDeveloper.requiresProfileReview
+                          ? "border-sky-300/45 bg-sky-500"
+                          : "border-zinc-600 bg-zinc-700"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                          selectedDeveloper.requiresProfileReview
+                            ? "left-[25px]"
+                            : "left-0.5"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {selectedDeveloper.profileStatus ===
+                    "pending_review" ? (
+                    <p className="mt-4 border-t border-sky-300/10 pt-4 text-xs leading-5 text-sky-100/70">
+                      Changing this switch will not approve the draft that is already waiting for review.
+                    </p>
+                  ) : null}
+                </section>
+
                 <section>
                   <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-zinc-400">
                     Reviewer or Internal Note
@@ -2054,8 +2242,7 @@ export default function DeveloperAccountsPage() {
                   </button>
                 ) : (
                   <>
-                    {selectedDeveloper.profileStatus ===
-                      "live" ? (
+                    {selectedDeveloper.hasPublishedProfile ? (
                       <button
                         type="button"
                         onClick={() =>

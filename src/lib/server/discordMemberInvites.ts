@@ -147,25 +147,63 @@ export async function createDiscordMemberInvite({
       {
         discordInviteCode:
           result.code,
+
         discordInviteUrl:
           inviteUrl,
+
         discordInviteCreatedAt:
           FieldValue
             .serverTimestamp(),
+
         discordInviteExpiresAt:
           Timestamp.fromDate(
             expiresAtDate,
           ),
+
         discordInviteMaxUses:
           INVITE_MAX_USES,
+
         discordInviteGeneratedForUid:
           authUid,
+
+        discordInviteGeneratedOnce:
+          true,
+
+        discordInviteStatus:
+          "available",
+
+        discordInviteGenerationStatus:
+          "complete",
+
+        discordInviteError:
+          "",
+
         updatedAt:
           FieldValue
             .serverTimestamp(),
       },
       { merge: true },
     );
+
+  await adminDb
+    .collection(
+      "discordInviteAuditLogs",
+    )
+    .add({
+      memberId,
+      authUid,
+      inviteCode:
+        result.code,
+      maxAgeSeconds:
+        INVITE_MAX_AGE_SECONDS,
+      maxUses:
+        INVITE_MAX_USES,
+      status:
+        "created",
+      createdAt:
+        FieldValue
+          .serverTimestamp(),
+    });
 
   return {
     code: result.code,

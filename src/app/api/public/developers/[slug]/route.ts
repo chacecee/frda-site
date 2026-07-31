@@ -649,45 +649,6 @@ export async function GET(
                 .get();
         }
 
-        // Temporary Install 1 fallback.
-        // Remove this fallback after migration is confirmed.
-        if (snapshot.empty) {
-            snapshot = await adminDb
-                .collection(
-                    "developerProfiles"
-                )
-                .where(
-                    "profileSlug",
-                    "==",
-                    normalizedSlug
-                )
-                .where(
-                    "isPublished",
-                    "==",
-                    true
-                )
-                .limit(1)
-                .get();
-        }
-
-        if (snapshot.empty) {
-            snapshot = await adminDb
-                .collection(
-                    "developerProfiles"
-                )
-                .where(
-                    "customSubdomain",
-                    "==",
-                    normalizedSlug
-                )
-                .where(
-                    "isPublished",
-                    "==",
-                    true
-                )
-                .limit(1)
-                .get();
-        }
 
         if (snapshot.empty) {
             return NextResponse.json(

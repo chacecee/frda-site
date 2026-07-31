@@ -22,6 +22,11 @@ import {
 } from "@/lib/server/securitySignals";
 
 import {
+  PUBLISHED_DEVELOPER_PROFILES_COLLECTION,
+  buildPublishedDeveloperProfile,
+} from "@/lib/server/publishedDeveloperProfiles";
+
+import {
   DEVELOPER_PREMIUM_LAUNCH_LIMIT,
   hasDeveloperPremiumAccess,
   isEligibleForLaunchPremiumReview,
@@ -36,7 +41,8 @@ type ReviewAction =
   | "grant_premium"
   | "revoke_premium"
   | "suspend_account"
-  | "restore_account";
+  | "restore_account"
+  | "set_review_requirement";
 
 function timestampToIso(
   value: unknown,
@@ -118,6 +124,7 @@ function serializeDeveloperAccount({
   profile,
   analytics,
   bookmarkCount,
+  publishedProfile,
 }: {
   memberId: string;
 
@@ -133,6 +140,10 @@ function serializeDeveloperAccount({
   | null;
 
   bookmarkCount?: number;
+
+  publishedProfile?:
+  | FirebaseFirestore.DocumentData
+  | null;
 }) {
   const launchPremiumEligible =
     isEligibleForLaunchPremiumReview(
@@ -337,7 +348,37 @@ function serializeDeveloperAccount({
       ),
 
     isPublished:
-      profile?.isPublished === true,
+      publishedProfile?.isPublished === true &&
+      String(
+        publishedProfile?.profileStatus || "",
+      ) === "live",
+
+    hasPublishedProfile:
+      publishedProfile?.isPublished === true &&
+      String(
+        publishedProfile?.profileStatus || "",
+      ) === "live",
+
+    publicProfileStatus:
+      String(
+        publishedProfile?.profileStatus || "not_published",
+      ),
+
+    requiresProfileReview:
+      profile?.requiresProfileReview !== false,
+
+    hasBeenApprovedBefore:
+      profile?.hasBeenApprovedBefore === true ||
+      Boolean(publishedProfile),
+
+    hasPendingChanges:
+      profile?.hasUnpublishedChanges === true ||
+      String(
+        profile?.profileStatus || "",
+      ) === "pending_review" ||
+      String(
+        profile?.profileStatus || "",
+      ) === "changes_requested",
 
     memberListingLimit:
       typeof member
@@ -499,7 +540,9 @@ function isReviewAction(
     value ===
     "suspend_account" ||
     value ===
-    "restore_account"
+    "restore_account" ||
+    value ===
+    "set_review_requirement"
   );
 }
 
@@ -554,6 +597,7 @@ async function loadDeveloperAccounts() {
     profilesSnapshot,
     analyticsSnapshot,
     savesSnapshot,
+    publishedProfilesSnapshot,
   ] = await Promise.all([
     adminDb
       .collection("members")
@@ -574,6 +618,12 @@ async function loadDeveloperAccounts() {
     adminDb
       .collection(
         "developerSaves",
+      )
+      .get(),
+
+    adminDb
+      .collection(
+        PUBLISHED_DEVELOPER_PROFILES_COLLECTION,
       )
       .get(),
   ]);
@@ -645,6 +695,21 @@ async function loadDeveloperAccounts() {
     },
   );
 
+  const publishedProfileByUid =
+    new Map<
+      string,
+      FirebaseFirestore.DocumentData
+    >();
+
+  publishedProfilesSnapshot.docs.forEach(
+    (document) => {
+      publishedProfileByUid.set(
+        document.id,
+        document.data(),
+      );
+    },
+  );
+
   const accounts =
     membersSnapshot.docs
       .filter(
@@ -698,6 +763,13 @@ async function loadDeveloperAccounts() {
                   authUid,
                 ) || 0
                 : 0,
+
+            publishedProfile:
+              authUid
+                ? publishedProfileByUid.get(
+                  authUid,
+                ) || null
+                : null,
           });
         },
       );
@@ -800,6 +872,7 @@ export async function PATCH(
         memberId?: unknown;
         action?: unknown;
         reviewerNote?: unknown;
+        reviewRequired?: unknown;
       }
       | null;
 
@@ -920,6 +993,13 @@ export async function PATCH(
         .collection("members")
         .doc(memberId);
 
+    const publishedReference =
+      adminDb
+        .collection(
+          PUBLISHED_DEVELOPER_PROFILES_COLLECTION,
+        )
+        .doc(uid);
+
     const requestReference =
       adminDb
         .collection(
@@ -934,6 +1014,7 @@ export async function PATCH(
         const [
           profileSnapshot,
           memberSnapshot,
+          publishedSnapshot,
         ] = await Promise.all([
           transaction.get(
             profileReference,
@@ -941,6 +1022,10 @@ export async function PATCH(
 
           transaction.get(
             memberReference,
+          ),
+
+          transaction.get(
+            publishedReference,
           ),
         ]);
 
@@ -967,6 +1052,18 @@ export async function PATCH(
         const memberData =
           memberSnapshot.data() ||
           {};
+
+        const publishedProfile =
+          publishedSnapshot.exists
+            ? publishedSnapshot.data() || {}
+            : {};
+
+        const publishedIsLive =
+          publishedSnapshot.exists &&
+          publishedProfile.isPublished === true &&
+          String(
+            publishedProfile.profileStatus || "",
+          ) === "live";
 
         const currentStatus =
           String(
@@ -999,6 +1096,46 @@ export async function PATCH(
             FieldValue
               .serverTimestamp(),
         };
+
+        if (
+          body.action ===
+          "set_review_requirement"
+        ) {
+          if (
+            typeof body.reviewRequired !==
+            "boolean"
+          ) {
+            throw new Error(
+              "A valid review requirement is required.",
+            );
+          }
+
+          transaction.set(
+            profileReference,
+            {
+              requiresProfileReview:
+                body.reviewRequired,
+
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+
+          transaction.set(
+            memberReference,
+            {
+              requiresProfileReview:
+                body.reviewRequired,
+
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+
+          return;
+        }
 
         if (
           body.action ===
@@ -1067,6 +1204,25 @@ export async function PATCH(
               merge: true,
             },
           );
+
+          if (
+            publishedSnapshot.exists
+          ) {
+            transaction.set(
+              publishedReference,
+              {
+                profileStatus:
+                  "hidden",
+                isPublished:
+                  false,
+                hiddenAt:
+                  FieldValue.serverTimestamp(),
+                updatedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              { merge: true },
+            );
+          }
 
           transaction.set(
             profileReference,
@@ -1293,9 +1449,7 @@ export async function PATCH(
               : 0;
 
           const nextPremiumStatus =
-            profile.isPublished ===
-              true &&
-              currentStatus === "live" &&
+            publishedIsLive &&
               isEligibleForLaunchPremiumReview(
                 memberData,
               )
@@ -1441,12 +1595,15 @@ export async function PATCH(
 
         if (
           body.action ===
+          "set_review_requirement"
+          ? body.reviewRequired
+            ? "Future profile changes will require staff review."
+            : "This developer is now trusted to update their public profile directly."
+          : body.action ===
           "grant_premium"
         ) {
           if (
-            profile.isPublished !==
-            true ||
-            currentStatus !== "live"
+            !publishedIsLive
           ) {
             throw new Error(
               "Only a published profile can receive launch lifetime premium.",
@@ -1653,6 +1810,39 @@ export async function PATCH(
             });
 
           transaction.set(
+            publishedReference,
+            buildPublishedDeveloperProfile({
+              uid,
+              profile: {
+                ...profile,
+                profileSlug,
+                profileStatus:
+                  "live",
+                isPublished:
+                  true,
+                publishedAt:
+                  publishedProfile.publishedAt ||
+                  profile.publishedAt ||
+                  FieldValue.serverTimestamp(),
+                lastPublishedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              approvedBy: {
+                uid:
+                  authorization.staff.uid,
+                email:
+                  authorization.staff.emailAddress,
+                name:
+                  authorization.staff.displayName ||
+                  authorization.staff.emailAddress,
+              },
+              source:
+                "staff_approval",
+            }),
+            { merge: false },
+          );
+
+          transaction.set(
             profileReference,
             {
               ...reviewerFields,
@@ -1660,13 +1850,26 @@ export async function PATCH(
               profileStatus:
                 "live",
 
-              isPublished: true,
+              isPublished:
+                true,
 
               profileSlug,
 
+              hasBeenApprovedBefore:
+                true,
+
+              hasUnpublishedChanges:
+                false,
+
               publishedAt:
-                FieldValue
-                  .serverTimestamp(),
+                profile.publishedAt ||
+                FieldValue.serverTimestamp(),
+
+              lastApprovedSnapshotAt:
+                FieldValue.serverTimestamp(),
+
+              publicationRequestedAt:
+                FieldValue.delete(),
             },
             {
               merge: true,
@@ -1678,6 +1881,9 @@ export async function PATCH(
             {
               profileStatus:
                 "live",
+
+              hasBeenApprovedBefore:
+                true,
 
               updatedAt:
                 FieldValue
@@ -1747,7 +1953,11 @@ export async function PATCH(
               profileStatus:
                 "changes_requested",
 
-              isPublished: false,
+              isPublished:
+                false,
+
+              hasUnpublishedChanges:
+                true,
             },
             {
               merge: true,
@@ -1812,15 +2022,27 @@ export async function PATCH(
           "hide"
         ) {
           if (
-            currentStatus !==
-            "live" &&
-            profile.isPublished !==
-            true
+            !publishedIsLive
           ) {
             throw new Error(
               "Only a published profile can be hidden.",
             );
           }
+
+          transaction.set(
+            publishedReference,
+            {
+              profileStatus:
+                "hidden",
+              isPublished:
+                false,
+              hiddenAt:
+                FieldValue.serverTimestamp(),
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
 
           transaction.set(
             profileReference,
@@ -1972,6 +2194,7 @@ export async function PATCH(
       updatedProfileSnapshot,
       updatedAnalyticsSnapshot,
       updatedSavesSnapshot,
+      updatedPublishedSnapshot,
     ] = await Promise.all([
       memberReference.get(),
 
@@ -1994,6 +2217,8 @@ export async function PATCH(
           uid,
         )
         .get(),
+
+      publishedReference.get(),
     ]);
 
     return NextResponse.json({
@@ -2017,10 +2242,20 @@ export async function PATCH(
 
           bookmarkCount:
             updatedSavesSnapshot.size,
+
+          publishedProfile:
+            updatedPublishedSnapshot.exists
+              ? updatedPublishedSnapshot.data() || {}
+              : null,
         }),
 
       message:
         body.action ===
+          "set_review_requirement"
+          ? body.reviewRequired
+            ? "Future profile changes will require staff review."
+            : "This developer is now trusted to update their public profile directly."
+          : body.action ===
           "grant_premium"
           ? "Launch lifetime premium was granted to this developer."
           : body.action ===

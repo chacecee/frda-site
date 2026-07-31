@@ -279,21 +279,6 @@ export async function GET() {
                 )
                 .get();
 
-        // Temporary Install 1 fallback.
-        // Remove this fallback after migration is confirmed.
-        if (snapshot.empty) {
-            snapshot =
-                await adminDb
-                    .collection(
-                        "developerProfiles"
-                    )
-                    .where(
-                        "isPublished",
-                        "==",
-                        true
-                    )
-                    .get();
-        }
 
         const savesSnapshot =
             await adminDb

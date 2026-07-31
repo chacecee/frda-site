@@ -23,6 +23,11 @@ import {
   normalizeDeveloperPremiumStatus,
 } from "@/lib/server/developerPremiumLaunch";
 
+import {
+  PUBLISHED_DEVELOPER_PROFILES_COLLECTION,
+  buildPublishedDeveloperProfile,
+} from "@/lib/server/publishedDeveloperProfiles";
+
 export const runtime = "nodejs";
 
 type PublicationAction =
@@ -68,72 +73,51 @@ function getMissingFields(
       profile.displayName || "",
     ).trim()
   ) {
-    missing.push(
-      "display name",
-    );
+    missing.push("display name");
   }
 
   if (
-    !Array.isArray(
-      profile.skills,
-    ) ||
+    !Array.isArray(profile.skills) ||
     profile.skills.length === 0
   ) {
-    missing.push(
-      "at least one skill",
-    );
+    missing.push("at least one skill");
   }
 
   if (
     !String(
-      profile.experienceTier ||
-        "",
+      profile.experienceTier || "",
     ).trim()
   ) {
-    missing.push(
-      "experience level",
-    );
+    missing.push("experience level");
   }
 
   if (
     !String(
-      profile.deliveryScope ||
-        "",
+      profile.deliveryScope || "",
     ).trim()
   ) {
-    missing.push(
-      "development capacity",
-    );
+    missing.push("development capacity");
   }
 
   if (
     !Array.isArray(
       profile.coverShowcaseImages,
     ) ||
-    profile
-      .coverShowcaseImages
-      .length === 0
+    profile.coverShowcaseImages.length === 0
   ) {
-    missing.push(
-      "at least one cover photo",
-    );
+    missing.push("at least one cover photo");
   }
 
   const workSamples =
-    Array.isArray(
-      profile.workSamples,
-    )
+    Array.isArray(profile.workSamples)
       ? profile.workSamples
       : [];
 
   const hasValidWorkSample =
     workSamples.some(
-      (
-        item: unknown,
-      ) => {
+      (item: unknown) => {
         if (
-          typeof item !==
-            "object" ||
+          typeof item !== "object" ||
           item === null
         ) {
           return false;
@@ -146,16 +130,10 @@ function getMissingFields(
           };
 
         return (
-          typeof work.title ===
-            "string" &&
-          work.title
-            .trim()
-            .length > 0 &&
-          typeof work.role ===
-            "string" &&
-          work.role
-            .trim()
-            .length > 0
+          typeof work.title === "string" &&
+          work.title.trim().length > 0 &&
+          typeof work.role === "string" &&
+          work.role.trim().length > 0
         );
       },
     );
@@ -223,65 +201,98 @@ function createProfileSlug({
   return `${base}-${memberSuffix}`;
 }
 
-function serializePublication(
+function serializePublication({
+  profile,
+  memberData = {},
+  publishedProfile = null,
+}: {
   profile:
-    FirebaseFirestore.DocumentData,
-  memberData:
-    FirebaseFirestore.DocumentData =
-      {},
-) {
+    FirebaseFirestore.DocumentData;
+  memberData?:
+    FirebaseFirestore.DocumentData;
+  publishedProfile?:
+    FirebaseFirestore.DocumentData | null;
+}) {
+  const publicProfileIsLive =
+    Boolean(
+      publishedProfile &&
+      publishedProfile.isPublished === true &&
+      String(
+        publishedProfile.profileStatus || "",
+      ) === "live",
+    );
+
   return {
-    status: String(
-      profile.profileStatus ||
-        "draft",
-    ),
+    status:
+      String(
+        profile.profileStatus || "draft",
+      ),
 
     isPublished:
-      profile.isPublished === true,
+      publicProfileIsLive,
+
+    hasPublishedProfile:
+      publicProfileIsLive,
+
+    hasPendingChanges:
+      profile.hasUnpublishedChanges === true ||
+      (
+        publicProfileIsLive &&
+        (
+          String(
+            profile.profileStatus || "",
+          ) === "pending_review" ||
+          String(
+            profile.profileStatus || "",
+          ) === "changes_requested"
+        )
+      ),
+
+    requiresProfileReview:
+      profile.requiresProfileReview !== false,
+
+    hasBeenApprovedBefore:
+      profile.hasBeenApprovedBefore === true ||
+      Boolean(publishedProfile),
 
     publishedAt:
       timestampToIso(
+        publishedProfile?.publishedAt ||
         profile.publishedAt,
       ),
 
     unpublishedAt:
       timestampToIso(
+        publishedProfile?.unpublishedAt ||
         profile.unpublishedAt,
       ),
 
     reviewerNote:
       String(
-        profile
-          .publicationReviewerNote ||
-          "",
+        profile.publicationReviewerNote || "",
       ),
 
     moderationLock:
-      profile.moderationLock ===
-      true,
+      profile.moderationLock === true,
 
     moderationNote:
       String(
-        profile.moderationNote ||
-          "",
+        profile.moderationNote || "",
       ),
 
     moderationSource:
       String(
-        profile.moderationSource ||
-          "",
+        profile.moderationSource || "",
       ),
 
     moderationReportId:
       String(
-        profile.moderationReportId ||
-          "",
+        profile.moderationReportId || "",
       ),
 
     developerPremiumStatus:
       normalizeDeveloperPremiumStatus(
-        memberData
-          .developerPremiumStatus,
+        memberData.developerPremiumStatus,
       ),
 
     hasPremiumAccess:
@@ -315,10 +326,8 @@ export async function GET(
     } = authorization;
 
     if (
-      member.accountPurpose !==
-        "developer" &&
-      member.accountPurpose !==
-        "both"
+      member.accountPurpose !== "developer" &&
+      member.accountPurpose !== "both"
     ) {
       return NextResponse.json(
         {
@@ -326,66 +335,49 @@ export async function GET(
           error:
             "This account does not include a developer profile.",
         },
-        {
-          status: 403,
-        },
+        { status: 403 },
       );
     }
 
-    const profileSnapshot =
-      await adminDb
+    const [
+      profileSnapshot,
+      publishedSnapshot,
+    ] = await Promise.all([
+      adminDb
+        .collection("developerProfiles")
+        .doc(member.uid)
+        .get(),
+
+      adminDb
         .collection(
-          "developerProfiles",
+          PUBLISHED_DEVELOPER_PROFILES_COLLECTION,
         )
         .doc(member.uid)
-        .get();
+        .get(),
+    ]);
 
-    if (
-      !profileSnapshot.exists
-    ) {
-      return NextResponse.json({
-        ok: true,
-
-        publication: {
-          status: "draft",
-          isPublished: false,
-          publishedAt: null,
-          unpublishedAt: null,
-          reviewerNote: "",
-          moderationLock: false,
-          moderationNote: "",
-          moderationSource: "",
-          moderationReportId:
-            "",
-
-          developerPremiumStatus:
-            normalizeDeveloperPremiumStatus(
-              memberData
-                .developerPremiumStatus,
-            ),
-
-          hasPremiumAccess:
-            hasDeveloperPremiumAccess(
-              memberData,
-            ),
-
-          launchPremiumEligible:
-            isEligibleForLaunchPremiumReview(
-              memberData,
-            ),
-        },
-      });
-    }
+    const profile =
+      profileSnapshot.exists
+        ? profileSnapshot.data() || {}
+        : {
+            profileStatus: "draft",
+            isPublished: false,
+            requiresProfileReview: true,
+            hasBeenApprovedBefore: false,
+            hasUnpublishedChanges: false,
+          };
 
     return NextResponse.json({
       ok: true,
-
       publication:
-        serializePublication(
-          profileSnapshot.data() ||
-            {},
+        serializePublication({
+          profile,
           memberData,
-        ),
+          publishedProfile:
+            publishedSnapshot.exists
+              ? publishedSnapshot.data() || {}
+              : null,
+        }),
     });
   } catch (error) {
     console.error(
@@ -399,9 +391,7 @@ export async function GET(
         error:
           "Could not load your profile publication status.",
       },
-      {
-        status: 500,
-      },
+      { status: 500 },
     );
   }
 }
@@ -425,10 +415,8 @@ export async function POST(
     } = authorization;
 
     if (
-      member.accountPurpose !==
-        "developer" &&
-      member.accountPurpose !==
-        "both"
+      member.accountPurpose !== "developer" &&
+      member.accountPurpose !== "both"
     ) {
       return NextResponse.json(
         {
@@ -436,9 +424,7 @@ export async function POST(
           error:
             "This account does not include a developer profile.",
         },
-        {
-          status: 403,
-        },
+        { status: 403 },
       );
     }
 
@@ -463,16 +449,19 @@ export async function POST(
           error:
             "A valid publication action is required.",
         },
-        {
-          status: 400,
-        },
+        { status: 400 },
       );
     }
 
     const profileReference =
       adminDb
+        .collection("developerProfiles")
+        .doc(member.uid);
+
+    const publishedReference =
+      adminDb
         .collection(
-          "developerProfiles",
+          PUBLISHED_DEVELOPER_PROFILES_COLLECTION,
         )
         .doc(member.uid);
 
@@ -481,13 +470,24 @@ export async function POST(
         .collection("members")
         .doc(member.memberId);
 
+    const requestReference =
+      adminDb
+        .collection(
+          "profilePublicationRequests",
+        )
+        .doc(member.uid);
+
+    let queuedForLaunchReview =
+      false;
+
+    let submittedForReview =
+      false;
+
     if (
-      body.action ===
-      "publish"
+      body.action === "publish"
     ) {
       if (
-        body.confirmedAccuracy !==
-        true
+        body.confirmedAccuracy !== true
       ) {
         return NextResponse.json(
           {
@@ -495,29 +495,25 @@ export async function POST(
             error:
               "You must confirm that your profile information and portfolio claims are accurate.",
           },
-          {
-            status: 400,
-          },
+          { status: 400 },
         );
       }
 
-      let queuedForLaunchReview =
-        false;
-
       await adminDb.runTransaction(
-        async (
-          transaction,
-        ) => {
+        async (transaction) => {
           const [
             profileSnapshot,
             currentMemberSnapshot,
+            publishedSnapshot,
           ] = await Promise.all([
             transaction.get(
               profileReference,
             ),
-
             transaction.get(
               memberReference,
+            ),
+            transaction.get(
+              publishedReference,
             ),
           ]);
 
@@ -525,7 +521,7 @@ export async function POST(
             !profileSnapshot.exists
           ) {
             throw new Error(
-              "Create and save your developer profile before publishing it.",
+              "Create and save your developer profile before submitting it.",
             );
           }
 
@@ -538,30 +534,24 @@ export async function POST(
           }
 
           const profile =
-            profileSnapshot.data() ||
-            {};
+            profileSnapshot.data() || {};
 
           const currentMemberData =
-            currentMemberSnapshot.data() ||
-            {};
+            currentMemberSnapshot.data() || {};
 
           if (
-            profile.moderationLock ===
-            true
+            profile.moderationLock === true
           ) {
             throw new Error(
-              "Your public profile is currently hidden by FRDA moderation and cannot be republished until the restriction is lifted.",
+              "Your public profile is currently hidden by FRDA moderation and cannot be submitted until the restriction is lifted.",
             );
           }
 
           const missingFields =
-            getMissingFields(
-              profile,
-            );
+            getMissingFields(profile);
 
           if (
-            missingFields.length >
-            0
+            missingFields.length > 0
           ) {
             throw new Error(
               `Complete these required fields first: ${missingFields.join(", ")}.`,
@@ -570,59 +560,149 @@ export async function POST(
 
           const profileSlug =
             String(
-              profile.profileSlug ||
-                "",
+              profile.profileSlug || "",
             ) ||
             createProfileSlug({
               displayName:
                 String(
                   profile.displayName ||
-                    "Developer",
+                  "Developer",
                 ),
-
               memberId:
                 member.memberId,
             });
+
+          const hasBeenApprovedBefore =
+            profile.hasBeenApprovedBefore === true ||
+            publishedSnapshot.exists;
+
+          const requiresProfileReview =
+            profile.requiresProfileReview !== false;
+
+          const shouldRequireReview =
+            !hasBeenApprovedBefore ||
+            requiresProfileReview;
+
+          if (shouldRequireReview) {
+            submittedForReview =
+              true;
+
+            transaction.set(
+              profileReference,
+              {
+                profileStatus:
+                  "pending_review",
+                isPublished:
+                  false,
+                profileSlug,
+                hasBeenApprovedBefore,
+                requiresProfileReview,
+                hasUnpublishedChanges:
+                  true,
+                publicationRequestedAt:
+                  FieldValue.serverTimestamp(),
+                publicationReviewerNote:
+                  "",
+                selfPublicationConfirmed:
+                  true,
+                selfPublicationConfirmedAt:
+                  FieldValue.serverTimestamp(),
+                updatedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              { merge: true },
+            );
+
+            transaction.set(
+              memberReference,
+              {
+                profileStatus:
+                  "pending_review",
+                hasBeenApprovedBefore,
+                requiresProfileReview,
+                updatedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              { merge: true },
+            );
+
+            transaction.set(
+              requestReference,
+              {
+                uid:
+                  member.uid,
+                memberId:
+                  member.memberId,
+                status:
+                  "pending_review",
+                isRevision:
+                  publishedSnapshot.exists,
+                requestedAt:
+                  FieldValue.serverTimestamp(),
+                updatedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              { merge: true },
+            );
+
+            return;
+          }
+
+          const publicSnapshot =
+            buildPublishedDeveloperProfile({
+              uid: member.uid,
+              profile: {
+                ...profile,
+                profileSlug,
+                profileStatus: "live",
+                isPublished: true,
+                publishedAt:
+                  publishedSnapshot.data()
+                    ?.publishedAt ||
+                  profile.publishedAt ||
+                  FieldValue.serverTimestamp(),
+                lastPublishedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              source:
+                "trusted_update",
+            });
+
+          transaction.set(
+            publishedReference,
+            publicSnapshot,
+            { merge: false },
+          );
 
           transaction.set(
             profileReference,
             {
               profileStatus:
                 "live",
-
-              isPublished: true,
-
+              isPublished:
+                true,
               profileSlug,
-
+              hasBeenApprovedBefore:
+                true,
+              hasUnpublishedChanges:
+                false,
               publishedAt:
                 profile.publishedAt ||
-                FieldValue
-                  .serverTimestamp(),
-
+                FieldValue.serverTimestamp(),
               lastPublishedAt:
-                FieldValue
-                  .serverTimestamp(),
-
+                FieldValue.serverTimestamp(),
               publicationRequestedAt:
                 FieldValue.delete(),
-
               publicationReviewerNote:
                 "",
-
               selfPublicationConfirmed:
                 true,
-
               selfPublicationConfirmedAt:
-                FieldValue
-                  .serverTimestamp(),
-
+                FieldValue.serverTimestamp(),
               updatedAt:
-                FieldValue
-                  .serverTimestamp(),
+                FieldValue.serverTimestamp(),
             },
-            {
-              merge: true,
-            },
+            { merge: true },
           );
 
           const alreadyHasPremium =
@@ -645,148 +725,135 @@ export async function POST(
             {
               profileStatus:
                 "live",
-
+              hasBeenApprovedBefore:
+                true,
               ...(queuedForLaunchReview
                 ? {
                     developerPremiumStatus:
                       "pending_review",
                   }
                 : {}),
-
               updatedAt:
-                FieldValue
-                  .serverTimestamp(),
+                FieldValue.serverTimestamp(),
             },
-            {
-              merge: true,
-            },
+            { merge: true },
           );
         },
       );
+    } else {
+      await adminDb.runTransaction(
+        async (transaction) => {
+          const [
+            profileSnapshot,
+            publishedSnapshot,
+          ] = await Promise.all([
+            transaction.get(
+              profileReference,
+            ),
+            transaction.get(
+              publishedReference,
+            ),
+          ]);
 
-      const [
-        updatedProfileSnapshot,
-        updatedMemberSnapshot,
-      ] = await Promise.all([
-        profileReference.get(),
-        memberReference.get(),
-      ]);
+          if (
+            !profileSnapshot.exists
+          ) {
+            throw new Error(
+              "Your developer profile could not be found.",
+            );
+          }
 
-      return NextResponse.json({
-        ok: true,
+          if (
+            !publishedSnapshot.exists ||
+            publishedSnapshot.data()
+              ?.isPublished !== true
+          ) {
+            throw new Error(
+              "This developer profile is not currently published.",
+            );
+          }
 
-        publication:
-          serializePublication(
-            updatedProfileSnapshot
-              .data() || {},
-            updatedMemberSnapshot
-              .data() || {},
-          ),
+          transaction.set(
+            publishedReference,
+            {
+              profileStatus:
+                "hidden",
+              isPublished:
+                false,
+              unpublishedAt:
+                FieldValue.serverTimestamp(),
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
 
-        message:
-          queuedForLaunchReview
-            ? "Your profile has been published and will be reviewed within three business days to determine whether it qualifies for lifetime free premium."
-            : "Your developer profile is now published.",
-      });
-    }
-
-    await adminDb.runTransaction(
-      async (
-        transaction,
-      ) => {
-        const profileSnapshot =
-          await transaction.get(
+          transaction.set(
             profileReference,
+            {
+              profileStatus:
+                "draft",
+              isPublished:
+                false,
+              hasUnpublishedChanges:
+                true,
+              unpublishedAt:
+                FieldValue.serverTimestamp(),
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            { merge: true },
           );
 
-        if (
-          !profileSnapshot.exists
-        ) {
-          throw new Error(
-            "Your developer profile could not be found.",
+          transaction.set(
+            memberReference,
+            {
+              profileStatus:
+                "draft",
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            { merge: true },
           );
-        }
-
-        const profile =
-          profileSnapshot.data() ||
-          {};
-
-        if (
-          profile.isPublished !==
-          true
-        ) {
-          throw new Error(
-            "This developer profile is not currently published.",
-          );
-        }
-
-        transaction.set(
-          profileReference,
-          {
-            profileStatus:
-              profile
-                .moderationLock ===
-              true
-                ? "hidden"
-                : "draft",
-
-            isPublished: false,
-
-            unpublishedAt:
-              FieldValue
-                .serverTimestamp(),
-
-            updatedAt:
-              FieldValue
-                .serverTimestamp(),
-          },
-          {
-            merge: true,
-          },
-        );
-
-        transaction.set(
-          memberReference,
-          {
-            profileStatus:
-              profile
-                .moderationLock ===
-              true
-                ? "hidden"
-                : "draft",
-
-            updatedAt:
-              FieldValue
-                .serverTimestamp(),
-          },
-          {
-            merge: true,
-          },
-        );
-      },
-    );
+        },
+      );
+    }
 
     const [
       updatedProfileSnapshot,
       updatedMemberSnapshot,
+      updatedPublishedSnapshot,
     ] = await Promise.all([
       profileReference.get(),
       memberReference.get(),
+      publishedReference.get(),
     ]);
 
     return NextResponse.json({
       ok: true,
 
       publication:
-        serializePublication(
-          updatedProfileSnapshot
-            .data() || {},
-          updatedMemberSnapshot
-            .data() || {},
-        ),
+        serializePublication({
+          profile:
+            updatedProfileSnapshot.data() || {},
+          memberData:
+            updatedMemberSnapshot.data() || {},
+          publishedProfile:
+            updatedPublishedSnapshot.exists
+              ? updatedPublishedSnapshot.data() || {}
+              : null,
+        }),
 
       message:
-        "Your developer profile has been unpublished.",
+        body.action === "unpublish"
+          ? "Your developer profile has been unpublished."
+          : submittedForReview
+            ? updatedPublishedSnapshot.exists
+              ? "Your profile changes were submitted for review. Your current approved profile will remain public until the changes are approved."
+              : "Your developer profile was submitted for review."
+            : queuedForLaunchReview
+              ? "Your profile has been updated and will be reviewed within three business days to determine whether it qualifies for lifetime free premium."
+              : "Your public developer profile was updated.",
     });
   } catch (error) {
     console.error(
@@ -800,27 +867,21 @@ export async function POST(
         : "Could not update your profile publication status.";
 
     const status =
-      message.includes(
-        "Complete these",
-      ) ||
-      message.includes(
-        "Create and save",
-      ) ||
-      message.includes(
-        "must confirm",
-      )
+      message.includes("Complete these") ||
+      message.includes("Create and save") ||
+      message.includes("must confirm")
         ? 400
         : message.includes(
-              "currently hidden by FRDA moderation",
-            )
+            "currently hidden by FRDA moderation",
+          )
           ? 403
           : message.includes(
-                "not currently published",
-              )
+              "not currently published",
+            )
             ? 409
             : message.includes(
-                  "membership account could not be found",
-                )
+                "membership account could not be found",
+              )
               ? 404
               : 500;
 
@@ -829,9 +890,7 @@ export async function POST(
         ok: false,
         error: message,
       },
-      {
-        status,
-      },
+      { status },
     );
   }
 }

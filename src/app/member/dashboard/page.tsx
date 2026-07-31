@@ -52,6 +52,9 @@ type MemberAccount = {
     sourceApplicationId: string;
     activatedAt: string | null;
 
+    discordInviteEligible: boolean;
+    discordInviteGeneratedOnce: boolean;
+    discordInviteStatus: string;
     discordInviteUrl: string;
     discordInviteExpiresAt: string | null;
     discordInviteError: string;
@@ -318,9 +321,12 @@ export default function MemberDashboardPage() {
             await refreshMember();
 
             notify.success(
-                result.reused
-                    ? "Your active Discord invitation is ready."
-                    : "A new Discord invitation was generated."
+                result.message ||
+                (
+                    result.reused
+                        ? "Your active Discord invitation is ready."
+                        : "Your one-time Discord invitation was generated."
+                )
             );
         } catch (error) {
             const message =
@@ -706,10 +712,23 @@ export default function MemberDashboardPage() {
                                         FRDA Discord
                                     </h2>
 
-                                    {discordInviteActive ? (
+                                    {!member.discordInviteEligible ? (
                                         <>
                                             <p className="mt-2 text-sm leading-6 text-zinc-300">
-                                                Your private Discord invitation is ready. It grants the FRDA Member role automatically.
+                                                Discord member access becomes available after your developer profile is approved by FRDA for the first time.
+                                            </p>
+
+                                            <div
+                                                className="mt-5 border border-white/10 bg-black/15 p-4 text-sm text-zinc-400"
+                                                style={{ borderRadius: 7 }}
+                                            >
+                                                Complete your developer profile and submit it for review to unlock your invitation.
+                                            </div>
+                                        </>
+                                    ) : discordInviteActive ? (
+                                        <>
+                                            <p className="mt-2 text-sm leading-6 text-zinc-300">
+                                                Your private one-use Discord invitation is ready. It grants the FRDA Member role automatically.
                                             </p>
 
                                             <a
@@ -730,16 +749,40 @@ export default function MemberDashboardPage() {
                                             </a>
 
                                             <p className="mt-3 text-xs leading-5 text-zinc-400">
-                                                Expires{" "}
+                                                This link can be used once and expires{" "}
                                                 {formatDate(
                                                     member.discordInviteExpiresAt
-                                                )}
+                                                )}.
                                             </p>
+
+                                            <p className="mt-3 text-xs leading-5 text-zinc-500">
+                                                If the invitation no longer works, email official@frdaph.org.
+                                            </p>
+                                        </>
+                                    ) : member.discordInviteGeneratedOnce ? (
+                                        <>
+                                            <p className="mt-2 text-sm leading-6 text-zinc-300">
+                                                Your original Discord invitation has expired or is no longer active.
+                                            </p>
+
+                                            <div
+                                                className="mt-5 border border-indigo-300/15 bg-black/15 p-4 text-sm leading-6 text-zinc-300"
+                                                style={{ borderRadius: 7 }}
+                                            >
+                                                Need a replacement invitation? Email{" "}
+                                                <a
+                                                    href="mailto:official@frdaph.org"
+                                                    className="font-semibold text-indigo-200 hover:text-white"
+                                                >
+                                                    official@frdaph.org
+                                                </a>
+                                                .
+                                            </div>
                                         </>
                                     ) : (
                                         <>
                                             <p className="mt-2 text-sm leading-6 text-zinc-300">
-                                                Your previous invitation has expired or is unavailable.
+                                                Your developer profile has been approved. You can now generate your one-time FRDA Discord invitation.
                                             </p>
 
                                             <button
@@ -760,10 +803,15 @@ export default function MemberDashboardPage() {
                                                         <path d="M19.54 5.34A16.3 16.3 0 0 0 15.44 4l-.5 1.03a15.3 15.3 0 0 0-5.88 0L8.55 4a16.5 16.5 0 0 0-4.1 1.35C1.86 9.2 1.16 12.95 1.5 16.65a16.7 16.7 0 0 0 5.03 2.55l1.22-1.67a10.7 10.7 0 0 1-1.92-.92l.47-.36c3.7 1.72 7.72 1.72 11.38 0l.48.36c-.62.37-1.26.68-1.93.92l1.22 1.67a16.6 16.6 0 0 0 5.03-2.55c.4-4.29-.7-8-2.94-11.31ZM8.67 14.56c-1.11 0-2.03-1.03-2.03-2.3s.9-2.31 2.03-2.31c1.14 0 2.05 1.04 2.03 2.31 0 1.27-.9 2.3-2.03 2.3Zm6.66 0c-1.11 0-2.03-1.03-2.03-2.3s.9-2.31 2.03-2.31c1.14 0 2.05 1.04 2.03 2.31 0 1.27-.89 2.3-2.03 2.3Z" />
                                                     </svg>
                                                 )}
+
                                                 {generatingDiscordInvite
                                                     ? "Generating..."
-                                                    : "Generate New Invite"}
+                                                    : "Generate Discord Invite"}
                                             </button>
+
+                                            <p className="mt-3 text-xs leading-5 text-zinc-500">
+                                                The invitation can be used once and expires after seven days. The portal will not automatically issue a replacement.
+                                            </p>
                                         </>
                                     )}
                                 </section>

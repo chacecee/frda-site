@@ -5,6 +5,10 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { authorizeMemberRequest } from "@/lib/server/memberAuthorization";
 import {
+  PUBLISHED_DEVELOPER_PROFILES_COLLECTION,
+  buildPublishedDeveloperProfile,
+} from "@/lib/server/publishedDeveloperProfiles";
+import {
   GAME_GENRE_OPTIONS,
   type GameDirectoryGenre,
 } from "@/lib/gameDirectory";
@@ -626,6 +630,15 @@ function serializeProfile(uid: string, data: FirebaseFirestore.DocumentData) {
 
     isPublished: data.isPublished === true,
 
+    requiresProfileReview:
+      data.requiresProfileReview !== false,
+
+    hasBeenApprovedBefore:
+      data.hasBeenApprovedBefore === true,
+
+    hasUnpublishedChanges:
+      data.hasUnpublishedChanges === true,
+
     moderationLock:
       data.moderationLock === true,
 
@@ -700,6 +713,10 @@ export async function GET(request: NextRequest) {
 
         profileStatus: "draft",
         isPublished: false,
+
+        requiresProfileReview: true,
+        hasBeenApprovedBefore: false,
+        hasUnpublishedChanges: false,
 
         moderationLock: false,
         moderationNote: "",
@@ -872,95 +889,183 @@ export async function PATCH(request: NextRequest) {
       .collection("developerProfiles")
       .doc(member.uid);
 
-    const memberReference = adminDb.collection("members").doc(member.memberId);
+    const publishedReference = adminDb
+      .collection(
+        PUBLISHED_DEVELOPER_PROFILES_COLLECTION,
+      )
+      .doc(member.uid);
 
-    const existingSnapshot = await profileReference.get();
+    const memberReference = adminDb
+      .collection("members")
+      .doc(member.memberId);
 
-    const existingProfile = existingSnapshot.exists
-      ? existingSnapshot.data() || {}
-      : {};
+    const [
+      existingSnapshot,
+      publishedSnapshot,
+    ] = await Promise.all([
+      profileReference.get(),
+      publishedReference.get(),
+    ]);
+
+    const existingProfile =
+      existingSnapshot.exists
+        ? existingSnapshot.data() || {}
+        : {};
+
+    const publishedProfile =
+      publishedSnapshot.exists
+        ? publishedSnapshot.data() || {}
+        : {};
 
     const moderationLocked =
       existingProfile.moderationLock === true;
 
-    const remainsPublished =
+    const requiresProfileReview =
+      existingProfile.requiresProfileReview !== false;
+
+    const hasBeenApprovedBefore =
+      existingProfile.hasBeenApprovedBefore === true ||
+      publishedSnapshot.exists;
+
+    const publicSnapshotIsLive =
+      publishedSnapshot.exists &&
+      publishedProfile.isPublished === true &&
+      String(
+        publishedProfile.profileStatus || "",
+      ) === "live";
+
+    const trustedAutoPublish =
       !moderationLocked &&
-      existingProfile.isPublished === true &&
-      String(existingProfile.profileStatus || "") === "live";
+      hasBeenApprovedBefore &&
+      requiresProfileReview === false &&
+      publicSnapshotIsLive;
 
-    await adminDb.runTransaction(async (transaction) => {
-      transaction.set(
-        profileReference,
-        {
-          uid: member.uid,
-          memberId: member.memberId,
-          email: member.email,
-
-          displayName,
-          headline,
-          bio,
-          skills,
-          genreExperience,
-          availability,
-
-          experienceTier,
-          experienceTierIsSelfDeclared: true,
-          experienceTierUpdatedAt:
-            existingProfile.experienceTier ===
-            experienceTier
-              ? existingProfile.experienceTierUpdatedAt ||
-                FieldValue.serverTimestamp()
-              : FieldValue.serverTimestamp(),
-
-          deliveryScope,
-
-          // Kept for FRDA/internal use.
-          robloxProfileUrl,
-
-          portfolioUrl,
-          workSamples,
-          coverShowcaseImages,
-
-          avatarUrl: avatarImage?.url || "",
-
-          avatarStoragePath: avatarImage?.storagePath || "",
-
-          profileStatus:
-            moderationLocked
-              ? "hidden"
-              : remainsPublished
-                ? "live"
-                : "draft",
-
-          isPublished:
-            moderationLocked
-              ? false
-              : remainsPublished,
-
-          updatedAt: FieldValue.serverTimestamp(),
-
-          createdAt: existingProfile.createdAt || FieldValue.serverTimestamp(),
-        },
-        { merge: true },
+    const currentDraftStatus =
+      String(
+        existingProfile.profileStatus || "draft",
       );
 
-      transaction.set(
-        memberReference,
-        {
-          displayName,
+    const nextDraftStatus =
+      moderationLocked
+        ? "hidden"
+        : trustedAutoPublish
+          ? "live"
+          : currentDraftStatus === "pending_review" ||
+              currentDraftStatus === "changes_requested"
+            ? currentDraftStatus
+            : "draft";
 
-          profileStatus:
-            moderationLocked
-              ? "hidden"
-              : remainsPublished
-                ? "live"
-                : "draft",
+    const nextProfile = {
+      uid: member.uid,
+      memberId: member.memberId,
+      email: member.email,
 
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
-    });
+      displayName,
+      headline,
+      bio,
+      skills,
+      genreExperience,
+      availability,
+
+      experienceTier,
+      experienceTierIsSelfDeclared: true,
+      experienceTierUpdatedAt:
+        existingProfile.experienceTier ===
+        experienceTier
+          ? existingProfile.experienceTierUpdatedAt ||
+            FieldValue.serverTimestamp()
+          : FieldValue.serverTimestamp(),
+
+      deliveryScope,
+
+      robloxProfileUrl,
+      portfolioUrl,
+      workSamples,
+      coverShowcaseImages,
+
+      avatarUrl:
+        avatarImage?.url || "",
+
+      avatarStoragePath:
+        avatarImage?.storagePath || "",
+
+      profileStatus:
+        nextDraftStatus,
+
+      isPublished:
+        trustedAutoPublish,
+
+      requiresProfileReview,
+      hasBeenApprovedBefore,
+
+      hasUnpublishedChanges:
+        trustedAutoPublish
+          ? false
+          : hasBeenApprovedBefore,
+
+      lastDraftSavedAt:
+        FieldValue.serverTimestamp(),
+
+      updatedAt:
+        FieldValue.serverTimestamp(),
+
+      createdAt:
+        existingProfile.createdAt ||
+        FieldValue.serverTimestamp(),
+    };
+
+    await adminDb.runTransaction(
+      async (transaction) => {
+        transaction.set(
+          profileReference,
+          nextProfile,
+          { merge: true },
+        );
+
+        transaction.set(
+          memberReference,
+          {
+            displayName,
+
+            profileStatus:
+              nextDraftStatus,
+
+            requiresProfileReview,
+            hasBeenApprovedBefore,
+
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+
+        if (trustedAutoPublish) {
+          transaction.set(
+            publishedReference,
+            buildPublishedDeveloperProfile({
+              uid: member.uid,
+              profile: {
+                ...existingProfile,
+                ...nextProfile,
+                profileStatus: "live",
+                isPublished: true,
+                publishedAt:
+                  publishedProfile.publishedAt ||
+                  existingProfile.publishedAt ||
+                  FieldValue.serverTimestamp(),
+                lastPublishedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              source:
+                "trusted_update",
+            }),
+            {
+              merge: false,
+            },
+          );
+        }
+      },
+    );
 
     const updatedSnapshot = await profileReference.get();
 
@@ -972,7 +1077,10 @@ export async function PATCH(request: NextRequest) {
         updatedSnapshot.data() || {},
       ),
 
-      message: "Developer profile draft saved.",
+      message:
+        trustedAutoPublish
+          ? "Your public developer profile was updated."
+          : "Developer profile draft saved.",
     });
   } catch (error) {
     console.error("Save developer profile error:", error);
