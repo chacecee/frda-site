@@ -138,6 +138,89 @@ function sanitizeUrl(value: unknown): string {
   }
 }
 
+
+function sanitizeRobloxExperienceUrl(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  const trimmed =
+    value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    const url =
+      new URL(trimmed);
+
+    if (
+      url.protocol !== "https:"
+    ) {
+      return "";
+    }
+
+    const hostname =
+      url.hostname
+        .toLowerCase()
+        .replace(/^www\./, "");
+
+    if (
+      hostname !== "roblox.com"
+    ) {
+      return "";
+    }
+
+    const pathParts =
+      url.pathname
+        .split("/")
+        .filter(Boolean);
+
+    if (
+      pathParts.length < 2 ||
+      pathParts[0].toLowerCase() !==
+        "games" ||
+      !/^\d+$/.test(
+        pathParts[1],
+      )
+    ) {
+      return "";
+    }
+
+    const placeId =
+      pathParts[1];
+
+    const optionalSlug =
+      pathParts
+        .slice(2)
+        .join("/")
+        .replace(
+          /[^A-Za-z0-9_-]/g,
+          "-",
+        )
+        .replace(
+          /-+/g,
+          "-",
+        )
+        .replace(
+          /^-+|-+$/g,
+          "",
+        )
+        .slice(0, 120);
+
+    return optionalSlug
+      ? `https://www.roblox.com/games/${placeId}/${optionalSlug}`
+      : `https://www.roblox.com/games/${placeId}`;
+  } catch {
+    return "";
+  }
+}
+
 function sanitizeYoutubeUrl(value: unknown): string {
   const urlValue = sanitizeUrl(value);
 
@@ -535,7 +618,7 @@ function sanitizeWorkSamples(value: unknown, memberUid: string): WorkSample[] {
 
         title: sanitizeText(raw.title, 120),
 
-        projectUrl: sanitizeUrl(raw.projectUrl),
+        projectUrl: sanitizeRobloxExperienceUrl(raw.projectUrl),
 
         youtubeVideoUrl,
 
@@ -822,6 +905,42 @@ export async function PATCH(request: NextRequest) {
 
     const portfolioUrl = sanitizeUrl(rawPortfolioUrl);
 
+    const rawWorkSamples =
+      Array.isArray(body.workSamples)
+        ? body.workSamples
+        : [];
+
+    const hasInvalidRobloxExperienceUrl =
+      rawWorkSamples.some(
+        (item) => {
+          if (
+            typeof item !== "object" ||
+            item === null
+          ) {
+            return false;
+          }
+
+          const raw =
+            item as Record<
+              string,
+              unknown
+            >;
+
+          const rawProjectUrl =
+            typeof raw.projectUrl ===
+              "string"
+              ? raw.projectUrl.trim()
+              : "";
+
+          return (
+            Boolean(rawProjectUrl) &&
+            !sanitizeRobloxExperienceUrl(
+              rawProjectUrl,
+            )
+          );
+        },
+      );
+
     const workSamples = sanitizeWorkSamples(body.workSamples, member.uid);
 
     const coverShowcaseImages = sanitizeCoverShowcaseImages(
@@ -880,6 +999,19 @@ export async function PATCH(request: NextRequest) {
           ok: false,
           error:
             "Enter a valid portfolio URL beginning with http:// or https://.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (
+      hasInvalidRobloxExperienceUrl
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Enter a valid Roblox experience link from roblox.com/games/.",
         },
         { status: 400 },
       );

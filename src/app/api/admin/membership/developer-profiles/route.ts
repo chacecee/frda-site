@@ -318,6 +318,26 @@ function serializeDeveloperAccount({
         "",
       ),
 
+    robloxProfileUrl:
+      String(
+        profile?.robloxProfileUrl ||
+        "",
+      ),
+
+    coverShowcaseImages:
+      Array.isArray(
+        profile?.coverShowcaseImages,
+      )
+        ? profile.coverShowcaseImages
+        : [],
+
+    workSamples:
+      Array.isArray(
+        profile?.workSamples,
+      )
+        ? profile.workSamples
+        : [],
+
     customSubdomain:
       String(
         profile?.customSubdomain ||

@@ -69,6 +69,59 @@ function sanitizePublicUrl(
     }
 }
 
+
+function sanitizePublicRobloxExperienceUrl(
+    value: unknown
+): string {
+    if (typeof value !== "string") {
+        return "";
+    }
+
+    try {
+        const url = new URL(value);
+
+        if (url.protocol !== "https:") {
+            return "";
+        }
+
+        const hostname =
+            url.hostname
+                .toLowerCase()
+                .replace(/^www\./, "");
+
+        const parts =
+            url.pathname
+                .split("/")
+                .filter(Boolean);
+
+        if (
+            hostname !== "roblox.com" ||
+            parts.length < 2 ||
+            parts[0].toLowerCase() !== "games" ||
+            !/^\d+$/.test(parts[1])
+        ) {
+            return "";
+        }
+
+        const placeId = parts[1];
+
+        const slug =
+            parts
+                .slice(2)
+                .join("/")
+                .replace(/[^A-Za-z0-9_-]/g, "-")
+                .replace(/-+/g, "-")
+                .replace(/^-+|-+$/g, "")
+                .slice(0, 120);
+
+        return slug
+            ? `https://www.roblox.com/games/${placeId}/${slug}`
+            : `https://www.roblox.com/games/${placeId}`;
+    } catch {
+        return "";
+    }
+}
+
 function sanitizePublicYoutubeUrl(
     value: unknown
 ): string {
@@ -380,7 +433,7 @@ function getPublicWorkSamples(
                     ).trim(),
 
                 projectUrl:
-                    sanitizePublicUrl(
+                    sanitizePublicRobloxExperienceUrl(
                         raw.projectUrl
                     ),
 

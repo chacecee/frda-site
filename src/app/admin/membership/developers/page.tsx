@@ -75,6 +75,33 @@ type DeveloperAccount = {
   deliveryScope: string;
 
   portfolioUrl: string;
+  robloxProfileUrl: string;
+
+  coverShowcaseImages: Array<{
+    id: string;
+    url: string;
+    order: number;
+  }>;
+
+  workSamples: Array<{
+    id: string;
+    title: string;
+    projectUrl: string;
+    youtubeVideoUrl: string;
+    mediaOrder: Array<{
+      type: "image" | "youtube";
+      id: string;
+    }>;
+    role: string;
+    contribution: string;
+    teamName: string;
+    projectType: string;
+    isInDevelopment: boolean;
+    images: Array<{
+      id: string;
+      url: string;
+    }>;
+  }>;
 
   customSubdomain: string;
   customProfileAddress: string;
@@ -257,6 +284,75 @@ function safeExternalUrl(
     }
 
     return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+
+function getYouTubeVideoId(
+  value: string,
+): string {
+  if (!value) return "";
+
+  try {
+    const url =
+      new URL(value);
+
+    const hostname =
+      url.hostname
+        .toLowerCase()
+        .replace(/^www\./, "");
+
+    if (
+      hostname === "youtu.be"
+    ) {
+      return (
+        url.pathname
+          .split("/")
+          .filter(Boolean)[0] ||
+        ""
+      );
+    }
+
+    if (
+      hostname === "youtube.com" ||
+      hostname === "m.youtube.com"
+    ) {
+      if (
+        url.pathname === "/watch"
+      ) {
+        return (
+          url.searchParams.get("v") ||
+          ""
+        );
+      }
+
+      const parts =
+        url.pathname
+          .split("/")
+          .filter(Boolean);
+
+      if (
+        parts[0] === "shorts" ||
+        parts[0] === "embed" ||
+        parts[0] === "live"
+      ) {
+        return parts[1] || "";
+      }
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+function getHostnameLabel(
+  value: string,
+): string {
+  try {
+    return new URL(value).hostname;
   } catch {
     return "";
   }
@@ -1811,6 +1907,227 @@ export default function DeveloperAccountsPage() {
                     {selectedDeveloper.bio ||
                       "No biography has been added."}
                   </p>
+                </section>
+
+                <section
+                  className="border border-sky-400/20 bg-sky-500/[0.045] p-5"
+                  style={{ borderRadius: 8 }}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-sky-200">
+                        Submitted Profile Content
+                      </h3>
+
+                      <p className="mt-2 text-sm leading-6 text-zinc-400">
+                        Review the complete private draft that will replace the public profile after approval.
+                      </p>
+                    </div>
+
+                    {selectedDeveloper.hasPublishedProfile &&
+                    selectedDeveloper.hasPendingChanges ? (
+                      <span
+                        className="border border-blue-400/25 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-200"
+                        style={{ borderRadius: 999 }}
+                      >
+                        Pending revision
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                      Cover Photos
+                    </p>
+
+                    {selectedDeveloper.coverShowcaseImages.length > 0 ? (
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        {selectedDeveloper.coverShowcaseImages
+                          .slice()
+                          .sort(
+                            (first, second) =>
+                              Number(first.order) -
+                              Number(second.order),
+                          )
+                          .map((cover) => (
+                            <div
+                              key={cover.id}
+                              className="overflow-hidden border border-zinc-800 bg-black/20"
+                              style={{ borderRadius: 7 }}
+                            >
+                              <img
+                                src={cover.url}
+                                alt={`Submitted cover ${cover.order}`}
+                                className="aspect-video w-full object-cover"
+                              />
+
+                              <p className="px-3 py-2 text-xs text-zinc-500">
+                                Cover {cover.order}
+                              </p>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-zinc-500">
+                        No cover photos submitted.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-6 border-t border-zinc-800 pt-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                        Featured Work
+                      </p>
+
+                      <span className="text-xs text-zinc-600">
+                        {selectedDeveloper.workSamples.length} item
+                        {selectedDeveloper.workSamples.length === 1
+                          ? ""
+                          : "s"}
+                      </span>
+                    </div>
+
+                    {selectedDeveloper.workSamples.length > 0 ? (
+                      <div className="mt-4 space-y-4">
+                        {selectedDeveloper.workSamples.map(
+                          (work, index) => {
+                            const youtubeId =
+                              getYouTubeVideoId(
+                                work.youtubeVideoUrl,
+                              );
+
+                            return (
+                              <article
+                                key={work.id || `work-${index}`}
+                                className="border border-zinc-800 bg-zinc-950/55 p-4"
+                                style={{ borderRadius: 8 }}
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                                      Featured Work {index + 1}
+                                    </p>
+
+                                    <h4 className="mt-2 text-base font-semibold text-white">
+                                      {work.title || "Untitled work sample"}
+                                    </h4>
+
+                                    <p className="mt-1 text-sm text-sky-200">
+                                      {work.role || "No role provided"}
+                                    </p>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-2">
+                                    {work.projectType ? (
+                                      <span
+                                        className="border border-zinc-700 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-300"
+                                        style={{ borderRadius: 999 }}
+                                      >
+                                        {work.projectType}
+                                      </span>
+                                    ) : null}
+
+                                    {work.isInDevelopment ? (
+                                      <span
+                                        className="border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-200"
+                                        style={{ borderRadius: 999 }}
+                                      >
+                                        In development
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+
+                                {work.teamName ? (
+                                  <p className="mt-3 text-sm text-zinc-400">
+                                    Team or studio:{" "}
+                                    <span className="text-zinc-200">
+                                      {work.teamName}
+                                    </span>
+                                  </p>
+                                ) : null}
+
+                                <div className="mt-4">
+                                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                                    Contribution
+                                  </p>
+
+                                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-300">
+                                    {work.contribution ||
+                                      "No contribution details submitted."}
+                                  </p>
+                                </div>
+
+                                <div className="mt-4 flex flex-wrap gap-3">
+                                  {work.projectUrl ? (
+                                    <a
+                                      href={work.projectUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-2 border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-200 hover:bg-blue-500/20"
+                                      style={{ borderRadius: 6 }}
+                                    >
+                                      Open Roblox Experience
+                                      <span className="text-[11px] text-blue-200/60">
+                                        {getHostnameLabel(work.projectUrl)}
+                                      </span>
+                                    </a>
+                                  ) : null}
+
+                                  {work.youtubeVideoUrl ? (
+                                    <a
+                                      href={work.youtubeVideoUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-2 border border-red-400/25 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-200 hover:bg-red-500/20"
+                                      style={{ borderRadius: 6 }}
+                                    >
+                                      Open YouTube Video
+                                      <span className="text-[11px] text-red-200/60">
+                                        {getHostnameLabel(work.youtubeVideoUrl)}
+                                      </span>
+                                    </a>
+                                  ) : null}
+                                </div>
+
+                                {youtubeId ? (
+                                  <div
+                                    className="mt-4 overflow-hidden border border-zinc-800 bg-black/30"
+                                    style={{ borderRadius: 7 }}
+                                  >
+                                    <img
+                                      src={`https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`}
+                                      alt="Submitted YouTube video thumbnail"
+                                      className="aspect-video w-full object-cover"
+                                    />
+                                  </div>
+                                ) : null}
+
+                                {work.images.length > 0 ? (
+                                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                    {work.images.map((image) => (
+                                      <img
+                                        key={image.id}
+                                        src={image.url}
+                                        alt=""
+                                        className="aspect-video w-full border border-zinc-800 object-cover"
+                                        style={{ borderRadius: 7 }}
+                                      />
+                                    ))}
+                                  </div>
+                                ) : null}
+                              </article>
+                            );
+                          },
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-zinc-500">
+                        No featured work submitted.
+                      </p>
+                    )}
+                  </div>
                 </section>
 
                 <section
