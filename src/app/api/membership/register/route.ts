@@ -1,7 +1,10 @@
 import crypto from "crypto";
 import { readFile } from "fs/promises";
 import path from "path";
-import { NextRequest, NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 import {
   FieldValue,
   Timestamp,
@@ -15,15 +18,25 @@ import {
   createSelfRegisteredMember,
   type MemberAccountPurpose,
 } from "@/lib/server/members";
+import {
+  createConnectionFingerprint,
+  getClientAddress,
+  getConnectionControl,
+  isConnectionBlocked,
+  recordSecurityEvent,
+  registerConnectionAccount,
+} from "@/lib/server/securitySignals";
 
 export const runtime = "nodejs";
 
 const MAX_REQUEST_BYTES = 16 * 1024;
 
-const IP_WINDOW_MS = 60 * 60 * 1000;
+const IP_WINDOW_MS =
+  60 * 60 * 1000;
 const MAX_IP_ATTEMPTS = 5;
 
-const EMAIL_WINDOW_MS = 60 * 60 * 1000;
+const EMAIL_WINDOW_MS =
+  60 * 60 * 1000;
 const MAX_EMAIL_ATTEMPTS = 3;
 
 const MIN_PASSWORD_LENGTH = 10;
@@ -33,6 +46,15 @@ const GENERIC_DUPLICATE_MESSAGE =
   "We could not create this account. Try signing in or resetting your password if you may already have an FRDA account.";
 
 class RateLimitError extends Error {}
+
+type TurnstileResponse = {
+  success: boolean;
+  challenge_ts?: string;
+  hostname?: string;
+  action?: string;
+  cdata?: string;
+  "error-codes"?: string[];
+};
 
 function jsonResponse(
   body: Record<string, unknown>,
@@ -57,28 +79,53 @@ function getBaseUrl(): string {
     : "https://frdaph.org";
 }
 
-function normalizeEmail(value: unknown): string {
+function normalizeEmail(
+  value: unknown,
+): string {
   return typeof value === "string"
     ? value.trim().toLowerCase()
     : "";
 }
 
-function sanitizeDisplayName(value: unknown): string {
-  if (typeof value !== "string") {
+function sanitizeDisplayName(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
     return "";
   }
 
   return value
-    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .replace(
+      /[\u0000-\u001F\u007F]/g,
+      "",
+    )
     .trim()
     .replace(/\s+/g, " ")
     .slice(0, 120);
 }
 
-function isValidEmail(value: string): boolean {
+function normalizeText(
+  value: unknown,
+  maxLength: number,
+): string {
+  return typeof value === "string"
+    ? value
+        .replace(/\u0000/g, "")
+        .trim()
+        .slice(0, maxLength)
+    : "";
+}
+
+function isValidEmail(
+  value: string,
+): boolean {
   return (
     value.length <= 254 &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+      value,
+    )
   );
 }
 
@@ -92,34 +139,17 @@ function isAccountPurpose(
   );
 }
 
-function getClientAddress(
-  request: NextRequest,
-): string {
-  const forwarded =
-    request.headers.get("x-forwarded-for");
-
-  if (forwarded) {
-    return (
-      forwarded.split(",")[0]?.trim() ||
-      "unknown"
-    );
-  }
-
-  return (
-    request.headers
-      .get("x-real-ip")
-      ?.trim() ||
-    "unknown"
-  );
-}
-
 function hashRateLimitKey(
   value: string,
 ): string {
   return crypto
     .createHash("sha256")
     .update(
-      `${process.env.FIREBASE_ADMIN_PROJECT_ID || "frda"}:${value}`,
+      `${
+        process.env
+          .FIREBASE_ADMIN_PROJECT_ID ||
+        "frda"
+      }:${value}`,
     )
     .digest("hex");
 }
@@ -133,18 +163,21 @@ async function enforceSlidingWindow({
   windowMs: number;
   maxAttempts: number;
 }) {
-  const reference = adminDb
-    .collection(
-      "membershipRegistrationRateLimits",
-    )
-    .doc(
-      hashRateLimitKey(key),
-    );
+  const reference =
+    adminDb
+      .collection(
+        "membershipRegistrationRateLimits",
+      )
+      .doc(
+        hashRateLimitKey(key),
+      );
 
   await adminDb.runTransaction(
     async (transaction) => {
       const snapshot =
-        await transaction.get(reference);
+        await transaction.get(
+          reference,
+        );
 
       const data =
         snapshot.data() || {};
@@ -193,6 +226,67 @@ async function enforceSlidingWindow({
   );
 }
 
+async function verifyTurnstile({
+  token,
+  ipAddress,
+}: {
+  token: string;
+  ipAddress: string;
+}): Promise<TurnstileResponse> {
+  const secretKey =
+    process.env
+      .TURNSTILE_SECRET_KEY
+      ?.trim();
+
+  if (!secretKey) {
+    throw new Error(
+      "Missing TURNSTILE_SECRET_KEY.",
+    );
+  }
+
+  const formData =
+    new FormData();
+
+  formData.append(
+    "secret",
+    secretKey,
+  );
+
+  formData.append(
+    "response",
+    token,
+  );
+
+  if (
+    ipAddress !== "unknown"
+  ) {
+    formData.append(
+      "remoteip",
+      ipAddress,
+    );
+  }
+
+  const response =
+    await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        body: formData,
+        cache: "no-store",
+      },
+    );
+
+  if (!response.ok) {
+    throw new Error(
+      `Turnstile verification returned ${response.status}.`,
+    );
+  }
+
+  return (
+    await response.json()
+  ) as TurnstileResponse;
+}
+
 function escapeHtml(
   value: string,
 ): string {
@@ -214,7 +308,9 @@ async function sendVerificationEmail({
   verificationUrl: string;
 }) {
   const apiKey =
-    process.env.RESEND_API_KEY?.trim();
+    process.env
+      .RESEND_API_KEY
+      ?.trim();
 
   if (!apiKey) {
     throw new Error(
@@ -239,7 +335,9 @@ async function sendVerificationEmail({
     escapeHtml(displayName);
 
   const safeUrl =
-    escapeHtml(verificationUrl);
+    escapeHtml(
+      verificationUrl,
+    );
 
   const { error } =
     await resend.emails.send({
@@ -256,29 +354,23 @@ async function sendVerificationEmail({
             <div style="text-align:center;margin-bottom:28px;">
               <img src="cid:frda-logo" alt="FRDA logo" style="width:72px;height:72px;object-fit:contain;display:block;margin:0 auto;" />
             </div>
-
             <h1 style="margin:0 0 18px;font-size:28px;line-height:1.25;color:#111827;">
               Verify your email address
             </h1>
-
             <p style="margin:0 0 18px;font-size:16px;line-height:1.75;color:#374151;">
               Hi ${safeName},
             </p>
-
             <p style="margin:0 0 24px;font-size:16px;line-height:1.75;color:#374151;">
               Confirm your email address to finish setting up your FRDA membership account.
             </p>
-
             <div style="margin:0 0 30px;">
               <a href="${safeUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;font-weight:700;font-size:16px;padding:16px 24px;border-radius:10px;">
                 Verify Email
               </a>
             </div>
-
             <p style="margin:0 0 10px;font-size:14px;line-height:1.75;color:#6b7280;">
               If the button does not work, copy and paste this link into your browser:
             </p>
-
             <p style="margin:0;font-size:14px;line-height:1.8;color:#2563eb;word-break:break-word;">
               <a href="${safeUrl}" style="color:#2563eb;text-decoration:underline;">
                 ${safeUrl}
@@ -289,13 +381,16 @@ async function sendVerificationEmail({
       `,
       attachments: [
         {
-          filename: "frda-logo.png",
+          filename:
+            "frda-logo.png",
           content:
             logoBuffer.toString(
               "base64",
             ),
-          contentType: "image/png",
-          contentId: "frda-logo",
+          contentType:
+            "image/png",
+          contentId:
+            "frda-logo",
         },
       ],
     });
@@ -331,11 +426,62 @@ export async function POST(
   let createdUid = "";
   let createdMemberId = "";
 
+  const ipAddress =
+    getClientAddress(request);
+
+  const connectionFingerprint =
+    createConnectionFingerprint(
+      ipAddress,
+    );
+
   try {
+    const connectionControl =
+      await getConnectionControl(
+        connectionFingerprint,
+      );
+
+    if (
+      isConnectionBlocked(
+        connectionControl,
+      )
+    ) {
+      await recordSecurityEvent({
+        eventType:
+          "registration_blocked",
+        connectionFingerprint,
+        outcome: "blocked",
+        details: {
+          permanentBlock:
+            connectionControl
+              .permanentBlock,
+          blockedUntil:
+            connectionControl
+              .blockedUntil
+              ?.toDate()
+              .toISOString() ||
+            null,
+          reason:
+            connectionControl
+              .blockReason,
+        },
+        request,
+      });
+
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            "Account creation is temporarily unavailable from this connection. Contact official@frdaph.org if you believe this is an error.",
+        },
+        403,
+      );
+    }
+
     const contentType =
       request.headers
         .get("content-type")
-        ?.toLowerCase() || "";
+        ?.toLowerCase() ||
+      "";
 
     if (
       !contentType.includes(
@@ -360,7 +506,9 @@ export async function POST(
       );
 
     if (
-      Number.isFinite(contentLength) &&
+      Number.isFinite(
+        contentLength,
+      ) &&
       contentLength >
         MAX_REQUEST_BYTES
     ) {
@@ -374,16 +522,34 @@ export async function POST(
       );
     }
 
-    await enforceSlidingWindow({
-      key:
-        `ip:${getClientAddress(
+    try {
+      await enforceSlidingWindow({
+        key:
+          `ip:${ipAddress}`,
+        windowMs:
+          IP_WINDOW_MS,
+        maxAttempts:
+          MAX_IP_ATTEMPTS,
+      });
+    } catch (error) {
+      if (
+        error instanceof
+        RateLimitError
+      ) {
+        await recordSecurityEvent({
+          eventType:
+            "registration_rate_limited",
+          connectionFingerprint,
+          outcome: "blocked",
+          details: {
+            scope: "ip",
+          },
           request,
-        )}`,
-      windowMs:
-        IP_WINDOW_MS,
-      maxAttempts:
-        MAX_IP_ATTEMPTS,
-    });
+        });
+      }
+
+      throw error;
+    }
 
     const body =
       await request
@@ -413,62 +579,122 @@ export async function POST(
 
     const displayName =
       sanitizeDisplayName(
-        registrationBody.displayName ??
-        registrationBody.fullName,
+        registrationBody
+          .displayName ??
+        registrationBody
+          .fullName,
       );
 
     const email =
       normalizeEmail(
-        (
-          body as Record<
-            string,
-            unknown
-          >
-        ).email,
+        registrationBody.email,
       );
 
-    const passwordValue =
-      (
-        body as Record<
-          string,
-          unknown
-        >
-      ).password;
-
     const password =
-      typeof passwordValue ===
-      "string"
-        ? passwordValue
+      typeof registrationBody
+        .password === "string"
+        ? registrationBody
+            .password
         : "";
 
     const accountPurpose =
-      (
-        body as Record<
-          string,
-          unknown
-        >
-      ).accountPurpose;
-
-    const honeypotValue =
-      (
-        body as Record<
-          string,
-          unknown
-        >
-      ).companyWebsite;
+      registrationBody
+        .accountPurpose;
 
     const honeypot =
-      typeof honeypotValue ===
-      "string"
-        ? honeypotValue.trim()
-        : "";
+      normalizeText(
+        registrationBody
+          .companyWebsite,
+        300,
+      );
+
+    const turnstileToken =
+      normalizeText(
+        registrationBody
+          .turnstileToken,
+        4000,
+      );
 
     if (honeypot) {
+      await recordSecurityEvent({
+        eventType:
+          "registration_honeypot",
+        connectionFingerprint,
+        email,
+        displayName,
+        outcome: "blocked",
+        request,
+      });
+
       return jsonResponse({
         ok: true,
         message:
           "Check your email to finish creating your FRDA membership account.",
       });
+    }
+
+    if (!turnstileToken) {
+      await recordSecurityEvent({
+        eventType:
+          "registration_turnstile_failed",
+        connectionFingerprint,
+        email,
+        displayName,
+        outcome: "blocked",
+        details: {
+          reason:
+            "missing_token",
+        },
+        request,
+      });
+
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            "Please complete the security check.",
+        },
+        400,
+      );
+    }
+
+    const turnstileResult =
+      await verifyTurnstile({
+        token:
+          turnstileToken,
+        ipAddress,
+      });
+
+    if (
+      !turnstileResult.success
+    ) {
+      await recordSecurityEvent({
+        eventType:
+          "registration_turnstile_failed",
+        connectionFingerprint,
+        email,
+        displayName,
+        outcome: "blocked",
+        details: {
+          hostname:
+            turnstileResult.hostname ||
+            "",
+          errorCodes:
+            turnstileResult[
+              "error-codes"
+            ] || [],
+        },
+        request,
+      });
+
+      return jsonResponse(
+        {
+          ok: false,
+          error:
+            "The security check could not be verified. Please refresh and try again.",
+        },
+        400,
+      );
     }
 
     if (
@@ -498,14 +724,36 @@ export async function POST(
       );
     }
 
-    await enforceSlidingWindow({
-      key:
-        `email:${email}`,
-      windowMs:
-        EMAIL_WINDOW_MS,
-      maxAttempts:
-        MAX_EMAIL_ATTEMPTS,
-    });
+    try {
+      await enforceSlidingWindow({
+        key:
+          `email:${email}`,
+        windowMs:
+          EMAIL_WINDOW_MS,
+        maxAttempts:
+          MAX_EMAIL_ATTEMPTS,
+      });
+    } catch (error) {
+      if (
+        error instanceof
+        RateLimitError
+      ) {
+        await recordSecurityEvent({
+          eventType:
+            "registration_rate_limited",
+          connectionFingerprint,
+          email,
+          displayName,
+          outcome: "blocked",
+          details: {
+            scope: "email",
+          },
+          request,
+        });
+      }
+
+      throw error;
+    }
 
     if (
       password.length <
@@ -606,8 +854,7 @@ export async function POST(
           .createUser({
             email,
             password,
-            displayName:
-              displayName,
+            displayName,
             emailVerified:
               false,
             disabled:
@@ -640,8 +887,7 @@ export async function POST(
     const member =
       await createSelfRegisteredMember({
         email,
-        displayName:
-          displayName,
+        displayName,
         accountPurpose,
         authUid:
           createdUid,
@@ -649,6 +895,57 @@ export async function POST(
 
     createdMemberId =
       member.memberId;
+
+    await registerConnectionAccount({
+      connectionFingerprint,
+      memberId:
+        createdMemberId,
+      authUid:
+        createdUid,
+      email,
+      displayName,
+      accountPurpose,
+      turnstileHostname:
+        turnstileResult.hostname ||
+        "",
+    });
+
+    await Promise.all([
+      adminDb
+        .collection(
+          "members",
+        )
+        .doc(createdMemberId)
+        .set(
+          {
+            securityConnectionFingerprint:
+              connectionFingerprint,
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        ),
+
+      recordSecurityEvent({
+        eventType:
+          "registration_succeeded",
+        connectionFingerprint,
+        email,
+        memberId:
+          createdMemberId,
+        authUid:
+          createdUid,
+        displayName,
+        outcome: "allowed",
+        details: {
+          accountPurpose,
+          turnstileHostname:
+            turnstileResult.hostname ||
+            "",
+        },
+        request,
+      }),
+    ]);
 
     const verificationUrl =
       await adminAuth
@@ -662,8 +959,7 @@ export async function POST(
 
     await sendVerificationEmail({
       email,
-      displayName:
-        displayName,
+      displayName,
       verificationUrl,
     });
 
@@ -695,7 +991,9 @@ export async function POST(
     if (createdUid) {
       await Promise.allSettled([
         adminDb
-          .collection("developerProfiles")
+          .collection(
+            "developerProfiles",
+          )
           .doc(createdUid)
           .delete(),
 
@@ -734,6 +1032,17 @@ export async function POST(
         409,
       );
     }
+
+    await recordSecurityEvent({
+      eventType:
+        "registration_failed",
+      connectionFingerprint,
+      outcome: "failed",
+      details: {
+        errorCode: code,
+      },
+      request,
+    }).catch(() => undefined);
 
     return jsonResponse(
       {

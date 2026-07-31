@@ -1,9 +1,10 @@
 "use client";
 
 import Image from "next/image";
+import Script from "next/script";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -26,6 +27,44 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuthUser } from "@/lib/useAuthUser";
+
+
+type TurnstileWidgetId =
+  | string
+  | number;
+
+type TurnstileApi = {
+  render: (
+    container: HTMLElement,
+    options: {
+      sitekey: string;
+      theme?: "dark" | "light" | "auto";
+      size?: "normal" | "compact" | "flexible";
+      callback?: (token: string) => void;
+      "expired-callback"?: () => void;
+      "error-callback"?: () => void;
+    },
+  ) => TurnstileWidgetId;
+
+  reset: (
+    widgetId?: TurnstileWidgetId,
+  ) => void;
+
+  remove: (
+    widgetId: TurnstileWidgetId,
+  ) => void;
+};
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileApi;
+  }
+}
+
+const TURNSTILE_SITE_KEY =
+  process.env
+    .NEXT_PUBLIC_TURNSTILE_SITE_KEY ||
+  "";
 
 const SHOW_GAMES_IN_HEADER = true;
 const SHOW_BLOG_IN_HEADER = true;
@@ -166,6 +205,22 @@ export default function SiteHeader() {
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState("");
   const [joinSuccess, setJoinSuccess] = useState("");
+
+  const [
+    turnstileToken,
+    setTurnstileToken,
+  ] = useState("");
+
+  const turnstileContainerRef =
+    useRef<HTMLDivElement | null>(
+      null,
+    );
+
+  const turnstileWidgetIdRef =
+    useRef<TurnstileWidgetId | null>(
+      null,
+    );
+
 
   const [headerMember, setHeaderMember] =
     useState<HeaderMember | null>(null);
@@ -370,6 +425,77 @@ export default function SiteHeader() {
     authLoading,
   ]);
 
+
+  useEffect(() => {
+    if (
+      !joinOpen ||
+      accountTab !== "signup" ||
+      joinSuccess ||
+      !TURNSTILE_SITE_KEY
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const timer =
+      window.setInterval(() => {
+        if (
+          cancelled ||
+          !window.turnstile ||
+          !turnstileContainerRef.current ||
+          turnstileWidgetIdRef.current !== null
+        ) {
+          return;
+        }
+
+        turnstileWidgetIdRef.current =
+          window.turnstile.render(
+            turnstileContainerRef.current,
+            {
+              sitekey:
+                TURNSTILE_SITE_KEY,
+              theme: "dark",
+              size: "flexible",
+              callback: (token) =>
+                setTurnstileToken(token),
+              "expired-callback": () =>
+                setTurnstileToken(""),
+              "error-callback": () =>
+                setTurnstileToken(""),
+            },
+          );
+
+        window.clearInterval(
+          timer,
+        );
+      }, 150);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(
+        timer,
+      );
+    };
+  }, [
+    joinOpen,
+    accountTab,
+    joinSuccess,
+  ]);
+
+  function resetSignupTurnstile() {
+    setTurnstileToken("");
+
+    if (
+      window.turnstile &&
+      turnstileWidgetIdRef.current !== null
+    ) {
+      window.turnstile.reset(
+        turnstileWidgetIdRef.current,
+      );
+    }
+  }
+
   function getPublicHref(href: string): string {
     if (!mainSiteOrigin) {
       return href;
@@ -425,6 +551,7 @@ export default function SiteHeader() {
     setLoginView("login");
     setShowJoinPassword(false);
     setShowLoginPassword(false);
+    resetSignupTurnstile();
   }
 
   function switchAccountTab(
@@ -594,6 +721,13 @@ export default function SiteHeader() {
       return;
     }
 
+    if (!turnstileToken) {
+      setJoinError(
+        "Please complete the security check.",
+      );
+      return;
+    }
+
     setJoining(true);
 
     try {
@@ -610,6 +744,7 @@ export default function SiteHeader() {
             password: joinForm.password,
             accountPurpose: joinForm.accountPurpose,
             companyWebsite: joinForm.companyWebsite,
+            turnstileToken,
           }),
         }
       );
@@ -627,7 +762,9 @@ export default function SiteHeader() {
 
       setJoinSuccess(result.message);
       setJoinForm(EMPTY_JOIN_FORM);
+      resetSignupTurnstile();
     } catch (error) {
+      resetSignupTurnstile();
       setJoinError(
         error instanceof Error
           ? error.message
@@ -697,6 +834,11 @@ export default function SiteHeader() {
 
   return (
     <>
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+        strategy="afterInteractive"
+      />
+
       <header
         className={`fixed inset-x-0 top-0 z-50 w-full border-b border-white/10 bg-[#03153a]/68 backdrop-blur-lg transition-all duration-300 ${scrolled
           ? "shadow-[0_10px_30px_rgba(0,0,0,0.24)]"
@@ -1423,6 +1565,26 @@ export default function SiteHeader() {
                         </div>
                       </fieldset>
                     ) : null}
+
+
+                    <div
+                      className="mt-5 overflow-hidden border border-white/10 bg-black/20 p-3"
+                      style={{
+                        borderRadius: 8,
+                      }}
+                    >
+                      {TURNSTILE_SITE_KEY ? (
+                        <div
+                          ref={
+                            turnstileContainerRef
+                          }
+                        />
+                      ) : (
+                        <p className="text-sm text-amber-200">
+                          The security check is not configured.
+                        </p>
+                      )}
+                    </div>
 
                     {joinError ? (
                       <div

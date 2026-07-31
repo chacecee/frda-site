@@ -18,6 +18,7 @@ import {
   Gamepad2,
   CalendarClock,
   TriangleAlert,
+  ShieldAlert,
 } from "lucide-react";
 import { usePresence } from "@/lib/usePresence";
 import {
@@ -210,6 +211,7 @@ export default function AdminSidebar({
 
   const [adminOpen, setAdminOpen] = useState(
     active === "admin_tools" ||
+    active === "admin_security" ||
     active === "admin_staff_meetings" ||
     active === "admin_community_survey" ||
     active === "admin_geekout_opportunity"
@@ -566,6 +568,7 @@ export default function AdminSidebar({
 
     if (
       active === "admin_tools" ||
+      active === "admin_security" ||
       active === "admin_staff_meetings" ||
       active === "admin_community_survey" ||
       active === "admin_geekout_opportunity"
@@ -1453,6 +1456,7 @@ export default function AdminSidebar({
                 icon={<ShieldUser size={18} strokeWidth={1.3} />}
                 active={
                   active === "admin_tools" ||
+                  active === "admin_security" ||
                   active === "admin_staff_meetings" ||
                   active === "admin_community_survey" ||
                   active === "admin_geekout_opportunity"
@@ -1465,6 +1469,17 @@ export default function AdminSidebar({
                 <div className="bg-zinc-950/25">
                   {isAdmin ? (
                     <>
+
+                      <SidebarLink
+                        label="Security"
+                        icon={<ShieldAlert size={16} strokeWidth={1.3} />}
+                        active={active === "admin_security"}
+                        className="pl-6"
+                        onClick={() => {
+                          onCloseSidebar();
+                          onNavigate("/admin/security");
+                        }}
+                      />
 
                       <SidebarLink
                         label="Staff Meetings"

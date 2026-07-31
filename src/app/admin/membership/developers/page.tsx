@@ -37,6 +37,14 @@ type SortDirection =
   | "asc"
   | "desc";
 
+type AccountTab =
+  | "all"
+  | "published"
+  | "drafts"
+  | "pending_review"
+  | "changes_requested"
+  | "suspended";
+
 type DeveloperAccount = {
   uid: string;
   memberId: string;
@@ -272,6 +280,9 @@ export default function DeveloperAccountsPage() {
   const [statusFilter, setStatusFilter] =
     useState<ProfileStatus | "all">("all");
 
+  const [accountTab, setAccountTab] =
+    useState<AccountTab>("all");
+
   const [experienceFilter, setExperienceFilter] =
     useState("all");
 
@@ -402,6 +413,18 @@ export default function DeveloperAccountsPage() {
           developer.profileStatus ===
           "changes_requested"
       ).length,
+
+      drafts: developers.filter(
+        (developer) =>
+          developer.profileStatus === "draft" ||
+          developer.profileStatus === "not_started"
+      ).length,
+
+      suspended: developers.filter(
+        (developer) =>
+          developer.accountStatus === "suspended" ||
+          developer.memberStatus === "suspended"
+      ).length,
     };
   }, [developers]);
 
@@ -411,6 +434,40 @@ export default function DeveloperAccountsPage() {
 
     const filtered =
       developers.filter((developer) => {
+        const isSuspended =
+          developer.accountStatus === "suspended" ||
+          developer.memberStatus === "suspended";
+
+        const matchesAccountTab =
+          accountTab === "all" ||
+          (
+            accountTab === "published" &&
+            developer.profileStatus === "live" &&
+            !isSuspended
+          ) ||
+          (
+            accountTab === "drafts" &&
+            (
+              developer.profileStatus === "draft" ||
+              developer.profileStatus === "not_started"
+            ) &&
+            !isSuspended
+          ) ||
+          (
+            accountTab === "pending_review" &&
+            developer.profileStatus === "pending_review" &&
+            !isSuspended
+          ) ||
+          (
+            accountTab === "changes_requested" &&
+            developer.profileStatus === "changes_requested" &&
+            !isSuspended
+          ) ||
+          (
+            accountTab === "suspended" &&
+            isSuspended
+          );
+
         const matchesStatus =
           statusFilter === "all" ||
           developer.profileStatus === statusFilter;
@@ -424,6 +481,7 @@ export default function DeveloperAccountsPage() {
           developer.deliveryScope === deliveryScopeFilter;
 
         if (
+          !matchesAccountTab ||
           !matchesStatus ||
           !matchesExperience ||
           !matchesDeliveryScope
@@ -528,6 +586,7 @@ export default function DeveloperAccountsPage() {
     developers,
     search,
     statusFilter,
+    accountTab,
     experienceFilter,
     deliveryScopeFilter,
     sortKey,
@@ -863,6 +922,44 @@ export default function DeveloperAccountsPage() {
                 </p>
               </div>
             ))}
+          </div>
+
+
+          <div className="mb-5 overflow-x-auto border-b border-zinc-800">
+            <div className="flex min-w-max gap-1">
+              {[
+                ["all", "All", counts.total],
+                ["published", "Published", counts.published],
+                ["drafts", "Drafts", counts.drafts],
+                ["pending_review", "Waiting for Review", counts.pending],
+                ["changes_requested", "Changes Requested", counts.changesRequested],
+                ["suspended", "Suspended", counts.suspended],
+              ].map(([value, label, count]) => (
+                <button
+                  key={String(value)}
+                  type="button"
+                  onClick={() =>
+                    setAccountTab(
+                      value as AccountTab,
+                    )
+                  }
+                  className={`relative cursor-pointer px-4 py-3 text-sm font-medium transition ${
+                    accountTab === value
+                      ? "text-white"
+                      : "text-zinc-500 hover:text-zinc-200"
+                  }`}
+                >
+                  {label}
+                  <span className="ml-2 rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300">
+                    {Number(count)}
+                  </span>
+
+                  {accountTab === value ? (
+                    <span className="absolute inset-x-0 bottom-0 h-0.5 bg-blue-400" />
+                  ) : null}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="mb-5 flex flex-col gap-3 sm:flex-row">

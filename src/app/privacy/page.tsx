@@ -4,103 +4,104 @@ export default function PrivacyPage() {
   return (
     <>
       <SiteHeader />
+
       <main className="mx-auto max-w-4xl px-6 pb-16 pt-[200px] text-sm leading-7 text-zinc-800 dark:text-zinc-200">
-        <h1 className="mb-6 text-3xl font-semibold">FRDA Privacy Notice</h1>
+        <h1 className="mb-6 text-3xl font-semibold">
+          FRDA Privacy Notice
+        </h1>
 
         <p className="mb-4">
-          The Filipino Roblox Developers Association (FRDA) respects your right
-          to privacy and is committed to protecting your personal data in
-          accordance with applicable privacy laws and regulations.
+          The Filipino Roblox Developers Association (FRDA) respects your privacy and is committed to protecting personal data in accordance with applicable privacy laws and regulations.
         </p>
 
-        <h2 className="mb-3 mt-8 text-xl font-semibold">Who we are</h2>
+        <h2 className="mb-3 mt-8 text-xl font-semibold">
+          Who we are
+        </h2>
+
         <p>
-          FRDA is the personal information controller for the personal data
-          collected through our developer registration form and related
-          application review systems.
+          FRDA is the personal information controller for personal data collected through our website, membership system, developer directory, opportunity forms, moderation processes, and related administrative systems.
         </p>
 
         <h2 className="mb-3 mt-8 text-xl font-semibold">
           What personal data we collect
         </h2>
+
         <p>
-          Depending on what you provide, FRDA may collect your first name, last
-          name, email address, birth year, region, Roblox username or profile,
-          Roblox experience or place link, contribution details, Discord User
-          ID, optional supporting links, and optional Facebook profile URL.
+          Depending on the service you use, FRDA may collect your name or public alias, email address, account type, Roblox profile and experience links, portfolio details, skills, profile images, Discord information, optional social or portfolio links, messages sent through the platform, and information you submit for membership, opportunities, reports, or profile review.
         </p>
 
         <h2 className="mb-3 mt-8 text-xl font-semibold">
-          Why we collect your personal data
+          Public developer profiles
         </h2>
+
         <p>
-          FRDA collects and uses your personal data to review developer
-          registration applications, verify ownership or control of submitted
-          Roblox work, evaluate claimed Roblox development involvement,
-          administer membership records, communicate with applicants, and
-          coordinate Discord server access for accepted applicants.
+          Information a developer chooses to publish through the FRDA Developer Directory may be publicly visible. Draft profiles, unpublished changes, internal reviewer notes, security records, and account-administration information are not intended for public display.
         </p>
 
         <h2 className="mb-3 mt-8 text-xl font-semibold">
-          How developer ownership is reviewed
+          Why we collect and use personal data
         </h2>
+
         <p>
-          As part of the registration process, applicants may be asked to place
-          a unique FRDA verification code in or around the submitted Roblox work.
-          This helps FRDA confirm that the applicant owns, controls, or has
-          authorized access to the Roblox work submitted for review.
+          FRDA uses personal data to create and administer member accounts, review and publish developer profiles, moderate content, respond to reports, connect developers with opportunities, administer Discord access, communicate with members, maintain platform security, prevent spam and abuse, investigate incidents, and meet legal or organizational recordkeeping requirements.
         </p>
 
         <h2 className="mb-3 mt-8 text-xl font-semibold">
-          Optional future identity verification
+          Security and abuse-prevention records
         </h2>
+
         <p>
-          Approved applicants are recognized as FRDA Registered Developers once
-          FRDA verifies ownership or control of their submitted Roblox work.
-          Some future opportunities, such as job board access, client-facing
-          developer profiles, or similar higher-trust features, may require a
-          separate optional identity verification step. FRDA will provide
-          additional details before collecting any additional information for
-          that purpose.
+          To protect FRDA members and systems, we may record technical security information when sensitive actions are attempted, including account registration, profile submission, and other protected requests. This may include the date and time, browser or device information, security-check results, rate-limit events, and a one-way connection fingerprint derived from a network address.
+        </p>
+
+        <p className="mt-4">
+          The connection fingerprint is used to identify repeated activity that appears to come from the same connection without routinely displaying the underlying network address to staff. A shared connection does not prove that accounts belong to the same person because households, schools, offices, public networks, mobile providers, and privacy services may share or change addresses. FRDA reviews other evidence before taking moderation or blocking action.
+        </p>
+
+        <h2 className="mb-3 mt-8 text-xl font-semibold">
+          Automated security services
+        </h2>
+
+        <p>
+          FRDA may use services such as Firebase App Check, Google reCAPTCHA Enterprise, and Cloudflare Turnstile to help distinguish legitimate website activity from automated or unauthorized requests. These services may process technical information according to their own privacy and security terms.
         </p>
 
         <h2 className="mb-3 mt-8 text-xl font-semibold">
           Who may access your data
         </h2>
+
         <p>
-          Your personal data will only be accessed by authorized FRDA personnel
-          who need it for application review, developer ownership verification,
-          membership administration, privacy compliance, or technical
-          administration.
+          Personal data is accessible only to authorized FRDA personnel who need it for membership administration, profile moderation, opportunity coordination, security, privacy compliance, or technical administration. Sensitive security controls are restricted to authorized administrators.
         </p>
 
         <h2 className="mb-3 mt-8 text-xl font-semibold">
-          How long we keep your data
+          How long we keep data
         </h2>
+
         <p>
-          FRDA keeps personal data only for as long as necessary for the
-          purposes stated in this notice, for legitimate organizational
-          recordkeeping, for legal claims, or as otherwise required by law.
+          FRDA keeps personal data only for as long as reasonably necessary for the purposes in this notice, legitimate organizational recordkeeping, platform security, dispute handling, legal claims, or compliance obligations. Security and abuse-prevention records may be retained long enough to recognize repeated patterns and protect the platform.
         </p>
 
         <h2 className="mb-3 mt-8 text-xl font-semibold">
-          How we may share your data
+          How we may share data
         </h2>
+
         <p>
-          FRDA does not publicly disclose your personal data. We may share
-          personal data only with service providers supporting our systems,
-          subject to appropriate safeguards, or when disclosure is required by
-          law or valid legal process.
+          FRDA does not sell personal data. We may share information with service providers supporting our website, communications, hosting, security, authentication, storage, and moderation systems, subject to appropriate safeguards. Information may also be disclosed when required by law or valid legal process.
         </p>
 
-        <h2 className="mb-3 mt-8 text-xl font-semibold">Your rights</h2>
+        <h2 className="mb-3 mt-8 text-xl font-semibold">
+          Your rights
+        </h2>
+
         <p>
-          You may request access to your personal data, correction of inaccurate
-          data, deletion of data where applicable, or raise privacy-related
-          concerns through our designated privacy contact.
+          You may request access to your personal data, correction of inaccurate data, deletion where applicable, or raise privacy-related concerns through our designated privacy contact. Some records may need to be retained where necessary for security, legal, or legitimate organizational purposes.
         </p>
 
-        <h2 className="mb-3 mt-8 text-xl font-semibold">Contact us</h2>
+        <h2 className="mb-3 mt-8 text-xl font-semibold">
+          Contact us
+        </h2>
+
         <p>
           Data Protection Officer
           <br />

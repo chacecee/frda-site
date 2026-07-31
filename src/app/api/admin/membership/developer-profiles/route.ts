@@ -18,6 +18,10 @@ import {
 } from "@/lib/server/adminAuthorization";
 
 import {
+  markConnectionSuspension,
+} from "@/lib/server/securitySignals";
+
+import {
   DEVELOPER_PREMIUM_LAUNCH_LIMIT,
   hasDeveloperPremiumAccess,
   isEligibleForLaunchPremiumReview,
@@ -471,6 +475,12 @@ function serializeDeveloperAccount({
     launchPremiumEligible,
 
     launchPremiumIneligibilityReason,
+
+    securityConnectionFingerprint:
+      String(
+        member.securityConnectionFingerprint ||
+        "",
+      ),
   };
 }
 
@@ -1901,6 +1911,29 @@ export async function PATCH(
 
     if (
       body.action ===
+      "suspend_account"
+    ) {
+      const memberSnapshot =
+        await memberReference.get();
+
+      const fingerprint =
+        String(
+          memberSnapshot.data()
+            ?.securityConnectionFingerprint ||
+          "",
+        );
+
+      if (fingerprint) {
+        await markConnectionSuspension({
+          connectionFingerprint:
+            fingerprint,
+          suspended: true,
+        });
+      }
+    }
+
+    if (
+      body.action ===
       "restore_account"
     ) {
       await adminAuth.updateUser(
@@ -1909,6 +1942,29 @@ export async function PATCH(
           disabled: false,
         },
       );
+    }
+
+    if (
+      body.action ===
+      "restore_account"
+    ) {
+      const memberSnapshot =
+        await memberReference.get();
+
+      const fingerprint =
+        String(
+          memberSnapshot.data()
+            ?.securityConnectionFingerprint ||
+          "",
+        );
+
+      if (fingerprint) {
+        await markConnectionSuspension({
+          connectionFingerprint:
+            fingerprint,
+          suspended: false,
+        });
+      }
     }
 
     const [
