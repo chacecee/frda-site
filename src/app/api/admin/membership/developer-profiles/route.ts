@@ -1615,12 +1615,12 @@ export async function PATCH(
 
         if (
           body.action ===
-          "set_review_requirement"
-          ? body.reviewRequired
-            ? "Future profile changes will require staff review."
-            : "This developer is now trusted to update their public profile directly."
-          : body.action ===
-          "grant_premium"
+            "set_review_requirement"
+            ? body.reviewRequired
+              ? "Future profile changes will require staff review."
+              : "This developer is now trusted to update their public profile directly."
+            : body.action ===
+            "grant_premium"
         ) {
           if (
             !publishedIsLive
@@ -1829,6 +1829,14 @@ export async function PATCH(
               memberId,
             });
 
+          const shouldQueueLaunchPremiumReview =
+            !hasDeveloperPremiumAccess(
+              memberData,
+            ) &&
+            isEligibleForLaunchPremiumReview(
+              memberData,
+            );
+
           transaction.set(
             publishedReference,
             buildPublishedDeveloperProfile({
@@ -1881,6 +1889,13 @@ export async function PATCH(
               hasUnpublishedChanges:
                 false,
 
+              ...(shouldQueueLaunchPremiumReview
+                ? {
+                  developerPremiumStatus:
+                    "pending_review",
+                }
+                : {}),
+
               publishedAt:
                 profile.publishedAt ||
                 FieldValue.serverTimestamp(),
@@ -1894,7 +1909,7 @@ export async function PATCH(
             {
               merge: true,
             },
-          );
+          );          
 
           transaction.set(
             memberReference,
@@ -1904,6 +1919,13 @@ export async function PATCH(
 
               hasBeenApprovedBefore:
                 true,
+
+              ...(shouldQueueLaunchPremiumReview
+                ? {
+                  developerPremiumStatus:
+                    "pending_review",
+                }
+                : {}),
 
               updatedAt:
                 FieldValue
@@ -2276,24 +2298,24 @@ export async function PATCH(
             ? "Future profile changes will require staff review."
             : "This developer is now trusted to update their public profile directly."
           : body.action ===
-          "grant_premium"
-          ? "Launch lifetime premium was granted to this developer."
-          : body.action ===
-            "revoke_premium"
-            ? "Launch lifetime premium was revoked and the promotional spot was returned."
+            "grant_premium"
+            ? "Launch lifetime premium was granted to this developer."
             : body.action ===
-              "suspend_account"
-              ? "The member account was suspended and its public profile was hidden."
+              "revoke_premium"
+              ? "Launch lifetime premium was revoked and the promotional spot was returned."
               : body.action ===
-                "restore_account"
-                ? "The member account was restored. Its profile remains unpublished as a draft."
+                "suspend_account"
+                ? "The member account was suspended and its public profile was hidden."
                 : body.action ===
-                  "approve"
-                  ? "Developer profile approved and published."
+                  "restore_account"
+                  ? "The member account was restored. Its profile remains unpublished as a draft."
                   : body.action ===
-                    "request_changes"
-                    ? "Changes were requested from the developer."
-                    : "Developer profile hidden.",
+                    "approve"
+                    ? "Developer profile approved and published."
+                    : body.action ===
+                      "request_changes"
+                      ? "Changes were requested from the developer."
+                      : "Developer profile hidden.",
     });
   } catch (error) {
     console.error(
