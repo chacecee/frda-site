@@ -15,7 +15,7 @@ const leadershipMembers = [
     discord: "chace_space",
     email: "chace@frdaph.org",
     roblox: "",
-  },  
+  },
   {
     nickname: "Tanjiro",
     realName: "Rajyd Carandang",
@@ -23,37 +23,41 @@ const leadershipMembers = [
     discord: "tanjiro_ae",
     email: "communications@frdaph.org",
     roblox: "",
-  }, 
+  },
 
 ];
 
 const officerMembers = [
   {
-    nickname: "Meru",
-    realName: "Marcus Icalina",
-    role: "External Affairs",
-    discord: "meruisms",
-    roblox: "Mar_Cause",
+    nickname: "Boss Mhek",
+    role: "Developer Programs Officer",
+    discord: "",
+    roblox: "",
+  },
+  {
+    nickname: "Basik",
+    role: "Developer Programs Officer",
+    discord: "",
+    roblox: "",
+  },
+    {
+    nickname: "Julia",
+    role: "Blog Writer",
+    discord: "",
+    roblox: "",
   },
   {
     nickname: "Oreo",
     realName: "Ron Gevera",
-    role: "Human Resource Department | Staff Affairs",
-    discord: "ro.0397_03790",
-    roblox: "RONX23ron",
-  },
-  {
-    nickname: "Astriel",
-    realName: "John Peralta",
-    role: "Public Information and Editorial | External Affairs",
-    discord: "xvastriel",
-    roblox: "VenomNLR",
+    role: "Visual Content Editor",
+    discord: "",
+    roblox: "",
   },
   {
     nickname: "Croissant",
     realName: "Juno Ronquillo ",
-    role: "Chief of Editorial Department",
-    discord: "mitappinventorgod",
+    role: "Visual Content Editor",
+    discord: "",
     roblox: "",
   },
 ];
