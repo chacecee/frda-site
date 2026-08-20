@@ -185,6 +185,15 @@ export default function HomePage() {
                         >
                             {[
                                 {
+                                    title: "Senate public hearing on child online safety",
+                                    href: "https://www.youtube.com/watch?v=3oY-s7G3G2Q",
+                                    source: "Senate of the Philippines",
+                                    date: "August 20, 2026",
+                                    image: "/news4.jpg",
+                                    description:
+                                        "FRDA joined the Senate hearing as a resource person, contributing the developer perspective on child online safety, safer game development, and clearer escalation pathways for serious reports.",
+                                },
+                                {
                                     title: "CICC stakeholder meeting",
                                     href: "https://www.facebook.com/share/v/1LMHiFAWoY/",
                                     source: "CICC stakeholder meeting",
