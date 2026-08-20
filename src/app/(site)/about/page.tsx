@@ -3,7 +3,7 @@ const leadershipMembers = [
   {
     nickname: "Berry",
     realName: "Daryll Pagsolingan",
-    role: "Chief Executive Director",
+    role: "Founder and Chairperson",
     discord: "frdaphilippines",
     email: "official@frdaph.org",
     roblox: "",
@@ -11,7 +11,7 @@ const leadershipMembers = [
   {
     nickname: "Chace",
     realName: "Chace Aluzan",
-    role: "Deputy Executive Director",
+    role: "Chief Executive Director",
     discord: "chace_space",
     email: "chace@frdaph.org",
     roblox: "",
