@@ -17,7 +17,7 @@ const leadershipMembers = [
     roblox: "",
   },
   {
-    nickname: "Tanjiro",
+    nickname: "Rajyd",
     realName: "Rajyd Carandang",
     role: "Director of External Relations and Growth",
     discord: "tanjiro_ae",
